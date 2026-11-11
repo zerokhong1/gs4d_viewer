@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--frames", type=int, default=60)
     ap.add_argument("--points", type=int, default=3000, help="Gaussians per object")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--sh", action="store_true",
+                    help="add fake degree-1 SH so the balls change colour with the viewing direction (gsplat renderer)")
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
     K, n = a.frames, a.points
@@ -72,7 +74,17 @@ def main():
     covs = cov_from_quat_scale(quats, np.broadcast_to(scales, (K, 5 * n, 3)))
     colors = np.concatenate([g_col, orbit_c, bounce_c, cloud_c])
 
-    seq = Sequence4D(times, means, covs, opac, colors, source="synthetic toy scene (make_toy.py)")
+    sh = None
+    if a.sh:
+        from gs4d import SH_C0
+        sh = np.zeros((5 * n, 4, 3), np.float32)
+        sh[:, 0] = (colors - 0.5) / SH_C0  # DC term reproduces `colors` when the other terms are zero
+        # degree-1 terms are ordered (y, z, x). Each ball gets a strong tint along one horizontal axis.
+        sh[2 * n: 3 * n, 3] = [-0.9, 0.9, 0.9]   # orbiting ball: red from -x, cyan from +x
+        sh[3 * n: 4 * n, 1] = [0.9, 0.9, -0.9]   # bouncing ball: blue from -y, yellow from +y
+        sh[4 * n:, 3] = [0.9, -0.9, 0.9]         # cloud: tint along x
+    seq = Sequence4D(times, means, covs, opac, colors, sh=sh,
+                     source="synthetic toy scene (make_toy.py)" + (", fake SH" if a.sh else ""))
     seq.save(a.output)
     print(f"Wrote {a.output}: {seq.summary()}")
 

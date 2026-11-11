@@ -174,15 +174,38 @@ class Viewer:
         else:
             self.splats.set_gaussians(centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
 
-    def _draw_gsplat(self, time_changed: bool):
+    def _load_gsplat(self):
+        """Tensors of the current time step. Colours are SH coefficients [M,S,3] when the sequence has them."""
+        torch = self.torch
+        means, covs, opac, cols = self._current()
+        sh = self.seq.sh_at(self.time.value)
+        keep = opac > 0
+        self.cur = tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(self.device)
+                         for a in (means, covs, opac, cols if sh is None else sh))
+
+    def render_gsplat(self, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
+        """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background."""
         torch = self.torch
         from gsplat import rasterization
 
-        if time_changed or self.cur is None:
-            means, covs, opac, cols = self._current()
-            keep = opac > 0
-            self.cur = tuple(torch.from_numpy(a[keep]).to(self.device) for a in (means, covs, opac, cols))
+        if self.cur is None:
+            self._load_gsplat()
         means, covs, opac, cols = self.cur
+        if len(means) == 0:  # everything hidden by the opacity threshold
+            return np.full((H, W, 3), 255, np.uint8)
+        viewmat_np, K_np = camera_matrices(wxyz, position, fov_y, W, H)
+        K = torch.from_numpy(K_np).to(self.device)
+        viewmat = torch.from_numpy(viewmat_np).to(self.device)
+        with torch.no_grad():
+            img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
+                                          sh_degree=self.seq.sh_degree)
+            img = img[0] + (1.0 - alpha[0])  # composite over white, the browser renderer's background
+            # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
+        return (img.clamp(0, 1) * 255).round().to(torch.uint8).cpu().numpy()
+
+    def _draw_gsplat(self, time_changed: bool):
+        if time_changed or self.cur is None:
+            self._load_gsplat()
         clients = self.server.get_clients()
         for cid in [c for c in self.cam_stamp if c not in clients]:  # forget disconnected clients
             del self.cam_stamp[cid]
@@ -194,17 +217,7 @@ class Viewer:
             self.cam_stamp[cid] = stamp
             H = int(min(self.max_res.value, cam.image_height or self.max_res.value))
             W = max(int(round(H * cam.aspect)), 1)
-            viewmat_np, K_np = camera_matrices(cam.wxyz, cam.position, cam.fov, W, H)
-            K = torch.from_numpy(K_np).to(self.device)
-            viewmat = torch.from_numpy(viewmat_np).to(self.device)
-            if len(means) == 0:  # everything hidden by the opacity threshold
-                client.scene.set_background_image(np.full((H, W, 3), 255, np.uint8), format="jpeg")
-                continue
-            with torch.no_grad():
-                img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs)
-                img = img[0] + (1.0 - alpha[0])  # composite over white, the browser renderer's background
-                # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
-            rgb = (img.clamp(0, 1) * 255).round().to(torch.uint8).cpu().numpy()
+            rgb = self.render_gsplat(cam.wxyz, cam.position, cam.fov, W, H)
             client.scene.set_background_image(rgb, format="jpeg", jpeg_quality=85)
 
     # ---------------------------------------------------------------- loop

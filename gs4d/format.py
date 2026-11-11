@@ -6,6 +6,10 @@ One .npz file:
     covs       [K,N,6] | [N,6]   float32  upper triangle of the 3x3 covariance: xx xy xz yy yz zz
     opacities  [K,N]   | [N]     float32  in [0,1]
     colors     [K,N,3] | [N,3]   float32  RGB in [0,1] (view-independent)
+    sh         [K,N,S,3] | [N,S,3]  float32  OPTIONAL spherical-harmonics coefficients, S = (degree+1)^2,
+                                    3DGS convention: colour = max(SH(view direction) + 0.5, 0), sh[..., 0, :] is
+                                    the DC term (f_dc), the rest is f_rest. Used by the gsplat renderer only;
+                                    `colors` must still be filled (browser renderer, files written before `sh`).
     interpolate  bool   False when keyframes do not share Gaussian identities
     source       str    free text, shown in the viewer
 
@@ -14,6 +18,7 @@ A field without the leading K axis is constant over time.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -64,6 +69,7 @@ class Sequence4D:
     colors: np.ndarray
     interpolate: bool = True
     source: str = ""
+    sh: Optional[np.ndarray] = None
 
     def __post_init__(self):
         self.times = np.asarray(self.times, np.float32).reshape(-1)
@@ -76,6 +82,16 @@ class Sequence4D:
             if a.shape not in (tail, (K,) + tail):
                 raise ValueError(f"{name} has shape {a.shape}, expected {tail} or {(K,) + tail}")
             setattr(self, name, a)
+        if self.sh is not None:
+            a = np.asarray(self.sh, np.float32)
+            S = a.shape[-2] if a.ndim >= 3 else 0
+            if S not in (1, 4, 9, 16) or a.shape not in ((N, S, 3), (K, N, S, 3)):
+                raise ValueError(f"sh has shape {a.shape}, expected {(N, 'S', 3)} or {(K, N, 'S', 3)} with S in 1, 4, 9, 16")
+            self.sh = a
+
+    @property
+    def sh_degree(self) -> Optional[int]:
+        return None if self.sh is None else int(round(self.sh.shape[-2] ** 0.5)) - 1
 
     @property
     def num_frames(self) -> int:
@@ -92,8 +108,8 @@ class Sequence4D:
             return a[i0]
         return (1.0 - w) * a[i0] + w * a[i1]
 
-    def at(self, t: float):
-        """Gaussians at time t: (means [N,3], covs [N,6], opacities [N], colors [N,3])."""
+    def _bracket(self, t: float):
+        """Keyframes around t and the weight of the second one."""
         ts = self.times
         t = float(np.clip(t, ts[0], ts[-1]))
         i1 = int(np.searchsorted(ts, t, side="left"))
@@ -103,6 +119,11 @@ class Sequence4D:
         if not self.interpolate:  # nearest keyframe
             i0 = i1 = i1 if w >= 0.5 else i0
             w = 0.0
+        return i0, i1, w
+
+    def at(self, t: float):
+        """Gaussians at time t: (means [N,3], covs [N,6], opacities [N], colors [N,3])."""
+        i0, i1, w = self._bracket(t)
         return (
             self._field(self.means, 2, i0, i1, w),
             self._field(self.covs, 2, i0, i1, w),
@@ -110,9 +131,17 @@ class Sequence4D:
             self._field(self.colors, 2, i0, i1, w),
         )
 
+    def sh_at(self, t: float) -> Optional[np.ndarray]:
+        """SH coefficients at time t, [N,S,3], or None when the sequence has none."""
+        if self.sh is None:
+            return None
+        return self._field(self.sh, 3, *self._bracket(t))
+
     def save(self, path: str) -> None:
+        extra = {} if self.sh is None else {"sh": self.sh}
         np.savez(
             path,
+            **extra,
             times=self.times,
             means=self.means,
             covs=self.covs,
@@ -133,6 +162,7 @@ class Sequence4D:
                 colors=z["colors"],
                 interpolate=bool(z["interpolate"]) if "interpolate" in z else True,
                 source=str(z["source"]) if "source" in z else "",
+                sh=z["sh"] if "sh" in z else None,
             )
 
     def summary(self) -> str:
@@ -140,4 +170,6 @@ class Sequence4D:
                                  ("opacities", self.opacities, 1), ("colors", self.colors, 2)) if a.ndim > d]
         return (f"{self.num_gaussians:,} Gaussians x {self.num_frames} keyframes, "
                 f"t in [{self.times[0]:.3f}, {self.times[-1]:.3f}], "
-                f"time-varying: {', '.join(dyn) or 'none'}")
+                f"time-varying: {', '.join(dyn) or 'none'}"
+                + ("" if self.sh is None else f", SH degree {self.sh_degree}"
+                   + (" (per keyframe)" if self.sh.ndim == 4 else "")))
