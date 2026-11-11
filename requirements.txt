@@ -1,0 +1,6 @@
+numpy
+viser>=1.0
+# renderer gsplat (GPU NVIDIA):
+# torch
+# gsplat
+# convert_native4d.py cần torch (CPU là đủ) để đọc checkpoint
