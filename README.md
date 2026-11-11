@@ -36,6 +36,26 @@ từ tâm thời gian của các Gaussian.
   và scene nhỏ; mặc định giới hạn 300.000 Gaussian (`--max-splats`).
 - `--renderer auto` (mặc định): chọn gsplat nếu có CUDA, không thì client.
 
+Cài cho renderer gsplat (không cần CUDA toolkit; wheel dựng sẵn của gsplat chỉ có cho Python 3.10):
+
+```bash
+uv venv --python 3.10 --seed .venv
+uv pip install --python .venv/bin/python torch==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+uv pip install --python .venv/bin/python "numpy<2" "viser>=1.0" playwright pillow
+uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" --find-links https://docs.gsplat.studio/whl/gsplat/ --index-strategy unsafe-best-match
+```
+
+Tốc độ đo được của renderer gsplat với `toy.npz` (15.000 Gaussian × 60 keyframe) trên RTX 3060 12 GB,
+torch 2.4.1+cu124, gsplat 1.5.3, đang play, trình duyệt cùng máy:
+
+| Độ phân giải render | Thời gian một frame (rasterize + JPEG + gửi) | Frame/giây gửi đi khi "Update rate" = 60 Hz |
+|---|---|---|
+| 1280×720 | 14 ms | 57 |
+| 1920×1080 | 23 ms | 42 |
+
+"Update rate" mặc định là 20 Hz nên mặc định viewer gửi 20 frame/giây ở cả hai độ phân giải. Con số trên
+đo ở phía server; tốc độ hiển thị trong trình duyệt thật chưa đo.
+
 Xem từ máy khác qua SSH: `ssh -L 8080:localhost:8080 <server>` rồi mở `http://localhost:8080`.
 Scene từ COLMAP thường cần `--up -y`.
 
@@ -64,4 +84,5 @@ Thêm phương pháp mới: viết một script tạo `Sequence4D(...)` rồi `.
 ```bash
 python tests/test_all.py                                  # 4 phép kiểm, không cần GPU
 python tests/test_all.py /path/to/4d-gaussian-splatting   # thêm so khớp với hàm gốc của repo
+python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
 ```
