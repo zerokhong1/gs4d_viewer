@@ -28,13 +28,13 @@ def _natural_key(s: str):
     return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", os.path.basename(s))]
 
 
-def from_ply_folder(folder: str, stride: int, fps: float) -> Sequence4D:
+def from_ply_folder(folder: str, stride: int, fps: float, sh: bool = False) -> Sequence4D:
     files = sorted(glob.glob(os.path.join(folder, "*.ply")), key=_natural_key)[::stride]
     if not files:
         raise SystemExit(f"No .ply files in {folder}")
     frames = []
     for i, f in enumerate(files):
-        frames.append(gaussians_from_ply(f))
+        frames.append(gaussians_from_ply(f, with_sh=sh))
         print(f"\r  read {i + 1}/{len(files)} ({frames[-1][0].shape[0]:,} Gaussians)", end="", flush=True)
     print()
     counts = [fr[0].shape[0] for fr in frames]
@@ -51,8 +51,15 @@ def from_ply_folder(folder: str, stride: int, fps: float) -> Sequence4D:
         return out
 
     times = np.arange(len(frames), dtype=np.float32) * stride / fps
+    sh_all = None
+    if sh:
+        shapes = {None if fr[4] is None else fr[4].shape[1] for fr in frames}
+        if len(shapes) == 1 and None not in shapes:
+            sh_all = stack(4, (shapes.pop(), 3))
+        else:
+            print("  --sh ignored: the ply files have no f_dc_*/f_rest_* or differ in SH degree")
     return Sequence4D(times, stack(0, (3,)), stack(1, (6,)), stack(2, ()), stack(3, (3,)),
-                      interpolate=same, source=f"per-frame ply: {os.path.abspath(folder)}")
+                      interpolate=same, source=f"per-frame ply: {os.path.abspath(folder)}", sh=sh_all)
 
 
 def from_dynamic3dgs(path: str, stride: int, fps: float, fg_only: bool) -> Sequence4D:
@@ -83,10 +90,13 @@ def main():
     ap.add_argument("--stride", type=int, default=1, help="keep every n-th frame")
     ap.add_argument("--fps", type=float, default=30.0, help="frame rate of the source frames (sets the time axis)")
     ap.add_argument("--fg-only", action="store_true", help="Dynamic 3D Gaussians: keep foreground Gaussians only")
+    ap.add_argument("--sh", action="store_true",
+                    help="ply folder: keep f_rest_* (view-dependent colour, gsplat renderer only); "
+                         "adds N x K x 12 x (degree+1)^2 bytes")
     a = ap.parse_args()
 
     if os.path.isdir(a.input):
-        seq = from_ply_folder(a.input, a.stride, a.fps)
+        seq = from_ply_folder(a.input, a.stride, a.fps, a.sh)
     elif a.input.endswith(".npz"):
         seq = from_dynamic3dgs(a.input, a.stride, a.fps, a.fg_only)
     else:

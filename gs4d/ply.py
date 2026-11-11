@@ -48,10 +48,12 @@ def read_ply_vertices(path: str) -> np.ndarray:
         raise ValueError(f"{path}: unsupported PLY format {fmt}")
 
 
-def gaussians_from_ply(path: str):
+def gaussians_from_ply(path: str, with_sh: bool = False):
     """Standard 3DGS ply -> (means [N,3], covs [N,6], opacities [N], colors [N,3]).
 
     Applies the usual activations: exp on scale_*, sigmoid on opacity, SH degree 0 for colour.
+    With with_sh=True a fifth item is returned: the SH coefficients [N,S,3] (f_dc_* then f_rest_*,
+    which the 3DGS ply stores channel-major: f_rest_{c*(S-1)+j}), or None when the ply has no f_dc_*.
     """
     v = read_ply_vertices(path)
     names = v.dtype.names
@@ -66,4 +68,18 @@ def gaussians_from_ply(path: str):
         colors = np.stack([v["red"], v["green"], v["blue"]], -1).astype(np.float32) / 255.0
     else:
         colors = np.full((len(v), 3), 0.7, np.float32)
-    return means, cov_from_quat_scale(quats, scales), opac, colors
+    covs = cov_from_quat_scale(quats, scales)
+    if not with_sh:
+        return means, covs, opac, colors
+    sh = None
+    if "f_dc_0" in names:
+        n_rest = sum(1 for n in names if n.startswith("f_rest_"))
+        S = n_rest // 3 + 1
+        if n_rest % 3 or S not in (1, 4, 9, 16):
+            raise ValueError(f"{path}: {n_rest} f_rest_* properties is not a full SH degree")
+        sh = np.empty((len(v), S, 3), np.float32)
+        sh[:, 0] = dc
+        for c in range(3):
+            for j in range(S - 1):
+                sh[:, j + 1, c] = v[f"f_rest_{c * (S - 1) + j}"]
+    return means, covs, opac, colors, sh
