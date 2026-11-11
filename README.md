@@ -63,6 +63,21 @@ torch 2.4.1+cu124, gsplat 1.5.3, đang play, trình duyệt cùng máy:
 Xem từ máy khác qua SSH: `ssh -L 8080:localhost:8080 <server>` rồi mở `http://localhost:8080`.
 Scene từ COLMAP thường cần `--up -y`.
 
+## Xuất video
+
+Trong bảng điều khiển mở mục **Export video**, đặt camera ở góc muốn quay, chọn "Frames per second" và
+"Video length (s)", rồi bấm **Export mp4 from this camera**. Viewer render toàn bộ khoảng thời gian của
+sequence từ camera hiện tại (camera đứng yên) thành file `<tên_file>_<ngày_giờ>.mp4` trong thư mục
+`--video-dir` (mặc định là thư mục đang chạy) trên máy chạy viewer, đồng thời hiện link tải file về trong
+trình duyệt. Cần `pip install imageio imageio-ffmpeg` (đã kèm ffmpeg).
+
+- Renderer gsplat: render thẳng trên GPU ở độ phân giải đang hiển thị (giới hạn bởi "Max render height");
+  60 frame 1280×720 của `toy.npz` mất khoảng 1 giây.
+- Renderer client: mỗi frame phải chờ trình duyệt vẽ rồi gửi ảnh về nên chậm hơn nhiều (30 frame mất 24 giây
+  với Chrome headless vẽ bằng phần mềm).
+
+Trong lúc xuất, viewer tạm dừng cập nhật cho mọi trình duyệt đang kết nối.
+
 ## Định dạng chung (`gs4d/format.py`)
 
 | Khóa | Kích thước | Ý nghĩa |

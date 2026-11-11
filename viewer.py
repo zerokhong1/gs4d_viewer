@@ -14,6 +14,7 @@ Renderers:
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import time
 
@@ -107,8 +108,19 @@ class Viewer:
             if self.renderer == "gsplat":
                 self.max_res = g.add_slider("Max render height", min=240, max=2160, step=60,
                                             initial_value=self.args.max_res)
+        with g.add_folder("Export video", expand_by_default=False):
+            self.video_fps = g.add_number("Frames per second", initial_value=30, min=1, max=120, step=1)
+            self.video_seconds = g.add_number("Video length (s)", initial_value=float(np.clip(round(self.duration, 1), 2.0, 20.0)),
+                                              min=0.5, max=600.0, step=0.5)
+            self.video_btn = g.add_button("Export mp4 from this camera")
+        self.export_client = None  # set by the button, handled in the main loop
         self.playing = False
         self._setting = False
+
+        @self.video_btn.on_click
+        def _(e):
+            if self.export_client is None:
+                self.export_client = e.client
 
         @self.time.on_update
         def _(_e):
@@ -220,12 +232,64 @@ class Viewer:
             rgb = self.render_gsplat(cam.wxyz, cam.position, cam.fov, W, H)
             client.scene.set_background_image(rgb, format="jpeg", jpeg_quality=85)
 
+    # ---------------------------------------------------------------- video export
+    def _export_video(self, client: viser.ClientHandle):
+        """Renders the whole time range from the client's current camera into an mp4 (fixed camera)."""
+        try:
+            import imageio.v2 as imageio
+            import imageio_ffmpeg  # noqa: F401
+        except ImportError:
+            client.add_notification("Export video", "Needs: pip install imageio imageio-ffmpeg", color="red")
+            return
+        cam = client.camera
+        wxyz, pos, fov = np.array(cam.wxyz), np.array(cam.position), float(cam.fov)
+        H = int(cam.image_height or 720)
+        if self.renderer == "gsplat":
+            H = int(min(self.max_res.value, H))
+        H -= H % 2  # h264 needs even sizes
+        W = max(int(round(H * cam.aspect)), 2)
+        W -= W % 2
+        fps = int(self.video_fps.value)
+        n = max(int(round(fps * self.video_seconds.value)), 2)
+        stem = os.path.splitext(os.path.basename(getattr(self.args, "file", "sequence")))[0]
+        path = os.path.abspath(os.path.join(getattr(self.args, "video_dir", "."), f"{stem}_{time.strftime('%Y%m%d_%H%M%S')}.mp4"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        t_before, self.playing = self.time.value, False
+        self.video_btn.disabled = True
+        note = client.add_notification("Export video", f"Rendering {n} frames at {W}x{H} ...", loading=True,
+                                       with_close_button=False, auto_close_seconds=None)
+        try:
+            with imageio.get_writer(path, fps=fps, codec="libx264", quality=8, macro_block_size=2) as writer:
+                for i in range(n):
+                    self._set_time(self.t0 + self.duration * i / (n - 1))
+                    if self.renderer == "gsplat":
+                        self._load_gsplat()
+                        frame = self.render_gsplat(wxyz, pos, fov, W, H)
+                    else:  # ask the browser for the picture once it has received this time step
+                        self._draw_client()
+                        time.sleep(0.15)
+                        frame = client.get_render(height=H, width=W, wxyz=wxyz, position=pos, fov=fov)[..., :3]
+                    writer.append_data(np.ascontiguousarray(frame))
+            with open(path, "rb") as f:
+                client.send_file_download(os.path.basename(path), f.read())
+            note.title, note.body, note.loading, note.with_close_button = "Video exported", path, False, True
+            print(f"video: {path} ({n} frames, {W}x{H}, {fps} fps)")
+        except Exception as err:  # keep the viewer alive
+            note.title, note.body, note.loading, note.with_close_button, note.color = "Export failed", str(err), False, True, "red"
+            print(f"video export failed: {err!r}")
+        finally:
+            self.video_btn.disabled = False
+            self._set_time(t_before)
+
     # ---------------------------------------------------------------- loop
     def run(self):
         url = f"http://{'localhost' if self.args.host in ('127.0.0.1', '0.0.0.0') else self.args.host}:{self.args.port}"
         print(f"{self.seq.summary()}\nrenderer: {self.renderer}\nOpen {url} in a browser (Ctrl+C to quit)")
         last = time.time()
         while True:
+            if self.export_client is not None:
+                self._export_video(self.export_client)
+                self.export_client, last = None, time.time()
             now = time.time()
             dt, last = now - last, now
             if self.playing:
@@ -255,6 +319,7 @@ def main():
                     help="world up axis; COLMAP-style scenes are usually -y, Blender/D-NeRF scenes +z")
     ap.add_argument("--max-splats", type=int, default=300_000, help="client renderer: cap on Gaussians sent to the browser")
     ap.add_argument("--max-res", type=int, default=1080, help="gsplat renderer: initial cap on the render height")
+    ap.add_argument("--video-dir", default=".", help="folder for the mp4 files written by the Export video button")
     args = ap.parse_args()
     Viewer(Sequence4D.load(args.file), args).run()
 
