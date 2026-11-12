@@ -321,7 +321,7 @@ def main():
     ap.add_argument("--max-res", type=int, default=1080, help="gsplat renderer: initial cap on the render height")
     ap.add_argument("--video-dir", default=".", help="folder for the mp4 files written by the Export video button")
     args = ap.parse_args()
-    Viewer(Sequence4D.load(args.file), args).run()
+    Viewer(Sequence4D.load(args.file, lazy=True), args).run()
 
 
 if __name__ == "__main__":
