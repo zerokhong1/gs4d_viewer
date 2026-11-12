@@ -14,9 +14,19 @@ One .npz file:
     source       str    free text, shown in the viewer
 
 A field without the leading K axis is constant over time.
+
+Compact storage (`save(path, compact=True)`, or `python -m gs4d in.npz out.npz`) replaces the
+time-varying fields by smaller ones; `load` reads both layouts:
+    means      -> means_ref [N,3] float32 (first keyframe) + means_d16 [K,N,3] float16 (offset from it)
+    covs       -> covs_scale [N] float32 + covs_q [K,N,6] int16: Cholesky factor L (cov = L L^T, entries
+                  l00 l10 l20 l11 l21 l22) divided by covs_scale, times 32767. Always decodes to a PSD matrix.
+    opacities  -> opacities_u8 [K,N] uint8
+    colors     -> colors_u8 [K,N,3] uint8
+Static fields and `sh` stay float32. A compact field is decoded one keyframe at a time when it is used.
 """
 from __future__ import annotations
 
+import zipfile
 from dataclasses import dataclass
 from typing import Optional
 
@@ -60,6 +70,162 @@ def unpack_cov(packed: np.ndarray) -> np.ndarray:
     return full
 
 
+class _Packed:
+    """Time-varying field kept in its compact encoding; behaves like a read-only float32 array [K, ...].
+
+    `a[k]` with an integer k decodes one keyframe. Anything else (slicing, numpy functions, methods such
+    as .max) decodes the whole field first, which costs the full float32 memory.
+    """
+    dtype = np.dtype(np.float32)
+    tail: tuple = ()
+
+    def __init__(self, raw: np.ndarray):
+        self.raw = raw
+
+    @property
+    def shape(self):
+        return (self.raw.shape[0], self.raw.shape[1]) + self.tail
+
+    @property
+    def ndim(self):
+        return len(self.shape)
+
+    def __len__(self):
+        return self.raw.shape[0]
+
+    def frame(self, k: int) -> np.ndarray:
+        raise NotImplementedError
+
+    def __getitem__(self, k):
+        if isinstance(k, (int, np.integer)):
+            return self.frame(int(k))
+        return np.asarray(self)[k]
+
+    def __array__(self, dtype=None, copy=None):
+        out = np.empty(self.shape, np.float32)
+        for k in range(len(self)):
+            out[k] = self.frame(k)
+        return out if dtype is None else out.astype(dtype, copy=False)
+
+    def __getattr__(self, name):  # numpy methods (max, mean, ...) on the decoded field
+        if name.startswith("__") or name in ("raw", "ref", "scale"):
+            raise AttributeError(name)
+        return getattr(np.asarray(self), name)
+
+
+class _PackedMeans(_Packed):
+    tail = (3,)
+
+    def __init__(self, ref: np.ndarray, raw: np.ndarray):
+        self.ref, self.raw = ref, raw
+
+    @staticmethod
+    def encode(a: np.ndarray):
+        ref = np.array(a[0], np.float32)
+        raw = np.empty(a.shape, np.float16)
+        with np.errstate(over="ignore"):
+            for k in range(a.shape[0]):
+                raw[k] = a[k] - ref
+        return _PackedMeans(ref, raw) if np.isfinite(raw).all() else None  # offsets beyond float16 range
+
+    def frame(self, k):
+        return self.ref + self.raw[k]
+
+    def files(self):
+        return {"means_ref": self.ref, "means_d16": self.raw}
+
+
+class _PackedCovs(_Packed):
+    tail = (6,)
+
+    def __init__(self, scale: np.ndarray, raw: np.ndarray):
+        self.scale, self.raw = scale, raw
+
+    @staticmethod
+    def _cholesky(c: np.ndarray) -> np.ndarray:
+        """Packed covariance [N,6] -> lower Cholesky factor [N,6] (l00 l10 l20 l11 l21 l22), safe for rank-deficient input."""
+        xx, xy, xz, yy, yz, zz = (c[:, i].astype(np.float64) for i in range(6))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            l00 = np.sqrt(np.maximum(xx, 0))
+            l10 = np.where(l00 > 0, xy / l00, 0.0)
+            l20 = np.where(l00 > 0, xz / l00, 0.0)
+            l11 = np.sqrt(np.maximum(yy - l10 * l10, 0))
+            l21 = np.where(l11 > 0, (yz - l20 * l10) / l11, 0.0)
+            l22 = np.sqrt(np.maximum(zz - l20 * l20 - l21 * l21, 0))
+        return np.stack([l00, l10, l20, l11, l21, l22], -1)
+
+    @staticmethod
+    def encode(a: np.ndarray):
+        K, N = a.shape[:2]
+        scale = np.zeros(N, np.float64)
+        for k in range(K):  # every |L_ij| is at most sqrt(largest diagonal entry)
+            np.maximum(scale, np.sqrt(np.maximum(a[k][:, [0, 3, 5]].max(-1), 0)), out=scale)
+        scale = np.where(scale > 0, scale, 1.0)
+        raw = np.empty((K, N, 6), np.int16)
+        for k in range(K):
+            raw[k] = np.rint(np.clip(_PackedCovs._cholesky(a[k]) / scale[:, None], -1, 1) * 32767)
+        return _PackedCovs(scale.astype(np.float32), raw) if np.isfinite(scale).all() else None
+
+    def frame(self, k):
+        L = self.raw[k].astype(np.float32) * (self.scale[:, None] / np.float32(32767))
+        l00, l10, l20, l11, l21, l22 = (L[:, i] for i in range(6))
+        out = np.empty(L.shape, np.float32)
+        out[:, 0] = l00 * l00
+        out[:, 1] = l00 * l10
+        out[:, 2] = l00 * l20
+        out[:, 3] = l10 * l10 + l11 * l11
+        out[:, 4] = l10 * l20 + l11 * l21
+        out[:, 5] = l20 * l20 + l21 * l21 + l22 * l22
+        return out
+
+    def files(self):
+        return {"covs_scale": self.scale, "covs_q": self.raw}
+
+
+class _PackedU8(_Packed):
+    """Values in [0,1] as uint8."""
+
+    def __init__(self, raw: np.ndarray, name: str):
+        self.raw, self.name, self.tail = raw, name, tuple(raw.shape[2:])
+
+    @staticmethod
+    def encode(a: np.ndarray, name: str):
+        raw = np.empty(a.shape, np.uint8)
+        for k in range(a.shape[0]):
+            raw[k] = np.rint(np.clip(a[k], 0, 1) * 255)
+        return _PackedU8(raw, name)
+
+    def frame(self, k):
+        return self.raw[k].astype(np.float32) * np.float32(1 / 255)
+
+    def files(self):
+        return {self.name + "_u8": self.raw}
+
+
+def _npz_arrays(path: str, lazy: bool) -> dict:
+    """Arrays of an .npz. With lazy=True, members stored without compression are memory-mapped, not read."""
+    out = {}
+    with np.load(path, allow_pickle=False) as z:
+        names = list(z.files)
+        if not lazy:
+            return {n: z[n] for n in names}
+        with zipfile.ZipFile(path) as zf, open(path, "rb") as f:
+            for n in names:
+                info = zf.getinfo(n + ".npy")
+                arr = None
+                if info.compress_type == zipfile.ZIP_STORED:
+                    f.seek(info.header_offset + 26)
+                    name_len, extra_len = np.frombuffer(f.read(4), "<u2")
+                    f.seek(info.header_offset + 30 + int(name_len) + int(extra_len))
+                    version = np.lib.format.read_magic(f)
+                    read_header = np.lib.format.read_array_header_1_0 if version == (1, 0) else np.lib.format.read_array_header_2_0
+                    shape, fortran, dtype = read_header(f)
+                    if not fortran and not dtype.hasobject and len(shape) >= 2 and int(np.prod(shape)) > 0:
+                        arr = np.memmap(path, dtype=dtype, mode="r", offset=f.tell(), shape=shape)
+                out[n] = z[n] if arr is None else arr
+    return out
+
+
 @dataclass
 class Sequence4D:
     times: np.ndarray
@@ -78,7 +244,9 @@ class Sequence4D:
             raise ValueError("times must be non-empty and strictly increasing")
         N = self.means.shape[-2]
         for name, tail in (("means", (N, 3)), ("covs", (N, 6)), ("opacities", (N,)), ("colors", (N, 3))):
-            a = np.asarray(getattr(self, name), np.float32)
+            a = getattr(self, name)
+            if not isinstance(a, _Packed):
+                a = np.asarray(a, np.float32)
             if a.shape not in (tail, (K,) + tail):
                 raise ValueError(f"{name} has shape {a.shape}, expected {tail} or {(K,) + tail}")
             setattr(self, name, a)
@@ -137,33 +305,63 @@ class Sequence4D:
             return None
         return self._field(self.sh, 3, *self._bracket(t))
 
-    def save(self, path: str) -> None:
-        extra = {} if self.sh is None else {"sh": self.sh}
-        np.savez(
-            path,
-            **extra,
-            times=self.times,
-            means=self.means,
-            covs=self.covs,
-            opacities=self.opacities,
-            colors=self.colors,
-            interpolate=np.bool_(self.interpolate),
-            source=np.str_(self.source),
-        )
+    def compact(self) -> "Sequence4D":
+        """Re-encodes the time-varying fields in place (see the module docstring); lossy. Returns self."""
+        K = self.num_frames
+        for name, static_ndim in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2)):
+            a = getattr(self, name)
+            if isinstance(a, _Packed) or a.ndim == static_ndim:
+                continue
+            packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode}.get(name, lambda x: _PackedU8.encode(x, name))(a)
+            if packed is not None:
+                setattr(self, name, packed)
+        return self
+
+    @property
+    def is_compact(self) -> bool:
+        return any(isinstance(getattr(self, n), _Packed) for n in ("means", "covs", "opacities", "colors"))
+
+    def save(self, path: str, compact: bool = False) -> None:
+        """Writes the .npz. compact=True stores the time-varying fields in the smaller lossy encoding
+        (about 2.2x smaller); compact=False writes plain float32, also for a sequence that is compact in memory."""
+        src = self
+        if compact and not all(isinstance(getattr(self, n), _Packed) or getattr(self, n).ndim == d
+                               for n, d in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2))):
+            src = Sequence4D(self.times, self.means, self.covs, self.opacities, self.colors).compact()
+        files = {}
+        for name in ("means", "covs", "opacities", "colors"):
+            a = getattr(src, name)
+            if isinstance(a, _Packed):
+                files.update(a.files() if compact else {name: np.asarray(a)})
+            else:
+                files[name] = a
+        if self.sh is not None:
+            files["sh"] = self.sh
+        np.savez(path, times=self.times, interpolate=np.bool_(self.interpolate), source=np.str_(self.source), **files)
 
     @staticmethod
-    def load(path: str) -> "Sequence4D":
-        with np.load(path, allow_pickle=False) as z:
-            return Sequence4D(
-                times=z["times"],
-                means=z["means"],
-                covs=z["covs"],
-                opacities=z["opacities"],
-                colors=z["colors"],
-                interpolate=bool(z["interpolate"]) if "interpolate" in z else True,
-                source=str(z["source"]) if "source" in z else "",
-                sh=z["sh"] if "sh" in z else None,
-            )
+    def load(path: str, lazy: bool = False) -> "Sequence4D":
+        """Reads either layout. lazy=True memory-maps the big arrays instead of reading them: loading is
+        immediate and only the keyframes that are used get paged in. The file must not be overwritten
+        while a lazily loaded sequence is alive."""
+        z = _npz_arrays(path, lazy)
+        if "means_d16" in z:
+            means = _PackedMeans(np.asarray(z["means_ref"], np.float32), z["means_d16"])
+        else:
+            means = z["means"]
+        covs = _PackedCovs(np.asarray(z["covs_scale"], np.float32), z["covs_q"]) if "covs_q" in z else z["covs"]
+        opac = _PackedU8(z["opacities_u8"], "opacities") if "opacities_u8" in z else z["opacities"]
+        cols = _PackedU8(z["colors_u8"], "colors") if "colors_u8" in z else z["colors"]
+        return Sequence4D(
+            times=np.array(z["times"]),
+            means=means,
+            covs=covs,
+            opacities=opac,
+            colors=cols,
+            interpolate=bool(z["interpolate"]) if "interpolate" in z else True,
+            source=str(z["source"]) if "source" in z else "",
+            sh=z["sh"] if "sh" in z else None,
+        )
 
     def summary(self) -> str:
         dyn = [n for n, a, d in (("means", self.means, 2), ("covs", self.covs, 2),
@@ -172,4 +370,25 @@ class Sequence4D:
                 f"t in [{self.times[0]:.3f}, {self.times[-1]:.3f}], "
                 f"time-varying: {', '.join(dyn) or 'none'}"
                 + ("" if self.sh is None else f", SH degree {self.sh_degree}"
-                   + (" (per keyframe)" if self.sh.ndim == 4 else "")))
+                   + (" (per keyframe)" if self.sh.ndim == 4 else ""))
+                + (", compact storage" if self.is_compact else ""))
+
+
+def main():
+    import argparse
+    import os
+
+    ap = argparse.ArgumentParser(description="Re-save a sequence in the compact layout (default) or as plain float32.")
+    ap.add_argument("input")
+    ap.add_argument("output")
+    ap.add_argument("--float32", action="store_true", help="write plain float32 instead of the compact layout")
+    a = ap.parse_args()
+    if os.path.exists(a.output) and os.path.samefile(a.input, a.output):
+        raise SystemExit("input and output must be different files")
+    seq = Sequence4D.load(a.input, lazy=True)
+    seq.save(a.output, compact=not a.float32)
+    print(f"Wrote {a.output}: {os.path.getsize(a.input) / 1e6:.1f} MB -> {os.path.getsize(a.output) / 1e6:.1f} MB")
+
+
+if __name__ == "__main__":
+    main()
