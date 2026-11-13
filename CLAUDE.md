@@ -10,18 +10,28 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 ## Layout
 - `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`
 - `gs4d/ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
-- `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed)
+- `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
+  `--compare b.npz` shows a second sequence (A, B, or side by side) on the same time slider
 - `convert_per_frame.py`  type A: folder of per-frame ply, Dynamic 3D Gaussians `params.npz`
 - `convert_native4d.py`   type B: Yang et al. `chkpnt*.pth`
 - `convert_spacetime.py`  type C: Spacetime Gaussians `point_cloud.ply` (base colour only)
+- `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
+- `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
+- `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32]` re-saves compact / plain
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
-- `tests/`          `test_sh.py`, `test_compact.py`, `test_spacetime.py`, `check_camera.py`, `check_gsplat.py`
-  (needs CUDA), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
+- `tests/`          `test_sh.py`, `test_compact.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
+  `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_gsplat.py`
+  (needs CUDA), `check_compare.py` (needs Chrome), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
 ## Verified facts (do not re-research)
+- Deformable-3DGS and SC-GS add the MLP's `d_scaling` to `exp(scale)` (after the activation). Deformable-3DGS adds
+  `d_rotation` to the normalised quaternion and the rasteriser does not normalise again; SC-GS normalises
+  `rot + d_rotation`. SC-GS ply has extra `fea_*` columns (hyper coordinates, then the motion mask if trained with one).
+- Shape of Motion's official repo is `vye16/shape-of-motion`; the checkpoint is `{"model": state_dict, ...}` with
+  keys `fg.params.*`, `bg.params.*`, `motion_bases.params.rots [B,T,6]` / `transls [B,T,3]`; time is a frame index.
 - viser 1.1.1: `scene.add_gaussian_splats(name, centers[N,3], covariances[N,3,3], rgbs[N,3], opacities[N,1])`,
   handle has `set_gaussians(...)`. Cameras are OpenCV convention (+z forward, +y down), `camera.fov` is
   vertical, radians. `client.scene.set_background_image(img, format="jpeg")` streams a rendered frame.
@@ -36,7 +46,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   `rgb_colors[T,N,3]`, `logit_opacities[N,1]`, `log_scales[N,3]`, `seg_colors[N,3]`.
 
 ## Status
-Updated 13/11/2026. WP1, WP2, WP3, WP6, WP7b, WP8 are merged into `main`.
+Updated 13/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both methods) are merged into `main`.
 - Tested: client renderer in headless Chrome on the toy scene; `tests/test_all.py` (4 checks);
   `viewer.camera_matrices` (viser camera -> viewmat, K) against the browser render, `tests/check_camera.py`.
 - Tested on CUDA (RTX 3060, WP1): the gsplat `rasterization(...)` call and image streaming in `_draw_gsplat`,
@@ -47,10 +57,14 @@ Updated 13/11/2026. WP1, WP2, WP3, WP6, WP7b, WP8 are merged into `main`.
 - Tested (WP8): compact save (float16 offsets, quantised Cholesky, uint8) and lazy memory-mapped load,
   `tests/test_compact.py`, `tests/bench_large.py`. Do not overwrite a file the viewer has open.
 - Tested with real output (WP2): `params.npz` reader on Dynamic 3D Gaussians `basketball`; up axis is `-y`.
-- Synthetic test only (WP3): `convert_spacetime.py`, `tests/test_spacetime.py`.
-- NOT tested: any real native-4DGS `chkpnt*.pth`; Spacetime Gaussians with real output; the client render of
-  `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
-- Not done: WP7(a) two sequences side by side; WP4, WP5 converters; a compact flag in the converters.
+- Tested (WP7a): `--compare` in headless Chrome with both renderers, `tests/check_compare.py`. gsplat: split
+  screen, same camera; client: B moved sideways in the scene (viser cannot split the viewport).
+- Synthetic test only (WP3, WP4, WP5): `convert_spacetime.py`, `convert_deformable3dgs.py`,
+  `convert_shape_of_motion.py`, `convert_scgs.py`, each with its `tests/test_<name>.py`.
+- NOT tested: any real native-4DGS `chkpnt*.pth`; Spacetime Gaussians, Deformable-3DGS, Shape of Motion and SC-GS
+  with real output; the client render of `basketball` against the original `visualize.py`; display FPS in a real
+  browser (README numbers are server side).
+- Not done: a compact flag in the converters; SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
 
 ## Conventions
 - A converter is a new file `convert_<method>.py` + a new `tests/test_<method>.py` + one row in the README table.
