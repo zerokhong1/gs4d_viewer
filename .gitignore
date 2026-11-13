@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 *.npz
 *.mp4
-shots/
+!shots/**/*.mp4
