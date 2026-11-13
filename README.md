@@ -21,7 +21,8 @@ python viewer.py toy.npz             # mở http://localhost:8080
 | B. Gaussian 4D | Native 4DGS của Yang et al. (`chkpnt*.pth`) | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 10` |
 | C. Hàm chuyển động tham số | Spacetime Gaussians (`point_cloud.ply`; chỉ màu cơ sở, bỏ MLP `rgbdecoder`, chưa thử với output thật) | `python convert_spacetime.py point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1` |
 | C. | Shape of Motion | chưa có |
-| D. Mạng biến dạng | 4DGaussians: đi qua `export_perframe_3DGS.py` rồi dùng dòng A. Deformable-3DGS, SC-GS: chưa có | |
+| D. Mạng biến dạng | 4DGaussians: đi qua `export_perframe_3DGS.py` rồi dùng dòng A. SC-GS: chưa có | |
+| D. | Deformable-3DGS (thư mục model có `point_cloud/` và `deform/`; chạy lại MLP biến dạng trên CPU, cần torch; nhận cả biến thể D-NeRF và 6-DoF; chưa thử với output thật) | `python convert_deformable3dgs.py <thư_mục_model> -o scene.npz --frames 60` (thêm `--sh` để giữ màu theo hướng nhìn) |
 
 Sau đó: `python viewer.py scene.npz`.
 
@@ -157,6 +158,8 @@ Gaussian), nên khi play scene lớn tốc độ cập nhật thấp hơn dạng
 python tests/test_all.py                                  # 4 phép kiểm, không cần GPU
 python tests/test_all.py /path/to/4d-gaussian-splatting   # thêm so khớp với hàm gốc của repo
 python tests/test_sh.py                                   # trường sh; phần render tự bỏ qua nếu không có CUDA
+python tests/test_spacetime.py                            # converter Spacetime Gaussians
+python tests/test_deformable3dgs.py                       # converter Deformable-3DGS (cần torch, không thì tự bỏ qua)
 python tests/test_compact.py                              # lưu nén, nạp lười
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
 python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
