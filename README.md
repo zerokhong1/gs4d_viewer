@@ -17,7 +17,7 @@ python viewer.py toy.npz             # mở http://localhost:8080
 | Dạng output | Phương pháp | Lệnh |
 |---|---|---|
 | A. Gaussian theo từng frame | thư mục `.ply` mỗi frame (feed-forward, hoặc `gaussian_pertimestamp/` do `export_perframe_3DGS.py` của 4DGaussians xuất ra) | `python convert_per_frame.py <thư_mục> -o scene.npz --fps 30` |
-| A. | Dynamic 3D Gaussians (`params.npz`) | `python convert_per_frame.py params.npz -o scene.npz` |
+| A. | Dynamic 3D Gaussians (`params.npz`) — chạy với output thật `basketball` (375.870 Gaussian x 150 frame gốc) | `python convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only` rồi `python viewer.py scene.npz --up -y`. Đã đo: `--fg-only` cho 112.592 Gaussian x 30 keyframe, 163 MB (bỏ `--fg-only`: 375.870 Gaussian, 543 MB, nhưng cảnh bị nền và floater che). Trục up là `-y`; ảnh chụp ở `shots/wp2/`. Lưu ý: ~14% màu gốc nằm ngoài [0,1] và bị cắt; renderer client chưa đối chiếu với `visualize.py` gốc. |
 | B. Gaussian 4D | Native 4DGS của Yang et al. (`chkpnt*.pth`) | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 10` |
 | C. Hàm chuyển động tham số | Spacetime Gaussians, Shape of Motion | chưa có |
 | D. Mạng biến dạng | 4DGaussians: đi qua `export_perframe_3DGS.py` rồi dùng dòng A. Deformable-3DGS, SC-GS: chưa có | |
