@@ -64,6 +64,25 @@ torch 2.4.1+cu124, gsplat 1.5.3, đang play, trình duyệt cùng máy:
 Xem từ máy khác qua SSH: `ssh -L 8080:localhost:8080 <server>` rồi mở `http://localhost:8080`.
 Scene từ COLMAP thường cần `--up -y`.
 
+## So sánh hai sequence
+
+```bash
+python viewer.py ours.npz --compare baseline.npz
+```
+
+Hai file dùng chung thanh thời gian, nút play và camera. Ô **Show** trong bảng điều khiển chọn `A` (file thứ
+nhất), `B` (file `--compare`) hoặc `A | B` (cạnh nhau, mặc định). Đổi giữa `A` và `B` ở cùng một góc nhìn để
+soi khác biệt tại chỗ.
+
+- Renderer gsplat: `A | B` chia đôi màn hình, mỗi nửa vẽ một sequence từ **cùng một camera**, tên file ghi ở
+  cạnh dưới. Bảng điều khiển che góc trên bên phải của nửa B; bấm dấu `−` trên bảng để thu gọn.
+- Renderer client: `A | B` đặt B sang bên phải A trong cùng một scene (cách 2,4 lần bán kính scene), có nhãn
+  tên file phía trên. Giới hạn `--max-splats` áp dụng riêng cho từng file.
+
+Thanh thời gian phủ từ mốc sớm nhất đến mốc muộn nhất của cả hai file; file nào hết keyframe thì đứng ở
+keyframe cuối của nó. Ô "Keyframe" và hai nút bước keyframe đi theo các mốc của file A. Hai file phải cùng hệ
+tọa độ và cùng trục up. Xuất video hoạt động ở cả ba chế độ. Ảnh chụp: `shots/compare/`.
+
 ## Xuất video
 
 Trong bảng điều khiển mở mục **Export video**, đặt camera ở góc muốn quay, chọn "Frames per second" và
@@ -140,4 +159,5 @@ python tests/test_all.py /path/to/4d-gaussian-splatting   # thêm so khớp vớ
 python tests/test_sh.py                                   # trường sh; phần render tự bỏ qua nếu không có CUDA
 python tests/test_compact.py                              # lưu nén, nạp lười
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
+python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
 ```

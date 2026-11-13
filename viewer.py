@@ -3,6 +3,7 @@
 
     python viewer.py toy.npz
     python viewer.py scene.npz --renderer gsplat --up -y --port 8080
+    python viewer.py ours.npz --compare baseline.npz      # two sequences, one time slider
 
 Renderers:
     gsplat  images are rasterized on this machine's NVIDIA GPU with gsplat and streamed to the
@@ -55,34 +56,61 @@ def camera_matrices(wxyz, position, fov_y: float, width: int, height: int):
     return np.linalg.inv(c2w).astype(np.float32), K
 
 
+SIDE_BY_SIDE = "A | B"
+# initial camera direction (scene centre -> camera) for each world up axis
+VIEW_DIR = {"+z": (1.0, -1.0, 0.6), "-z": (1.0, -1.0, -0.6), "+y": (1.0, 0.6, 1.0),
+            "-y": (1.0, -0.6, 1.0), "+x": (0.6, 1.0, -1.0), "-x": (-0.6, 1.0, -1.0)}
+
+
+def _bounds(seq: Sequence4D):
+    """Median centre and 90th-percentile radius of the first keyframe."""
+    m0 = np.asarray(seq.means[0] if seq.means.ndim == 3 else seq.means)
+    centre = np.median(m0, 0)
+    return centre, float(np.percentile(np.linalg.norm(m0 - centre, axis=1), 90)) or 1.0
+
+
 class Viewer:
-    def __init__(self, seq: Sequence4D, args):
+    """seq_b is an optional second sequence to compare with seq: shown alone, or next to it, on the same
+    time slider. Side by side means a split screen with the same camera in the gsplat renderer, and the
+    second sequence moved sideways in the scene in the client renderer."""
+
+    def __init__(self, seq: Sequence4D, args, seq_b: Sequence4D | None = None):
         self.seq, self.args = seq, args
+        self.seqs = [seq] if seq_b is None else [seq, seq_b]
+        files = [getattr(args, "file", None), getattr(args, "compare", None)]
+        self.names = [f"{'AB'[i]}: {os.path.basename(f)}" if f else "AB"[i] for i, f in enumerate(files[:len(self.seqs)])]
         self.renderer = pick_renderer(args.renderer)
-        self.t0, self.t1 = float(seq.times[0]), float(seq.times[-1])
+        self.t0 = float(min(s.times[0] for s in self.seqs))
+        self.t1 = float(max(s.times[-1] for s in self.seqs))
         self.duration = max(self.t1 - self.t0, 1e-9)
         self.lock = threading.Lock()
         self.dirty = True
         self.cam_stamp: dict[int, float] = {}
 
         # fixed subset for the browser renderer, so the splat count never changes between frames
-        self.subset = None
-        if self.renderer == "client" and seq.num_gaussians > args.max_splats:
-            peak = seq.opacities.max(0) if seq.opacities.ndim == 2 else seq.opacities
-            self.subset = np.sort(np.argpartition(peak, -args.max_splats)[-args.max_splats:])
-            print(f"client renderer: showing the {args.max_splats:,} most opaque of {seq.num_gaussians:,} Gaussians "
-                  "(raise --max-splats or use --renderer gsplat)")
+        self.subsets = [None] * len(self.seqs)
+        for i, s in enumerate(self.seqs):
+            if self.renderer == "client" and s.num_gaussians > args.max_splats:
+                peak = s.opacities.max(0) if s.opacities.ndim == 2 else s.opacities
+                self.subsets[i] = np.sort(np.argpartition(peak, -args.max_splats)[-args.max_splats:])
+                print(f"client renderer: showing the {args.max_splats:,} most opaque of {s.num_gaussians:,} Gaussians "
+                      "(raise --max-splats or use --renderer gsplat)")
 
-        m0 = seq.means[0] if seq.means.ndim == 3 else seq.means
-        self.centre = np.median(m0, 0)
-        self.radius = float(np.percentile(np.linalg.norm(m0 - self.centre, axis=1), 90)) or 1.0
+        self.centre, self.radius = _bounds(seq)
+        # client renderer, side by side: B is drawn this far to the right of A (as seen from the initial camera)
+        up = np.zeros(3)
+        up["xyz".index(args.up[1])] = 1.0 if args.up[0] == "+" else -1.0
+        right = np.cross(-np.asarray(VIEW_DIR[args.up]), up)
+        self.offset = right / np.linalg.norm(right) * 2.4 * max(_bounds(s)[1] for s in self.seqs)
+        self.up_vec = up
 
         self.server = viser.ViserServer(host=args.host, port=args.port, verbose=False)
         self.server.scene.set_up_direction(args.up)
         self._build_gui()
         self.server.on_client_connect(self._on_connect)
-        self.splats = None
-        self.cur = None  # tensors of the current time step (gsplat renderer)
+        self.splats = [None] * len(self.seqs)
+        self.labels = None
+        self.cur: dict[int, tuple] = {}  # sequence index -> tensors of the current time step (gsplat renderer)
         if self.renderer == "gsplat":
             import torch
 
@@ -92,8 +120,15 @@ class Viewer:
     # ---------------------------------------------------------------- GUI
     def _build_gui(self):
         g, s = self.server.gui, self.seq
-        g.add_markdown(f"**{s.num_gaussians:,}** Gaussians · **{s.num_frames}** keyframes · renderer **{self.renderer}**"
-                       + (f"\n\n{s.source}" if s.source else ""))
+        if len(self.seqs) == 1:
+            g.add_markdown(f"**{s.num_gaussians:,}** Gaussians · **{s.num_frames}** keyframes · renderer **{self.renderer}**"
+                           + (f"\n\n{s.source}" if s.source else ""))
+            self.mode = None
+        else:
+            g.add_markdown(f"renderer **{self.renderer}**\n\n" + "\n\n".join(
+                f"**{n}** · {q.num_gaussians:,} Gaussians · {q.num_frames} keyframes" for n, q in zip(self.names, self.seqs)))
+            self.mode = g.add_dropdown("Show", options=("A", "B", SIDE_BY_SIDE), initial_value=SIDE_BY_SIDE)
+            self.mode.on_update(lambda _e: setattr(self, "dirty", True))
         self.time = g.add_slider("Time", min=self.t0, max=self.t1, step=self.duration / 1000.0, initial_value=self.t0)
         self.frame = g.add_number("Keyframe", initial_value=0, min=0, max=s.num_frames - 1, step=1)
         self.play = g.add_button("Play / Pause")
@@ -162,47 +197,101 @@ class Viewer:
         self.dirty = True
 
     def _on_connect(self, client: viser.ClientHandle):
-        direction = {"+z": (1.0, -1.0, 0.6), "-z": (1.0, -1.0, -0.6), "+y": (1.0, 0.6, 1.0),
-                     "-y": (1.0, -0.6, 1.0), "+x": (0.6, 1.0, -1.0), "-x": (-0.6, 1.0, -1.0)}[self.args.up]
-        d = np.asarray(direction) / np.linalg.norm(direction)
-        client.camera.position = tuple(self.centre + 2.5 * self.radius * d)
-        client.camera.look_at = tuple(self.centre)
+        d = np.asarray(VIEW_DIR[self.args.up]) / np.linalg.norm(VIEW_DIR[self.args.up])
+        centre, dist = self.centre, 2.5 * self.radius
+        if self.renderer == "client" and len(self._shown()) == 2:  # frame both copies
+            centre, dist = centre + 0.5 * self.offset, dist + 0.9 * float(np.linalg.norm(self.offset))
+        client.camera.position = tuple(centre + dist * d)
+        client.camera.look_at = tuple(centre)
         self.dirty = True
 
+    def _shown(self) -> list[int]:
+        """Indices of the sequences to draw."""
+        if self.mode is None:
+            return [0]
+        return {"A": [0], "B": [1]}.get(self.mode.value, [0, 1])
+
     # ---------------------------------------------------------------- drawing
-    def _current(self):
-        means, covs, opac, cols = self.seq.at(self.time.value)
-        if self.subset is not None:
-            means, covs, opac, cols = means[self.subset], covs[self.subset], opac[self.subset], cols[self.subset]
+    def _current(self, i: int = 0):
+        means, covs, opac, cols = self.seqs[i].at(self.time.value)
+        sub = self.subsets[i]
+        if sub is not None:
+            means, covs, opac, cols = means[sub], covs[sub], opac[sub], cols[sub]
         opac = np.where(opac >= self.min_opacity.value, opac, 0.0).astype(np.float32)
         covs = unpack_cov(covs) * np.float32(self.scale.value ** 2)
         return np.ascontiguousarray(means, np.float32), covs.astype(np.float32), opac, np.ascontiguousarray(cols, np.float32)
 
     def _draw_client(self):
-        means, covs, opac, cols = self._current()
-        if self.splats is None:
-            self.splats = self.server.scene.add_gaussian_splats("/gaussians", centers=means, covariances=covs,
-                                                                rgbs=cols, opacities=opac[:, None])
-        else:
-            self.splats.set_gaussians(centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
+        shown = self._shown()
+        side = len(shown) == 2
+        for i in range(len(self.seqs)):
+            h = self.splats[i]
+            if i in shown:
+                means, covs, opac, cols = self._current(i)
+                if h is None:
+                    h = self.splats[i] = self.server.scene.add_gaussian_splats(
+                        f"/gaussians/{'ab'[i]}", centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
+                else:
+                    h.set_gaussians(centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
+                h.position = tuple(self.offset) if (side and i == 1) else (0.0, 0.0, 0.0)
+            if h is not None:
+                h.visible = i in shown
+        if len(self.seqs) == 2:
+            if self.labels is None:
+                top = self.centre + 1.3 * self.radius * self.up_vec
+                self.labels = [self.server.scene.add_label(f"/labels/{'ab'[i]}", n, position=tuple(top + i * self.offset))
+                               for i, n in enumerate(self.names)]
+            for lab in self.labels:
+                lab.visible = side
 
     def _load_gsplat(self):
-        """Tensors of the current time step. Colours are SH coefficients [M,S,3] when the sequence has them."""
+        """Tensors of the current time step for every shown sequence. Colours are SH coefficients [M,S,3]
+        when the sequence has them."""
         torch = self.torch
-        means, covs, opac, cols = self._current()
-        sh = self.seq.sh_at(self.time.value)
-        keep = opac > 0
-        self.cur = tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(self.device)
-                         for a in (means, covs, opac, cols if sh is None else sh))
+        self.cur = {}
+        for i in self._shown():
+            means, covs, opac, cols = self._current(i)
+            sh = self.seqs[i].sh_at(self.time.value)
+            keep = opac > 0
+            self.cur[i] = tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(self.device)
+                                for a in (means, covs, opac, cols if sh is None else sh))
 
     def render_gsplat(self, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
-        """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background."""
+        """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background.
+        With two sequences shown, each gets half the width, drawn from the same camera."""
+        shown = self._shown()
+        if sorted(self.cur) != shown:
+            self._load_gsplat()
+        if len(shown) == 1:
+            return self._render_one(shown[0], wxyz, position, fov_y, W, H)
+        wl = W // 2
+        halves = [self._render_one(i, wxyz, position, fov_y, w, H) for i, w in zip(shown, (wl, W - wl))]
+        img = np.concatenate(halves, axis=1)
+        img[:, wl - 1: wl + 1] = 90  # divider
+        return self._caption(img, [(wl // 2, self.names[0]), (wl + (W - wl) // 2, self.names[1])])
+
+    @staticmethod
+    def _caption(img: np.ndarray, items) -> np.ndarray:
+        """Writes each (centre x, text) at the bottom of the image."""
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            font = ImageFont.load_default(size=max(img.shape[0] // 36, 12))
+        except (ImportError, TypeError):  # captions are optional (no Pillow, or Pillow < 10.1)
+            return img
+        pil = Image.fromarray(img)
+        draw = ImageDraw.Draw(pil)
+        for xc, text in items:
+            l, t, r, b = draw.textbbox((0, 0), text, font=font)
+            x, y = xc - (r - l) // 2, img.shape[0] - (b - t) - 24
+            draw.rectangle((x + l - 6, y + t - 5, x + r + 6, y + b + 5), fill=(255, 255, 255), outline=(90, 90, 90))
+            draw.text((x, y), text, fill=(0, 0, 0), font=font)
+        return np.asarray(pil)
+
+    def _render_one(self, i: int, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
         torch = self.torch
         from gsplat import rasterization
 
-        if self.cur is None:
-            self._load_gsplat()
-        means, covs, opac, cols = self.cur
+        means, covs, opac, cols = self.cur[i]
         if len(means) == 0:  # everything hidden by the opacity threshold
             return np.full((H, W, 3), 255, np.uint8)
         viewmat_np, K_np = camera_matrices(wxyz, position, fov_y, W, H)
@@ -210,13 +299,13 @@ class Viewer:
         viewmat = torch.from_numpy(viewmat_np).to(self.device)
         with torch.no_grad():
             img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
-                                          sh_degree=self.seq.sh_degree)
+                                          sh_degree=self.seqs[i].sh_degree)
             img = img[0] + (1.0 - alpha[0])  # composite over white, the browser renderer's background
             # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
         return (img.clamp(0, 1) * 255).round().to(torch.uint8).cpu().numpy()
 
     def _draw_gsplat(self, time_changed: bool):
-        if time_changed or self.cur is None:
+        if time_changed or sorted(self.cur) != self._shown():
             self._load_gsplat()
         clients = self.server.get_clients()
         for cid in [c for c in self.cam_stamp if c not in clients]:  # forget disconnected clients
@@ -284,7 +373,9 @@ class Viewer:
     # ---------------------------------------------------------------- loop
     def run(self):
         url = f"http://{'localhost' if self.args.host in ('127.0.0.1', '0.0.0.0') else self.args.host}:{self.args.port}"
-        print(f"{self.seq.summary()}\nrenderer: {self.renderer}\nOpen {url} in a browser (Ctrl+C to quit)")
+        print("\n".join(f"{n}: {q.summary()}" for n, q in zip(self.names, self.seqs)) if len(self.seqs) == 2
+              else self.seq.summary())
+        print(f"renderer: {self.renderer}\nOpen {url} in a browser (Ctrl+C to quit)")
         last = time.time()
         while True:
             if self.export_client is not None:
@@ -312,6 +403,8 @@ class Viewer:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("file", help="sequence in the common .npz format (see the convert_*.py scripts)")
+    ap.add_argument("--compare", metavar="FILE", default=None,
+                    help="second sequence to compare with the first: shown alone or side by side, same time slider")
     ap.add_argument("--renderer", choices=["auto", "gsplat", "client"], default="auto")
     ap.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to accept connections from other machines")
     ap.add_argument("--port", type=int, default=8080)
@@ -321,7 +414,8 @@ def main():
     ap.add_argument("--max-res", type=int, default=1080, help="gsplat renderer: initial cap on the render height")
     ap.add_argument("--video-dir", default=".", help="folder for the mp4 files written by the Export video button")
     args = ap.parse_args()
-    Viewer(Sequence4D.load(args.file, lazy=True), args).run()
+    seq_b = Sequence4D.load(args.compare, lazy=True) if args.compare else None
+    Viewer(Sequence4D.load(args.file, lazy=True), args, seq_b).run()
 
 
 if __name__ == "__main__":
