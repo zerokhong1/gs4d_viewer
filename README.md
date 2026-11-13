@@ -20,7 +20,7 @@ python viewer.py toy.npz             # mở http://localhost:8080
 | A. | Dynamic 3D Gaussians (`params.npz`) — chạy với output thật `basketball` (375.870 Gaussian x 150 frame gốc) | `python convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only` rồi `python viewer.py scene.npz --up -y`. Đã đo: `--fg-only` cho 112.592 Gaussian x 30 keyframe, 163 MB (bỏ `--fg-only`: 375.870 Gaussian, 543 MB, nhưng cảnh bị nền và floater che). Trục up là `-y`; ảnh chụp ở `shots/wp2/`. Lưu ý: ~14% màu gốc nằm ngoài [0,1] và bị cắt; renderer client chưa đối chiếu với `visualize.py` gốc. |
 | B. Gaussian 4D | Native 4DGS của Yang et al. (`chkpnt*.pth`) | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 10` |
 | C. Hàm chuyển động tham số | Spacetime Gaussians (`point_cloud.ply`; chỉ màu cơ sở, bỏ MLP `rgbdecoder`, chưa thử với output thật) | `python convert_spacetime.py point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1` |
-| C. | Shape of Motion | chưa có |
+| C. | Shape of Motion (`checkpoints/last.ckpt`; motion bases SE(3) + hệ số, nền tĩnh; cần torch để đọc checkpoint; chưa thử với output thật) | `python convert_shape_of_motion.py last.ckpt -o scene.npz --fps 30` (`--fg-only` bỏ nền, `--stride n` lấy thưa frame) |
 | D. Mạng biến dạng | 4DGaussians: đi qua `export_perframe_3DGS.py` rồi dùng dòng A. SC-GS: chưa có | |
 | D. | Deformable-3DGS (thư mục model có `point_cloud/` và `deform/`; chạy lại MLP biến dạng trên CPU, cần torch; nhận cả biến thể D-NeRF và 6-DoF; chưa thử với output thật) | `python convert_deformable3dgs.py <thư_mục_model> -o scene.npz --frames 60` (thêm `--sh` để giữ màu theo hướng nhìn) |
 
@@ -160,6 +160,7 @@ python tests/test_all.py /path/to/4d-gaussian-splatting   # thêm so khớp vớ
 python tests/test_sh.py                                   # trường sh; phần render tự bỏ qua nếu không có CUDA
 python tests/test_spacetime.py                            # converter Spacetime Gaussians
 python tests/test_deformable3dgs.py                       # converter Deformable-3DGS (cần torch, không thì tự bỏ qua)
+python tests/test_shape_of_motion.py                      # converter Shape of Motion (cần torch, không thì tự bỏ qua)
 python tests/test_compact.py                              # lưu nén, nạp lười
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
 python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
