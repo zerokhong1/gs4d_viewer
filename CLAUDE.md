@@ -42,28 +42,43 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   13 t, 14 scaling_t(log), 15 rotation_r, 16 rot_4d. Renderer drops Gaussians with marginal_t <= 0.05.
 - 4DGaussians (hustvl): `export_perframe_3DGS.py` writes `<model_path>/gaussian_pertimestamp/time_00000.ply`
   in standard 3DGS ply layout -> feed that folder to `convert_per_frame.py`.
+- Real Shape of Motion checkpoints pickle numpy scalars next to the weights; `load_checkpoint` allow-lists them
+  for `torch.load(weights_only=True)`.
+- D-NeRF scenes (Deformable-3DGS `--is_blender`, SC-GS, native 4DGS `configs/dnerf/*`) use time in [0, 1]; cameras
+  in `transforms_test.json` are OpenGL (flip c2w columns 1 and 2 for viser/gsplat).
 - Dynamic 3D Gaussians: `params.npz` keys `means3D[T,N,3]`, `unnorm_rotations[T,N,4]` (wxyz),
   `rgb_colors[T,N,3]`, `logit_opacities[N,1]`, `log_scales[N,3]`, `seg_colors[N,3]`.
 
 ## Status
-Updated 13/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both methods) are merged into `main`.
+Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both methods) are merged into `main`.
 - Tested: client renderer in headless Chrome on the toy scene; `tests/test_all.py` (4 checks);
   `viewer.camera_matrices` (viser camera -> viewmat, K) against the browser render, `tests/check_camera.py`.
 - Tested on CUDA (RTX 3060, WP1): the gsplat `rasterization(...)` call and image streaming in `_draw_gsplat`,
   `tests/check_gsplat.py`; FPS table in the README.
 - Tested (WP6): optional `sh` field, view-dependent colour in the gsplat renderer, `tests/test_sh.py`.
-  The client renderer always draws `colors`; only `convert_per_frame.py --sh` writes `sh`.
+  The client renderer always draws `colors`; `--sh` in `convert_per_frame.py`, `convert_deformable3dgs.py` and
+  `convert_scgs.py` writes `sh`.
 - Tested (WP7b): mp4 export from the current camera over the whole time range, both renderers.
 - Tested (WP8): compact save (float16 offsets, quantised Cholesky, uint8) and lazy memory-mapped load,
   `tests/test_compact.py`, `tests/bench_large.py`. Do not overwrite a file the viewer has open.
 - Tested with real output (WP2): `params.npz` reader on Dynamic 3D Gaussians `basketball`; up axis is `-y`.
 - Tested (WP7a): `--compare` in headless Chrome with both renderers, `tests/check_compare.py`. gsplat: split
   screen, same camera; client: B moved sideways in the scene (viser cannot split the viewport).
-- Synthetic test only (WP3, WP4, WP5): `convert_spacetime.py`, `convert_deformable3dgs.py`,
-  `convert_shape_of_motion.py`, `convert_scgs.py`, each with its `tests/test_<name>.py`.
-- NOT tested: any real native-4DGS `chkpnt*.pth`; Spacetime Gaussians, Deformable-3DGS, Shape of Motion and SC-GS
-  with real output; the client render of `basketball` against the original `visualize.py`; display FPS in a real
-  browser (README numbers are server side).
+- Tested with real output (14/11/2026), gsplat render of the converted `.npz` against the method's own images
+  (numbers in the README table, sheets in `shots/real/`, top = ours, bottom = ground truth):
+  - `convert_spacetime.py`: authors' `n3d_sear_steak_lite_allcam` (lite model: `f_dc` only, no `rgbdecoder`);
+    checked by eye at training cameras, image not in the repo (shows a person).
+  - `convert_shape_of_motion.py`: authors' `paper-windmill` checkpoint, checked by eye.
+  - `convert_deformable3dgs.py --sh`: self-trained D-NeRF `bouncingballs` (20k iterations), 29.3-33.2 dB on 5 test frames.
+  - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8), 36.2-41.3 dB.
+  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth`, 26.0-31.1 dB (the repo's own eval:
+    33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
+- Each of those converters also has a synthetic test, `tests/test_<name>.py`.
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,
+  SC-GS with a motion mask, and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
+  `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
+- Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
+  outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
 - Not done: a compact flag in the converters; SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
 
 ## Conventions

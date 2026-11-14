@@ -11,17 +11,19 @@ Cả 8 gói đã đạt điều kiện xong và đã merge vào `main`. Phần c
 |---|---|---|---|
 | 1 | Xong | `cc-a/wp1-gsplat` | Bảng FPS trong README (RTX 3060) |
 | 2 | Xong | `cc-b/wp2-real-data` | Output thật `basketball` của Dynamic 3D Gaussians; ảnh ở `shots/wp2/` |
-| 3 | Xong | `cc-c/wp3-spacetime` | Chỉ test với dữ liệu giả |
-| 4 | Xong | `cc-c/wp4-deformable3dgs` | Chỉ test với dữ liệu giả; 3 biến thể (mặc định, D-NeRF, 6-DoF) |
-| 5 | Xong | `cc-c/wp5-shape-of-motion`, `cc-c/wp5-scgs` | Làm cả hai phương pháp; chỉ test với dữ liệu giả |
+| 3 | Xong | `cc-c/wp3-spacetime` | Đã chạy với model thật `n3d_sear_steak_lite_allcam` (bản lite, không có `rgbdecoder`) |
+| 4 | Xong | `cc-c/wp4-deformable3dgs` | 3 biến thể (mặc định, D-NeRF, 6-DoF); đã chạy biến thể D-NeRF với model thật tự train (`bouncingballs`) |
+| 5 | Xong | `cc-c/wp5-shape-of-motion`, `cc-c/wp5-scgs` | Làm cả hai phương pháp; đã chạy với checkpoint thật `paper-windmill` (Shape of Motion) và model tự train `bouncingballs` (SC-GS) |
 | 6 | Xong | `cc-a/wp6-sh` | |
 | 7 | Xong | `cc-a/wp7-video`, `cc-a/wp7-compare` | Làm cả (a) so sánh hai sequence và (b) xuất mp4 |
 | 8 | Xong | `cc-a/wp8-large` | Bảng trước/sau trong README |
 
 Còn mở, nằm ngoài điều kiện xong của các gói:
 
-- WP3, WP4, WP5 chưa chạy với output thật của chính phương pháp đó (Spacetime Gaussians, Deformable-3DGS,
-  Shape of Motion, SC-GS); native 4DGS cũng chưa có `chkpnt*.pth` thật.
+- Đã chạy với output thật (14/11/2026): cả bốn converter của WP3–5 và native 4DGS; số đo ở bảng "Dùng với output
+  thật" trong README, ảnh so với ảnh gốc ở `shots/real/`. Chưa thử: model Spacetime Gaussians bản đầy đủ (có
+  `rgbdecoder`), Deformable-3DGS biến thể mặc định và 6-DoF, SC-GS với motion mask, cảnh thật (không phải D-NeRF)
+  cho Deformable-3DGS, SC-GS và native 4DGS.
 - Câu hỏi cho giáo sư bên dưới chưa có câu trả lời được ghi lại; WP3–5 đã được làm mà không chờ.
 - Tốc độ hiển thị trong trình duyệt thật chưa đo (số trong README là phía server).
 - Danh sách đầy đủ những gì đã và chưa kiểm nằm ở mục Status của `CLAUDE.md`.

@@ -65,7 +65,9 @@ def test_shape_of_motion():
     with tempfile.TemporaryDirectory() as tmp:
         os.makedirs(os.path.join(tmp, "checkpoints"))
         ckpt, out = os.path.join(tmp, "checkpoints", "last.ckpt"), os.path.join(tmp, "som.npz")
-        torch.save({"model": model, "optimizers": {}, "schedulers": {}, "global_step": 123, "epoch": 4}, ckpt)
+        # real checkpoints carry numpy scalars in the optimizer / scheduler state
+        torch.save({"model": model, "optimizers": {"lr": np.float64(1e-3)}, "schedulers": {"n": np.int64(7)},
+                    "global_step": 123, "epoch": 4}, ckpt)
         subprocess.run([sys.executable, os.path.join(ROOT, "convert_shape_of_motion.py"), ckpt, "-o", out, "--fps", "10",
                         "--stride", "2"], check=True, stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)

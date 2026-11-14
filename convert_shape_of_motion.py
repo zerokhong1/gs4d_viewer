@@ -37,6 +37,12 @@ def load_checkpoint(path: str) -> dict:
         import torch
     except ImportError:
         raise SystemExit("convert_shape_of_motion.py needs torch (CPU is enough) to read the checkpoint: pip install torch")
+    # Real checkpoints pickle numpy scalars next to the weights (seen in the released paper-windmill checkpoint),
+    # which weights_only=True rejects by default. These are plain data constructors, safe to allow.
+    import _codecs
+    from numpy.core.multiarray import scalar
+    torch.serialization.add_safe_globals([scalar, np.dtype, _codecs.encode] + [
+        type(np.dtype(t)) for t in (np.float64, np.float32, np.int64, np.int32, np.bool_)])
     ckpt = torch.load(path, map_location="cpu", weights_only=True)
     sd = ckpt["model"] if isinstance(ckpt, dict) and "model" in ckpt else ckpt
     need = ["fg.params.means", "fg.params.quats", "fg.params.scales", "fg.params.colors", "fg.params.opacities",
