@@ -23,6 +23,15 @@ time-varying fields by smaller ones; `load` reads both layouts:
     opacities  -> opacities_u8 [K,N] uint8
     colors     -> colors_u8 [K,N,3] uint8
 Static fields and `sh` stay float32. A compact field is decoded one keyframe at a time when it is used.
+
+Static group (written by `save` unless `split_static=False`): Gaussians that do not change over the keyframes in
+any time-varying field are stored once instead of K times. The file then has
+    static_index       [Ns] int64   positions of the static Gaussians among the N Gaussians (sorted)
+    <field>            [K,Nd,...]   the time-varying fields above (plain or compact) hold only the Nd = N - Ns
+                                    other Gaussians, in their original order
+    <field>_static     [Ns,...] float32  value of the static Gaussians, for each of those fields
+Fields without the K axis keep all N Gaussians. In memory nothing changes for the caller: every field still looks
+like [K,N,...] and `at(t)` returns all N Gaussians in the original order.
 """
 from __future__ import annotations
 
@@ -70,28 +79,21 @@ def unpack_cov(packed: np.ndarray) -> np.ndarray:
     return full
 
 
-class _Packed:
-    """Time-varying field kept in its compact encoding; behaves like a read-only float32 array [K, ...].
+class _Virtual:
+    """Time-varying field that is not stored as one float32 array; behaves like a read-only float32 array [K, ...].
 
-    `a[k]` with an integer k decodes one keyframe. Anything else (slicing, numpy functions, methods such
-    as .max) decodes the whole field first, which costs the full float32 memory.
+    `a[k]` with an integer k builds one keyframe. Anything else (slicing, numpy functions, methods such
+    as .max) builds the whole field first, which costs the full float32 memory.
     """
     dtype = np.dtype(np.float32)
     tail: tuple = ()
-
-    def __init__(self, raw: np.ndarray):
-        self.raw = raw
-
-    @property
-    def shape(self):
-        return (self.raw.shape[0], self.raw.shape[1]) + self.tail
 
     @property
     def ndim(self):
         return len(self.shape)
 
     def __len__(self):
-        return self.raw.shape[0]
+        return self.shape[0]
 
     def frame(self, k: int) -> np.ndarray:
         raise NotImplementedError
@@ -108,9 +110,20 @@ class _Packed:
         return out if dtype is None else out.astype(dtype, copy=False)
 
     def __getattr__(self, name):  # numpy methods (max, mean, ...) on the decoded field
-        if name.startswith("__") or name in ("raw", "ref", "scale"):
+        if name.startswith("__") or name in ("raw", "ref", "scale", "dyn", "static", "layout", "name"):
             raise AttributeError(name)
         return getattr(np.asarray(self), name)
+
+
+class _Packed(_Virtual):
+    """Time-varying field kept in its compact encoding (decoded one keyframe at a time)."""
+
+    def __init__(self, raw: np.ndarray):
+        self.raw = raw
+
+    @property
+    def shape(self):
+        return (self.raw.shape[0], self.raw.shape[1]) + self.tail
 
 
 class _PackedMeans(_Packed):
@@ -133,6 +146,9 @@ class _PackedMeans(_Packed):
 
     def files(self):
         return {"means_ref": self.ref, "means_d16": self.raw}
+
+    def take(self, sel):
+        return _PackedMeans(self.ref[sel], self.raw[:, sel])
 
 
 class _PackedCovs(_Packed):
@@ -181,6 +197,9 @@ class _PackedCovs(_Packed):
     def files(self):
         return {"covs_scale": self.scale, "covs_q": self.raw}
 
+    def take(self, sel):
+        return _PackedCovs(self.scale[sel], self.raw[:, sel])
+
 
 class _PackedU8(_Packed):
     """Values in [0,1] as uint8."""
@@ -200,6 +219,64 @@ class _PackedU8(_Packed):
 
     def files(self):
         return {self.name + "_u8": self.raw}
+
+    def take(self, sel):
+        return _PackedU8(self.raw[:, sel], self.name)
+
+
+class _Layout:
+    """Where the static and the other (dynamic) Gaussians sit among the N Gaussians of a sequence."""
+
+    def __init__(self, static_idx: np.ndarray, n: int):
+        self.n = int(n)
+        self.static_idx = np.asarray(static_idx, np.int64).reshape(-1)
+        mask = np.zeros(self.n, bool)
+        mask[self.static_idx] = True
+        if len(self.static_idx) == 0 or mask.sum() != len(self.static_idx) or np.any(np.diff(self.static_idx) <= 0):
+            raise ValueError("static_index must be non-empty, sorted, unique and inside the Gaussian range")
+        self.dyn_idx = np.flatnonzero(~mask)
+        a, ns = int(self.static_idx[0]), len(self.static_idx)
+        self.run = (a, a + ns) if int(self.static_idx[-1]) - a + 1 == ns else None  # one contiguous block: plain copies
+
+    def dyn_sel(self):
+        """Index of the dynamic Gaussians, as a slice when they are one block."""
+        if self.run and self.run[1] == self.n:
+            return slice(0, self.run[0])
+        if self.run and self.run[0] == 0:
+            return slice(self.run[1], self.n)
+        return self.dyn_idx
+
+    def merge(self, d: np.ndarray, s: np.ndarray) -> np.ndarray:
+        """Dynamic rows [Nd,...] and static rows [Ns,...] -> all Gaussians [N,...] in the original order."""
+        out = np.empty((self.n,) + s.shape[1:], np.float32)
+        if self.run:
+            a, b = self.run
+            out[:a], out[a:b], out[b:] = d[:a], s, d[a:]
+        else:
+            out[self.dyn_idx], out[self.static_idx] = d, s
+        return out
+
+
+class _Split(_Virtual):
+    """Time-varying field whose static Gaussians are stored once: dyn [K,Nd,...] (array or _Packed) + static [Ns,...]."""
+
+    def __init__(self, dyn, static: np.ndarray, layout: _Layout):
+        self.dyn, self.static, self.layout = dyn, np.asarray(static, np.float32), layout
+        self.tail = tuple(self.static.shape[1:])
+        if tuple(dyn.shape[1:]) != (len(layout.dyn_idx),) + self.tail or len(self.static) != len(layout.static_idx):
+            raise ValueError(f"split field: dynamic part {tuple(dyn.shape)} and static part {self.static.shape} "
+                             f"do not fit {len(layout.dyn_idx)} + {len(layout.static_idx)} Gaussians")
+
+    @property
+    def shape(self):
+        return (self.dyn.shape[0], self.layout.n) + self.tail
+
+    def frame(self, k):
+        return self.layout.merge(self.dyn[k], self.static)
+
+    def blend(self, i0: int, i1: int, w: float):
+        d = self.dyn[i0] if (w == 0.0 or i0 == i1) else (1.0 - w) * self.dyn[i0] + w * self.dyn[i1]
+        return self.layout.merge(d, self.static)
 
 
 def _npz_arrays(path: str, lazy: bool) -> dict:
@@ -245,13 +322,13 @@ class Sequence4D:
         N = self.means.shape[-2]
         for name, tail in (("means", (N, 3)), ("covs", (N, 6)), ("opacities", (N,)), ("colors", (N, 3))):
             a = getattr(self, name)
-            if not isinstance(a, _Packed):
+            if not isinstance(a, _Virtual):
                 a = np.asarray(a, np.float32)
             if a.shape not in (tail, (K,) + tail):
                 raise ValueError(f"{name} has shape {a.shape}, expected {tail} or {(K,) + tail}")
             setattr(self, name, a)
         if self.sh is not None:
-            a = np.asarray(self.sh, np.float32)
+            a = self.sh if isinstance(self.sh, _Virtual) else np.asarray(self.sh, np.float32)
             S = a.shape[-2] if a.ndim >= 3 else 0
             if S not in (1, 4, 9, 16) or a.shape not in ((N, S, 3), (K, N, S, 3)):
                 raise ValueError(f"sh has shape {a.shape}, expected {(N, 'S', 3)} or {(K, N, 'S', 3)} with S in 1, 4, 9, 16")
@@ -269,9 +346,60 @@ class Sequence4D:
     def num_gaussians(self) -> int:
         return self.means.shape[-2]
 
+    def _kfields(self):
+        """Names of the fields that have the keyframe axis."""
+        names = [n for n, d in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2)) if getattr(self, n).ndim > d]
+        return names + (["sh"] if self.sh is not None and self.sh.ndim == 4 else [])
+
+    def _layout(self) -> Optional[_Layout]:
+        return next((getattr(self, n).layout for n in self._kfields() if isinstance(getattr(self, n), _Split)), None)
+
+    @property
+    def num_static(self) -> int:
+        """Gaussians kept in the static group (0 when the sequence is not split)."""
+        lay = self._layout()
+        return 0 if lay is None else len(lay.static_idx)
+
+    def split_static(self, rtol: float = 1e-6) -> "Sequence4D":
+        """Moves the Gaussians that do not change over the keyframes, in any time-varying field, to a static
+        group stored once (see the module docstring). A value counts as unchanged when it differs from the first
+        keyframe by at most rtol times its magnitude; the first keyframe's value is kept. In place; returns self."""
+        names = self._kfields()
+        if not names or self._layout() is not None:
+            return self
+        N = self.num_gaussians
+        static = np.ones(N, bool)
+        for n in names:
+            a = getattr(self, n)
+            ref = np.asarray(a[0])
+            tol = rtol * np.abs(ref)
+            for k in range(1, self.num_frames):
+                static &= (np.abs(np.asarray(a[k]) - ref) <= tol).reshape(N, -1).all(1)
+            if not static.any():
+                return self
+        if static.all():  # nothing moves: the fields simply lose the keyframe axis
+            for n in names:
+                setattr(self, n, np.array(getattr(self, n)[0], np.float32))
+            return self
+        lay = _Layout(np.flatnonzero(static), N)
+        sel = lay.dyn_sel()
+        for n in names:
+            a = getattr(self, n)
+            setattr(self, n, _Split(a.take(sel) if isinstance(a, _Packed) else a[:, sel], np.array(a[0][lay.static_idx], np.float32), lay))
+        return self
+
+    def merge_static(self) -> "Sequence4D":
+        """Undoes split_static: every time-varying field becomes one float32 array again. In place; returns self."""
+        for n in self._kfields():
+            if isinstance(getattr(self, n), _Split):
+                setattr(self, n, np.asarray(getattr(self, n)))
+        return self
+
     def _field(self, a: np.ndarray, static_ndim: int, i0: int, i1: int, w: float) -> np.ndarray:
         if a.ndim == static_ndim:
             return a
+        if isinstance(a, _Split):
+            return a.blend(i0, i1, w)
         if w == 0.0 or i0 == i1:
             return a[i0]
         return (1.0 - w) * a[i0] + w * a[i1]
@@ -307,36 +435,44 @@ class Sequence4D:
 
     def compact(self) -> "Sequence4D":
         """Re-encodes the time-varying fields in place (see the module docstring); lossy. Returns self."""
-        K = self.num_frames
         for name, static_ndim in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2)):
             a = getattr(self, name)
-            if isinstance(a, _Packed) or a.ndim == static_ndim:
+            d = a.dyn if isinstance(a, _Split) else a
+            if isinstance(d, _Packed) or a.ndim == static_ndim:
                 continue
-            packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode}.get(name, lambda x: _PackedU8.encode(x, name))(a)
+            packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode}.get(name, lambda x: _PackedU8.encode(x, name))(d)
             if packed is not None:
-                setattr(self, name, packed)
+                setattr(self, name, _Split(packed, a.static, a.layout) if isinstance(a, _Split) else packed)
         return self
 
     @property
     def is_compact(self) -> bool:
-        return any(isinstance(getattr(self, n), _Packed) for n in ("means", "covs", "opacities", "colors"))
+        return any(isinstance(getattr(a, "dyn", a), _Packed) for a in (self.means, self.covs, self.opacities, self.colors))
 
-    def save(self, path: str, compact: bool = False) -> None:
+    def save(self, path: str, compact: bool = False, split_static: bool = True) -> None:
         """Writes the .npz. compact=True stores the time-varying fields in the smaller lossy encoding
-        (about 2.2x smaller); compact=False writes plain float32, also for a sequence that is compact in memory."""
-        src = self
-        if compact and not all(isinstance(getattr(self, n), _Packed) or getattr(self, n).ndim == d
-                               for n, d in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2))):
-            src = Sequence4D(self.times, self.means, self.covs, self.opacities, self.colors).compact()
+        (about 2.2x smaller); compact=False writes plain float32, also for a sequence that is compact in memory.
+        split_static=True stores Gaussians that never change once instead of at every keyframe (lossless up to
+        the tolerance of `split_static`); False writes every Gaussian at every keyframe, as older versions did."""
+        src = Sequence4D(self.times, self.means, self.covs, self.opacities, self.colors, sh=self.sh)  # shares the arrays
+        src = src.split_static() if split_static else src.merge_static()
+        if compact:
+            src.compact()
         files = {}
-        for name in ("means", "covs", "opacities", "colors"):
+        lay = src._layout()
+        if lay is not None:
+            files["static_index"] = lay.static_idx
+        for name in ("means", "covs", "opacities", "colors", "sh"):
             a = getattr(src, name)
+            if a is None:
+                continue
+            if isinstance(a, _Split):
+                files[name + "_static"] = a.static
+                a = a.dyn
             if isinstance(a, _Packed):
                 files.update(a.files() if compact else {name: np.asarray(a)})
             else:
                 files[name] = a
-        if self.sh is not None:
-            files["sh"] = self.sh
         np.savez(path, times=self.times, interpolate=np.bool_(self.interpolate), source=np.str_(self.source), **files)
 
     @staticmethod
@@ -352,15 +488,18 @@ class Sequence4D:
         covs = _PackedCovs(np.asarray(z["covs_scale"], np.float32), z["covs_q"]) if "covs_q" in z else z["covs"]
         opac = _PackedU8(z["opacities_u8"], "opacities") if "opacities_u8" in z else z["opacities"]
         cols = _PackedU8(z["colors_u8"], "colors") if "colors_u8" in z else z["colors"]
+        fields = {"means": means, "covs": covs, "opacities": opac, "colors": cols, "sh": z["sh"] if "sh" in z else None}
+        if "static_index" in z:
+            idx = np.asarray(z["static_index"])
+            split = [n for n in fields if n + "_static" in z]
+            lay = _Layout(idx, len(idx) + fields[split[0]].shape[1])
+            for n in split:
+                fields[n] = _Split(fields[n], z[n + "_static"], lay)
         return Sequence4D(
             times=np.array(z["times"]),
-            means=means,
-            covs=covs,
-            opacities=opac,
-            colors=cols,
             interpolate=bool(z["interpolate"]) if "interpolate" in z else True,
             source=str(z["source"]) if "source" in z else "",
-            sh=z["sh"] if "sh" in z else None,
+            **fields,
         )
 
     def summary(self) -> str:
@@ -371,6 +510,7 @@ class Sequence4D:
                 f"time-varying: {', '.join(dyn) or 'none'}"
                 + ("" if self.sh is None else f", SH degree {self.sh_degree}"
                    + (" (per keyframe)" if self.sh.ndim == 4 else ""))
+                + (f", {self.num_static:,} static Gaussians stored once" if self.num_static else "")
                 + (", compact storage" if self.is_compact else ""))
 
 
@@ -382,11 +522,14 @@ def main():
     ap.add_argument("input")
     ap.add_argument("output")
     ap.add_argument("--float32", action="store_true", help="write plain float32 instead of the compact layout")
+    ap.add_argument("--no-split", action="store_true",
+                    help="write every Gaussian at every keyframe instead of storing the static ones once")
     a = ap.parse_args()
     if os.path.exists(a.output) and os.path.samefile(a.input, a.output):
         raise SystemExit("input and output must be different files")
     seq = Sequence4D.load(a.input, lazy=True)
-    seq.save(a.output, compact=not a.float32)
+    seq.save(a.output, compact=not a.float32, split_static=not a.no_split)
+    print(Sequence4D.load(a.output, lazy=True).summary())
     print(f"Wrote {a.output}: {os.path.getsize(a.input) / 1e6:.1f} MB -> {os.path.getsize(a.output) / 1e6:.1f} MB")
 
 
