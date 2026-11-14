@@ -181,3 +181,25 @@ Studio chỉ được dùng cho mục đích nghiên cứu, phi thương mại; 
 - H. Joo, H. Liu, L. Tan, L. Gui, B. Nabbe, I. Matthews, T. Kanade, S. Nobuhara, Y. Sheikh. *Panoptic Studio:
   A Massively Multiview System for Social Motion Capture.* ICCV 2015.
   <https://github.com/CMU-Perceptual-Computing-Lab/panoptic-toolbox>
+
+Bốn ảnh trong `shots/real/` có hàng trên là render của viewer, hàng dưới (hoặc ảnh đối chiếu) là ảnh của bộ dữ liệu
+gốc, nên cũng **không** thuộc giấy phép MIT của repo này:
+
+- `shape_of_motion_paper-windmill.png`: cảnh `paper-windmill` của bộ iPhone trong DyCheck. Repo DyCheck ghi cả code
+  và dataset phát hành theo Apache 2.0. Checkpoint do tác giả Shape of Motion công bố (repo MIT).
+- `deformable3dgs_bouncingballs.png`, `scgs_bouncingballs.png`, `native4d_bouncingballs.png`: cảnh tổng hợp
+  `bouncingballs` của D-NeRF. Repo D-NeRF theo giấy phép MIT và không ghi điều khoản riêng cho dataset. Model do
+  chúng tôi tự train bằng code của Deformable-3DGS, SC-GS và native 4DGS (cả ba repo đều MIT).
+
+- H. Gao, R. Li, S. Tulsiani, B. Russell, A. Kanazawa. *Monocular Dynamic View Synthesis: A Reality Check.*
+  NeurIPS 2022. <https://github.com/KAIR-BAIR/dycheck>
+- A. Pumarola, E. Corona, G. Pons-Moll, F. Moreno-Noguer. *D-NeRF: Neural Radiance Fields for Dynamic Scenes.*
+  CVPR 2021. <https://github.com/albertpumarola/D-NeRF>
+- Q. Wang, V. Ye, H. Gao, W. Zeng, J. Austin, Z. Li, A. Kanazawa. *Shape of Motion: 4D Reconstruction from a Single
+  Video.* ICCV 2025. <https://github.com/vye16/shape-of-motion>
+- Z. Yang, X. Gao, W. Zhou, S. Jiao, Y. Zhang, X. Jin. *Deformable 3D Gaussians for High-Fidelity Monocular Dynamic
+  Scene Reconstruction.* CVPR 2024. <https://github.com/ingra14m/Deformable-3D-Gaussians>
+- Y. Huang, Y. Sun, Z. Yang, X. Lyu, Y. Cao, X. Qi. *SC-GS: Sparse-Controlled Gaussian Splatting for Editable Dynamic
+  Scenes.* CVPR 2024. <https://github.com/yihua7/SC-GS>
+- Z. Yang, H. Yang, Z. Pan, L. Zhang. *Real-time Photorealistic Dynamic Scene Representation and Rendering with 4D
+  Gaussian Splatting.* ICLR 2024. <https://github.com/fudan-zvg/4d-gaussian-splatting>
