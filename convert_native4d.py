@@ -90,6 +90,7 @@ def main():
     ap.add_argument("--min-peak-opacity", type=float, default=0.02,
                     help="drop Gaussians whose opacity never exceeds this in [t0,t1]")
     ap.add_argument("--max-gaussians", type=int, default=0, help="keep only the N most visible Gaussians (0 = all)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     c = load_checkpoint(a.checkpoint)
@@ -115,7 +116,7 @@ def main():
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
     seq = Sequence4D(times, means[:, keep], cov3[keep], opac[:, keep], colors[keep],
                      source=f"native 4DGS: {a.checkpoint}")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 

@@ -188,10 +188,18 @@ tròn lệch tới 5·10⁻⁷; thay các giá trị đó bằng giá trị gố
 - Màu phụ thuộc hướng nhìn chỉ có khi file có trường `sh` và dùng renderer gsplat; renderer client luôn
   vẽ bằng `colors` (SH bậc 0). `convert_per_frame.py --sh` (thư mục ply), `convert_deformable3dgs.py --sh` và `convert_scgs.py --sh` ghi trường này.
 - Dung lượng ≈ N × K × 40 byte cho phần thay đổi theo thời gian (≈ 19 byte ở dạng nén); giảm `--frames` hoặc
-  `--stride`, hoặc lưu nén như mục trên nếu file lớn. Các converter chưa có cờ nén: chạy `python -m gs4d` sau khi chuyển.
+  `--stride`, hoặc lưu nén như mục trên nếu file lớn. Mọi `convert_*.py` có cờ `--compact` (lưu nén ngay khi chuyển); `python -m gs4d.open` tự thêm cờ này khi file ước tính lớn hơn 1 GB. Với Deformable-3DGS `bouncingballs` (có `--sh`): 153 → 84 MB.
 - Số Gaussian thay đổi giữa các frame (feed-forward): viewer nhảy theo keyframe gần nhất, không nội suy.
 
 ## Kiểm tra
+
+Một lệnh chạy mọi `tests/test_*.py` và `tests/check_*.py` (lần lượt từng file), in bảng qua / bỏ qua (kèm lý do: không CUDA, không Chrome, không torch, không dữ liệu) / hỏng; mã thoát 1 nếu có file hỏng:
+
+```bash
+python tests/run_all.py            # thêm vài từ để chỉ chạy file có tên chứa chúng: run_all.py sh static
+```
+
+Từng lệnh riêng:
 
 ```bash
 python tests/test_all.py                                  # 4 phép kiểm, không cần GPU

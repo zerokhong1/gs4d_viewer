@@ -180,6 +180,7 @@ def main():
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
     ap.add_argument("--batch", type=int, default=65536, help="Gaussians per MLP batch (lower it if RAM runs out)")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients for view-dependent colour (gsplat renderer)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     try:
@@ -204,7 +205,7 @@ def main():
     means, covs = deform_sequence(xyz, scales, quats, mlp, times, a.batch, progress=True)
     seq = Sequence4D(times, means, covs, opac[keep], colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None,
                      source=f"Deformable 3D Gaussians: {ply}")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 

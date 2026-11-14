@@ -22,6 +22,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
 - `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
   (`<name>.gs4d.npz`, reused while the output is unchanged) and opens the viewer
+- `tests/run_all.py` runs every `test_*.py`/`check_*.py` one at a time and prints pass / skipped (reason) / failed; exit 1 on failure
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_gsplat.py`
@@ -94,7 +95,11 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
-- Not done: a compact flag in the converters; SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
+- Not done: SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
+- Tested (WP17): `--compact` in every `convert_*.py` (only `save(compact=True)`); `gs4d.open` adds it when the estimate
+  (`estimate_bytes`, rough: ply size / 248 B x frames x 40 B) is over 1 GB, `tests/test_open.py`. Deformable-3DGS `bouncingballs --sh`
+  153 -> 84 MB, `at(t)` differs from the plain file by <2e-4. `python tests/run_all.py` all pass on this machine (CUDA, Chrome, data present).
+  `requirements.txt` now lists numpy<2, viser, pillow, imageio, imageio-ffmpeg, playwright (torch, gsplat as comments).
 
 ## Conventions
 - A converter is a new file `convert_<method>.py` + a new `tests/test_<method>.py` + one row in the README table.

@@ -74,6 +74,7 @@ def main():
     ap.add_argument("--t1", type=float, default=1.0)
     ap.add_argument("--min-peak-opacity", type=float, default=0.02,
                     help="drop Gaussians whose opacity never exceeds this at the keyframes")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     g = load_spacetime_ply(a.ply)
@@ -84,7 +85,7 @@ def main():
     colors = np.clip(g["rgb"], 0, 1).astype(np.float32)
     seq = Sequence4D(times.astype(np.float32), means[:, keep], covs[:, keep], opac[:, keep], colors[keep],
                      source=f"Spacetime Gaussians (base colour only): {a.ply}")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 
