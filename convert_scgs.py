@@ -209,6 +209,7 @@ def main():
     ap.add_argument("--max-d-scale", type=float, default=-1.0, help="the repo's --max_d_scale used for training, if any")
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients for view-dependent colour (gsplat renderer)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     try:
@@ -250,7 +251,7 @@ def main():
     means, covs, opacs = deform_sequence(xyz, scales, rots, opac[keep], mask, idx, w, node_sd["nodes"][:, :3], mlp, times, progress=True)
     seq = Sequence4D(times, means, covs, opac[keep] if opacs is None else opacs, colors[keep],
                      sh=sh[keep] if (a.sh and sh is not None) else None, source=f"SC-GS: {ply}")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 

@@ -95,6 +95,21 @@ def test_all():
         os.utime(d / "som" / "checkpoints" / "last.ckpt", (t, t))
         assert not gopen.is_fresh(cp, d / "som")
         assert gopen.main([str(d / "som"), "--dry-run", "--port", "1"]) == 0
+        # --compact above 1 GB (sparse files give the sizes without writing 1 GB)
+        import io, contextlib
+        big = d / "big" / "point_cloud" / "iteration_1" / "point_cloud.ply"
+        ply(big, BASE)
+        with open(big, "r+b") as f:
+            f.truncate(5 * 2**20 * 248)         # ~5M Gaussians x 60 keyframes x 40 B = 12 GB
+        (d / "big" / "deform").mkdir()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            assert gopen.main([str(d / "big"), "--dry-run"]) == 0
+        assert "--compact" in buf.getvalue(), buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            assert gopen.main([str(d / "som"), "--dry-run", "--reconvert"]) == 0
+        assert "--compact" not in buf.getvalue()
     print("test_open OK")
 
 

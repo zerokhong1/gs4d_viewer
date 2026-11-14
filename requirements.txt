@@ -1,6 +1,11 @@
-numpy
+numpy<2
 viser>=1.0
-# renderer gsplat (GPU NVIDIA):
+pillow
+# mp4 export (viewer) and the headless checks in tests/ (check_camera, check_compare, check_gsplat):
+imageio
+imageio-ffmpeg
+playwright
+# renderer gsplat (NVIDIA GPU) and the converters that unpickle checkpoints; see README for the exact wheels
+# (Python 3.10, torch 2.4.1+cu124, gsplat==1.5.3+pt24cu124):
 # torch
 # gsplat
-# convert_native4d.py cần torch (CPU là đủ) để đọc checkpoint

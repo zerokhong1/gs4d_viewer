@@ -93,6 +93,7 @@ def main():
     ap.add_argument("--sh", action="store_true",
                     help="ply folder: keep f_rest_* (view-dependent colour, gsplat renderer only); "
                          "adds N x K x 12 x (degree+1)^2 bytes")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     if os.path.isdir(a.input):
@@ -101,7 +102,7 @@ def main():
         seq = from_dynamic3dgs(a.input, a.stride, a.fps, a.fg_only)
     else:
         raise SystemExit("input must be a folder of .ply files or a params.npz")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 

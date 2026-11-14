@@ -101,6 +101,7 @@ def main():
     ap.add_argument("--stride", type=int, default=1, help="keep every n-th training frame as a keyframe")
     ap.add_argument("--fg-only", action="store_true", help="drop the static background Gaussians")
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
     sd = load_checkpoint(a.checkpoint)
@@ -121,7 +122,7 @@ def main():
           f"{T} frames; keeping {keep.sum():,}")
     seq = Sequence4D((frames / a.fps).astype(np.float32), means[:, keep], covs[:, keep], opac[keep].astype(np.float32),
                      colors[keep].astype(np.float32), source=f"Shape of Motion: {a.checkpoint}")
-    seq.save(a.output)
+    seq.save(a.output, compact=a.compact)
     print(f"Wrote {a.output}: {seq.summary()}")
 
 

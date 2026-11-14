@@ -182,6 +182,31 @@ def is_fresh(cache: Path, src: Path) -> bool:
     return cache.is_file() and cache.stat().st_mtime >= _newest_mtime(src)
 
 
+COMPACT_OVER = 1 << 30   # estimated size above which --compact is passed to the converter
+PLY_BYTES = 248          # one Gaussian in a 3DGS ply with SH degree 3 (62 float32)
+OUT_BYTES = 40           # one Gaussian at one keyframe in the plain format (see README)
+
+
+def _size(p: Path) -> int:
+    return p.stat().st_size if p.is_file() else sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+
+
+def estimate_bytes(info: dict, convert_args=()) -> int:
+    """Rough size of the plain .npz the converter would write (an upper bound: static Gaussians and
+    --min-opacity make it smaller). Per-frame input is already N*K frames; the others are one model times K."""
+    src, kind = Path(info["src"]), info["kind"]
+    if kind in ("dynamic3dgs", "per_frame"):
+        return _size(src) * OUT_BYTES // (PLY_BYTES if kind == "per_frame" else OUT_BYTES)
+    args = list(convert_args)
+    k = int(args[args.index("--frames") + 1]) if "--frames" in args and args.index("--frames") + 1 < len(args) else 60
+    if kind == "shape_of_motion":
+        return _size(src) // 300 * 200 * OUT_BYTES   # ~300 B per Gaussian with optimiser state, assume ~200 frames
+    if kind == "native4d":
+        return _size(src) * k * OUT_BYTES // 400                       # checkpoint holds ~400 bytes per Gaussian
+    ply = _last_iteration(src / "point_cloud", "point_cloud.ply") if src.is_dir() else src
+    return _size(ply) // PLY_BYTES * k * OUT_BYTES
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog="Any other argument is passed to viewer.py (--port, --renderer, ...).")
@@ -204,8 +229,14 @@ def main(argv=None):
     else:
         target = cache_path(path, info)
         fresh = is_fresh(target, info["src"]) and not a.reconvert
+        conv_args = a.convert_args.split()
         cmd_conv = None if fresh else [sys.executable, str(ROOT / info["converter"]), str(info["src"]),
-                                       "-o", str(target), *info["extra"], *a.convert_args.split()]
+                                       "-o", str(target), *info["extra"], *conv_args]
+        if cmd_conv and "--compact" not in conv_args:
+            est = estimate_bytes(info, [*info["extra"], *conv_args])
+            if est > COMPACT_OVER:
+                print(f"gs4d.open: estimated file {est / 2**30:.1f} GB > 1 GB, converting with --compact", flush=True)
+                cmd_conv.append("--compact")
     cmd_view = [sys.executable, str(ROOT / "viewer.py"), str(target), *viewer_args]
 
     print(f"gs4d.open: {info['kind']} -> {info['converter'] or 'no conversion'}", flush=True)

@@ -40,7 +40,7 @@ và bảng "Dùng với output thật" trong README.
 | 14 | Giải mã và nội suy trên GPU khi play | Chưa | `cc-a/wp14-gpu-decode` | Sau WP11 |
 | 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chờ WP9 | `cc-c/wp15-4dgaussians` | Chỉ khi lab dùng |
 | 16 | Biến thể chưa thử của phương pháp lab dùng | Chờ WP9 | `cc-c/wp16-<tên>` | Chỉ biến thể lab dùng |
-| 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Chưa | `cc-b/wp17-housekeeping` | Sau WP10 |
+| 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
 | 18 | Camera huấn luyện và ảnh gốc trong viewer | Chờ WP9 | `cc-a/wp18-cameras` | Chỉ khi giáo sư yêu cầu; sau WP14 |
 
 ## Phân công: 3 phiên Claude Code
