@@ -11,12 +11,44 @@ Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải 
    git worktree remove ../gs4d-wp2
    git branch --merged main           # xoá các nhánh cc-*/wp* đã merge
    ```
-2. **Demo cho giáo sư và chốt câu hỏi bên dưới** (WP9, người làm). Mọi gói ở đợt 2 chờ câu trả lời này.
+2. **WP9: đọc và xem được mọi file 4DGS** (mục tiêu sản phẩm, bảng bên dưới). Các gói WP13, WP15, WP16 thuộc WP9 và
+   không còn chờ giáo sư; câu trả lời của giáo sư chỉ dùng để xếp thứ tự.
 3. ~~Mở đợt 1~~: WP10, WP11, WP12 đã xong và đã merge vào `main` (14/11/2026).
 
-## Câu hỏi cho giáo sư (WP9)
+## WP9 — sản phẩm: đọc và xem được mọi file 4DGS
 
-Ghi câu trả lời vào đây, kèm ngày. Giai đoạn 1 đã làm WP3–5 mà không chờ; giai đoạn 2 không lặp lại việc đó.
+Đổi ngày 14/11/2026: WP9 trước đây là "demo + chốt câu hỏi với giáo sư"; nay là mục tiêu của sản phẩm.
+
+**Mục tiêu.** Đưa một output 4DGS bất kỳ vào `python -m gs4d.open <output>` là xem được với thanh thời gian, không cần
+cài môi trường hay chạy code của repo gốc. WP9 không có nhánh riêng: nó xong khi mọi dòng trong bảng dưới ở trạng thái "Xong".
+
+"Mọi file" là các loại trong bảng này. Gặp phương pháp mới thì thêm một dòng, một `convert_<method>.py` và một nhánh
+nhận dạng trong `gs4d/open.py`.
+
+| Loại file | Converter | Hiện tại | Còn thiếu | Gói |
+|---|---|---|---|---|
+| Thư mục ply 3DGS từng frame (mọi phương pháp xuất được) | `convert_per_frame.py` | Có test tổng hợp | Thử với một thư mục ply thật (có sẵn khi làm WP15) | WP15 |
+| Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Xong (`basketball`) | — | — |
+| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Xong (`paper-windmill`, kiểm bằng mắt) | — | — |
+| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | Xem được, 26,0–31,9 dB, màu loang vì chỉ SH bậc 0 | Màu SH theo keyframe | WP13 |
+| 4DGaussians (hustvl), thư mục model | chưa có | Chỉ xem được sau khi chạy `export_perframe_3DGS.py` của repo gốc | Converter trực tiếp | WP15 |
+| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Bản lite (chỉ `f_dc`) | Bản đầy đủ có `rgbdecoder` | WP16 |
+| Deformable-3DGS, thư mục model | `convert_deformable3dgs.py` | D-NeRF `--is_blender`, 37,2–43,6 dB | Bản mặc định, bản 6-DoF, một cảnh thật | WP16 |
+| SC-GS, thư mục model | `convert_scgs.py` | D-NeRF, 35,4–43,0 dB | Motion mask, `--use_hash`, `--skinning`, `--pred_color`, tắt `d_rot_as_res`, một cảnh thật | WP16 |
+| File không thuộc loại nào ở trên | `gs4d/open.py` | Báo đã thử nhận dạng những gì | — | — |
+
+**Điều kiện xong của WP9** (thêm vào "Điều kiện xong, áp dụng cho mọi gói"):
+
+1. Mỗi dòng mở được bằng một lệnh `python -m gs4d.open <output>` trên một output thật, và có một mục trong `tests/check_real.py`.
+2. Biến thể mà converter chưa hỗ trợ phải dừng với thông báo nêu tên biến thể, không được cho ra ảnh sai mà không báo.
+3. Bảng "Dùng với output thật" trong README liệt kê đủ các dòng trên, kèm số đo.
+
+Không có output thật của một dòng thì tự train trên `bouncingballs` trong `/home/cont/gs4d_train` (từng job một, 15 GB RAM),
+như đã làm với Deformable-3DGS, SC-GS và native 4DGS.
+
+### Câu hỏi cho giáo sư (không còn chặn gói nào)
+
+Câu trả lời chỉ quyết định dòng nào làm trước và WP18 có cần không. Ghi vào đây, kèm ngày.
 
 | Câu hỏi | Trả lời | Ngày |
 |---|---|---|
@@ -32,16 +64,16 @@ và bảng "Dùng với output thật" trong README.
 
 | WP | Việc | Trạng thái | Nhánh | Ghi chú |
 |---|---|---|---|---|
-| 9 | Demo + chốt câu hỏi với giáo sư | Chưa | — | Người làm |
+| 9 | Sản phẩm: đọc và xem được mọi file 4DGS | Đang làm | — (gồm WP13, WP15, WP16) | 3/9 dòng trong bảng WP9 đã xong; xong khi cả bảng xong |
 | 10 | Lệnh mở thẳng một output | Xong | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; phiên WP10 báo mở được cả 6 output thật |
 | 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
 | 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
-| 13 | Native 4DGS: màu SH theo keyframe | Chờ WP9 | `cc-c/wp13-native4d-sh` | Chỉ khi lab dùng native 4DGS |
+| 13 | Native 4DGS: màu SH theo keyframe | Chưa | `cc-c/wp13-native4d-sh` | Thuộc WP9 |
 | 14 | Giải mã và nội suy trên GPU khi play | Chưa | `cc-a/wp14-gpu-decode` | Sau WP11 |
-| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chờ WP9 | `cc-c/wp15-4dgaussians` | Chỉ khi lab dùng |
-| 16 | Biến thể chưa thử của phương pháp lab dùng | Chờ WP9 | `cc-c/wp16-<tên>` | Chỉ biến thể lab dùng |
+| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chưa | `cc-c/wp15-4dgaussians` | Thuộc WP9; cần tự train một model `bouncingballs` trước |
+| 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Chưa | `cc-c/wp16-<tên>` | Thuộc WP9; mỗi biến thể một phiên, một nhánh |
 | 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
-| 18 | Camera huấn luyện và ảnh gốc trong viewer | Chờ WP9 | `cc-a/wp18-cameras` | Chỉ khi giáo sư yêu cầu; sau WP14 |
+| 18 | Camera huấn luyện và ảnh gốc trong viewer | Chờ yêu cầu | `cc-a/wp18-cameras` | Chỉ khi giáo sư yêu cầu; sau WP14; không thuộc WP9 |
 
 ## Phân công: 3 phiên Claude Code
 
@@ -49,7 +81,7 @@ và bảng "Dùng với output thật" trong README.
 |---|---|---|---|---|
 | **CC-A** | Định dạng và render | mạnh (Opus/Fable) | WP11 → WP14 → (WP18) | `viewer.py`, `gs4d/format.py`, `gs4d/__main__.py`, `tests/test_compact.py`, `tests/bench_large.py`, phần thân README |
 | **CC-B** | Công cụ dùng hằng ngày | Sonnet | WP10 → WP17 | file mới `gs4d/open.py`, `tests/test_open.py`, `tests/run_all.py`; ở WP17: phần đối số dòng lệnh của các `convert_*.py` |
-| **CC-C** | Kiểm chứng và converter | Sonnet | WP12 → (WP13, WP15, WP16 theo câu trả lời) | file mới `tests/check_real.py`; `convert_native4d.py` (WP13); file mới `convert_4dgaussians.py`, `tests/test_4dgaussians.py` (WP15) |
+| **CC-C** | Kiểm chứng và converter | Sonnet | WP12 → WP15 → WP13 → WP16 (từng biến thể) | file mới `tests/check_real.py`; `convert_native4d.py` (WP13); file mới `convert_4dgaussians.py`, `tests/test_4dgaussians.py` (WP15) |
 
 Quy ước chung (giữ từ giai đoạn 1, sửa chỗ đã lệch):
 
@@ -58,12 +90,14 @@ Quy ước chung (giữ từ giai đoạn 1, sửa chỗ đã lệch):
   merge xong thì xoá worktree ngay.
 - Cả ba phiên dùng chung một GPU (RTX 3060) và 15 GB RAM: không train; lệnh render hoặc đo PSNR chạy từng lệnh một.
 - WP17 sửa các `convert_*.py`, nên chỉ chạy khi CC-C không có gói converter nào đang mở.
-- Gói ghi "Chờ WP9" không được mở trước khi bảng câu hỏi ở trên có câu trả lời.
+- Các gói của WP9 (WP13, WP15, WP16) mở được ngay, từng gói một vì chung GPU. Ngoại lệ so với dòng "không train" ở trên:
+  gói thiếu output thật được train một model `bouncingballs` trong `/home/cont/gs4d_train`, khi không phiên nào khác dùng GPU.
 
 ## Thứ tự chạy
 
 - **Đợt 1 (song song, không chờ giáo sư):** WP10 + WP11 + WP12. Ba gói không sửa chung file nào và có ích cho mọi phương pháp.
-- **Đợt 2 (sau WP9):** CC-A làm WP14; CC-B làm WP17; CC-C làm những gói trong WP13/15/16 mà câu trả lời yêu cầu, từng gói một.
+- **Đợt 2 (WP9, không chờ giáo sư):** CC-A làm WP14; CC-B đã xong WP17; CC-C làm WP15 → WP13 → WP16, từng gói một.
+  WP15 đi trước vì 4DGaussians là phương pháp duy nhất chưa đọc trực tiếp được; câu trả lời của giáo sư có thể đổi thứ tự này.
 - **Đợt 3 (khi được yêu cầu):** WP18.
 
 ## Điều kiện xong, áp dụng cho mọi gói
@@ -130,7 +164,7 @@ Xong khi: lệnh chạy hết trên máy này, bảng PSNR dán vào báo cáo, 
 số nào lệch, không tự sửa README ngoài dòng của mình). Báo cáo 5 dòng rồi dừng.
 ```
 
-### WP13 — native 4DGS: màu SH theo keyframe (chỉ khi lab dùng)
+### WP13 — native 4DGS: màu SH theo keyframe (thuộc WP9)
 ```
 Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: WP12 đã merge.
 Vấn đề: convert_native4d.py chỉ ghi màu SH bậc 0; PSNR trên `bouncingballs` là 26,0–31,1 dB, repo gốc tự đo 33,4 dB.
@@ -159,26 +193,31 @@ và với ../data_real/som/paper-windmill.npz; mục tiêu phần lấy frame <=
 1/255 mỗi kênh so với đường CPU. Báo cáo 5 dòng rồi dừng.
 ```
 
-### WP15 — converter trực tiếp cho 4DGaussians (chỉ khi lab dùng)
+### WP15 — converter trực tiếp cho 4DGaussians (thuộc WP9)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Output thật nằm ở: <ĐƯỜNG DẪN>. Việc: viết convert_4dgaussians.py đọc thư mục model của 4DGaussians (hustvl/4DGaussians:
+Đọc CLAUDE.md và các mục "WP9" và "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Output thật nằm ở: <ĐƯỜNG DẪN>. Nếu chưa có: train hustvl/4DGaussians trên D-NeRF `bouncingballs` trong /home/cont/gs4d_train
+(một job, không chạy gì khác trên GPU), rồi chạy `export_perframe_3DGS.py` một lần để có ply từng frame làm đối chứng. Việc: viết convert_4dgaussians.py đọc thư mục model của 4DGaussians (hustvl/4DGaussians:
 `point_cloud/iteration_*/point_cloud.ply` + file trọng số mạng biến dạng) và xuất Sequence4D ở K mốc thời gian, để không
 phải chạy `export_perframe_3DGS.py` trong môi trường của repo gốc. Ràng buộc giống converter Deformable-3DGS: đọc repo
 để port công thức (HexPlane đa độ phân giải + MLP biến dạng vị trí/xoay/scale), viết lại forward pass bằng torch trên CPU,
 chạy theo lô, không import code của repo. Chỉ thêm: convert_4dgaussians.py, tests/test_4dgaussians.py, một dòng README,
-một mục trong tests/check_real.py.
+hai mục trong tests/check_real.py (converter mới, và thư mục ply từng frame qua convert_per_frame.py). Nhánh nhận dạng trong
+gs4d/open.py là file của CC-B: ghi vào báo cáo.
 Xong khi: test tổng hợp so với công thức viết độc lập; và với output thật ở trên, kết quả khớp với ply từng frame do
 `export_perframe_3DGS.py` xuất (nếu có sẵn) hoặc PSNR so với ảnh test được ghi vào README. Báo cáo 5 dòng rồi dừng.
 ```
 
-### WP16 — biến thể chưa thử của phương pháp lab dùng
+### WP16 — các biến thể chưa thử (thuộc WP9; mỗi biến thể một phiên)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Đọc CLAUDE.md và các mục "WP9" và "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
 Phương pháp và biến thể: <MỘT trong: Spacetime Gaussians bản đầy đủ có rgbdecoder | Deformable-3DGS mặc định | Deformable-3DGS
-6-DoF | SC-GS có motion mask | cảnh thật (không phải D-NeRF) cho <tên>>. Output thật nằm ở: <ĐƯỜNG DẪN>.
+6-DoF | SC-GS có motion mask | SC-GS --use_hash | SC-GS --skinning | SC-GS --pred_color | SC-GS tắt d_rot_as_res |
+cảnh thật (không phải D-NeRF) cho <tên>>. Output thật nằm ở: <ĐƯỜNG DẪN>; nếu chưa có thì train biến thể đó trong
+/home/cont/gs4d_train (một job).
 Việc: chạy converter tương ứng với output này, so với ảnh gốc bằng tests/check_real.py (thêm một mục), sửa converter và
-test của nó nếu định dạng thật khác giả định. Không sửa viewer.py hay gs4d/format.py.
+test của nó nếu định dạng thật khác giả định. Biến thể không hỗ trợ được thì converter phải dừng với thông báo nêu tên
+biến thể. Không sửa viewer.py hay gs4d/format.py.
 Xong khi: README và mục Status của CLAUDE.md ghi PSNR đo được và chuyển biến thể này từ "NOT tested" sang "Tested".
 Báo cáo 5 dòng rồi dừng.
 ```

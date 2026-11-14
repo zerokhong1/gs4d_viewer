@@ -56,6 +56,8 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 
 ## Status
 Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are merged into `main`; see `PLAN.md`.
+- WP9 is the product goal: every 4DGS output opens with `python -m gs4d.open <output>`. Coverage table (file type, what is
+  missing, which WP) is in `PLAN.md`; open items are WP13, WP15, WP16.
 - Tested: client renderer in headless Chrome on the toy scene; `tests/test_all.py` (4 checks);
   `viewer.camera_matrices` (viser camera -> viewmat, K) against the browser render, `tests/check_camera.py`.
 - Tested on CUDA (RTX 3060, WP1): the gsplat `rasterization(...)` call and image streaming in `_draw_gsplat`,
