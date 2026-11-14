@@ -75,9 +75,11 @@ Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both
   - `convert_spacetime.py`: authors' `n3d_sear_steak_lite_allcam` (lite model: `f_dc` only, no `rgbdecoder`);
     checked by eye at training cameras, image not in the repo (shows a person).
   - `convert_shape_of_motion.py`: authors' `paper-windmill` checkpoint, checked by eye.
-  - `convert_deformable3dgs.py --sh`: self-trained D-NeRF `bouncingballs` (20k iterations), 29.3-33.2 dB on 5 test frames.
-  - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8), 36.2-41.3 dB.
-  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth`, 26.0-31.1 dB (the repo's own eval:
+  - `convert_deformable3dgs.py --sh`: self-trained D-NeRF `bouncingballs` (20k iterations, trained at 800 px), 37.2-43.6 dB
+    on all 20 test frames at 800 px (29.3-33.2 dB when rendered at 400 px: evaluate at the training resolution).
+  - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8, trained at 400 px), 35.4-43.0 dB
+    on all 20 test frames at 400 px.
+  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames (the repo's own eval:
     33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
 - Each of those converters also has a synthetic test, `tests/test_<name>.py`.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,
