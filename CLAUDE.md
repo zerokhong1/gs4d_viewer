@@ -19,6 +19,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
 - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
 - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
+- `convert_4dgaussians.py`  type D: hustvl 4DGaussians model folder (HexPlane + MLP re-run on CPU); synthetic test only so far
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
 - `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
   (`<name>.gs4d.npz`, reused while the output is unchanged) and opens the viewer

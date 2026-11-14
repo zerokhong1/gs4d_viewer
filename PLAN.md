@@ -70,7 +70,7 @@ và bảng "Dùng với output thật" trong README.
 | 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
 | 13 | Native 4DGS: màu SH theo keyframe | Xong (chưa merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
 | 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU chưa đo (không có Chrome nối được, trình duyệt trong app không có WebGL) |
-| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chưa | `cc-c/wp15-4dgaussians` | Thuộc WP9; cần tự train một model `bouncingballs` trước |
+| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Dở: converter + test tổng hợp xong, chưa có output thật | `cc-c/wp15-4dgaussians` | Thuộc WP9; cần tự train một model `bouncingballs` trước |
 | 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Chưa | `cc-c/wp16-<tên>` | Thuộc WP9; mỗi biến thể một phiên, một nhánh |
 | 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
 | 18 | Camera huấn luyện và ảnh gốc trong viewer | Chờ yêu cầu | `cc-a/wp18-cameras` | Chỉ khi giáo sư yêu cầu; sau WP14; không thuộc WP9 |
