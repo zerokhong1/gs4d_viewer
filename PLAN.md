@@ -68,7 +68,7 @@ và bảng "Dùng với output thật" trong README.
 | 10 | Lệnh mở thẳng một output | Xong | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; phiên WP10 báo mở được cả 6 output thật |
 | 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
 | 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
-| 13 | Native 4DGS: màu SH theo keyframe | Chưa | `cc-c/wp13-native4d-sh` | Thuộc WP9 |
+| 13 | Native 4DGS: màu SH theo keyframe | Xong (chưa merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
 | 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU chưa đo (không có Chrome nối được, trình duyệt trong app không có WebGL) |
 | 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chưa | `cc-c/wp15-4dgaussians` | Thuộc WP9; cần tự train một model `bouncingballs` trước |
 | 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Chưa | `cc-c/wp16-<tên>` | Thuộc WP9; mỗi biến thể một phiên, một nhánh |
