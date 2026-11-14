@@ -158,6 +158,36 @@ Sai số vị trí 0,002 là với Gaussian dịch tới 5,35 đơn vị so vớ
 lớn nhất của Gaussian đó. Đổi lại, dạng nén giải mã mỗi frame chậm hơn (77 ms so với 14 ms ở 500.000
 Gaussian), nên khi play scene lớn tốc độ cập nhật thấp hơn dạng float32.
 
+### Giải mã và nội suy trên GPU khi play (renderer gsplat)
+
+Trước đây mỗi frame khi play: `at(t)` giải mã và nội suy bằng numpy, đổi covariance sang 3×3, lọc opacity, rồi chép
+mọi thứ lên GPU. Bước 0 (`python tests/bench_large.py`, ms cho một frame ở 500.000 Gaussian × 100 keyframe, nén):
+chép khối lượng đĩa 3, giải mã 41, nội suy 10, chép lên GPU 4; cộng phần còn lại của đường CPU (covariance 3×3, mặt nạ
+opacity) cả frame là 100 ms. Thời gian nằm ở giải mã trên CPU và ở các bước numpy sau `at(t)`, không ở đọc đĩa.
+
+Bây giờ `gs4d.GpuFrames` (trong `gs4d/format.py`) giữ trên GPU các keyframe quanh thời điểm hiện tại (bộ nhớ đệm 3 keyframe
+mỗi trường, dạng float32): mảng thô (float16/int16/uint8) được chép lên một keyframe một lần khi thanh thời gian
+sang khoảng mới, giải mã và nội suy bằng torch. Trường không đổi và nhóm tĩnh (WP11) chép lên GPU một lần lúc khởi tạo.
+Renderer client và đường CPU không đổi; `viewer.py --cpu-decode` buộc dùng đường CPU để so sánh.
+
+Thời gian lấy đầu vào gsplat cho một frame khi play (`viewer.frame_cpu` / `viewer.frame_gpu`, trung bình 31 frame qua
+2 keyframe, RTX 3060; máy dùng chung với phiên khác nên số CPU dao động ±20%):
+
+| | CPU trước | GPU sau |
+|---|---|---|
+| 500.000 × 100, float32 | 63 ms | 2,3 ms |
+| 500.000 × 100, nén | 100 ms (`at(t)` 48 ms) | 2,2 ms |
+| `paper-windmill` (995.942 × 35), nén + tách tĩnh | 214 ms (`at(t)` 11 ms) | 3,1 ms |
+| `paper-windmill`, float32 + tách tĩnh | 204 ms | 3,2 ms |
+| `paper-windmill`, file gốc 1271 MB | 225 ms | 4,6 ms |
+
+Mục tiêu "lấy frame ≤ 20 ms ở dạng nén" đạt (2–3 ms). Ảnh render khác đường CPU tối đa 1/255 mỗi kênh (0/255 ở
+`paper-windmill` nén; 1/255 ở scene ngẫu nhiên do làm tròn float32). `tests/check_real.py` chạy lại và chạy thêm với
+`Sequence4D.at` thay bằng `GpuFrames`: cả hai cho PSNR y hệt (Deformable-3DGS 37,20–43,56 dB, SC-GS 35,35–42,99, native 4DGS 26,04–31,94).
+
+Chưa đo: tốc độ hiển thị trong Chrome có GPU ở 1280×720. Trình duyệt trong app không có WebGL và tiện ích Chrome
+không nối được trong phiên này; số trên là phía server (một frame lấy dữ liệu, chưa kể rasterize và mã hóa JPEG).
+
 ### Gaussian tĩnh chỉ lưu một lần
 
 Khi lưu, `Sequence4D.save` tự tìm các Gaussian không đổi qua mọi keyframe ở mọi trường (sai khác so với keyframe

@@ -514,6 +514,115 @@ class Sequence4D:
                 + (", compact storage" if self.is_compact else ""))
 
 
+class GpuFrames:
+    """Decodes and interpolates a sequence on the GPU with torch (for the gsplat renderer; `Sequence4D.at` is the CPU path).
+
+    Only the keyframes around the current time are held on the GPU, decoded to float32 (a small least-recently-used
+    cache): the raw arrays (float16 / int16 / uint8 in the compact layout) are copied to the GPU one keyframe at a
+    time, the first time the slider reaches a new keyframe interval. Fields without a K axis and the static group
+    are uploaded once, in `__init__`; their rows stay in the output buffers, so a frame only writes the dynamic rows.
+
+    `at(t)` returns torch tensors (means [N,3], packed covs [N,6], opacities [N], colours [N,3] or SH [N,S,3]) in the
+    original Gaussian order, as `Sequence4D.at` does. They are buffers reused by the next `at` call: use or copy them first.
+    """
+
+    def __init__(self, seq: "Sequence4D", device=None, cache: int = 3):
+        import torch
+
+        self.torch, self.seq, self.cache_size = torch, seq, max(int(cache), 2)
+        self.device = torch.device("cuda") if device is None else torch.device(device)
+        self.n = seq.num_gaussians
+        self.fields: dict = {}   # name -> dict(kind, ...)
+        self._cache: dict = {}   # (name, k) -> float32 tensor of the dynamic rows, least recently used first
+        self._stage: dict = {}   # pinned staging buffers
+        self.use_sh = seq.sh is not None
+        for name, nd in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2), ("sh", 3)):
+            a = getattr(seq, name)
+            if a is None or (name == "colors" and self.use_sh):  # the gsplat renderer ignores colours when SH exist
+                continue
+            if a.ndim == nd:
+                self.fields[name] = {"kind": "const", "out": self._put(np.asarray(a, np.float32))}
+                continue
+            f = {"kind": "dyn", "src": a, "out": None, "run": None}
+            if isinstance(a, _Split):
+                lay = a.layout
+                f.update(src=a.dyn, run=lay.run,
+                         dyn_sel=torch.from_numpy(lay.dyn_idx).to(self.device),
+                         static_sel=torch.from_numpy(lay.static_idx).to(self.device))
+                f["out"] = torch.empty((self.n,) + a.static.shape[1:], dtype=torch.float32, device=self.device)
+                static = self._put(a.static)
+                if lay.run:
+                    f["out"][lay.run[0]:lay.run[1]] = static
+                else:
+                    f["out"][f["static_sel"]] = static
+            src = f["src"]
+            if isinstance(src, _PackedMeans):
+                f["ref"] = self._put(src.ref)
+            elif isinstance(src, _PackedCovs):
+                f["scale"] = self._put(src.scale)[:, None] / 32767.0
+            self.fields[name] = f
+
+    # ------------------------------------------------------------------ helpers
+    def _put(self, a: np.ndarray):
+        """Host array -> GPU tensor through a pinned staging buffer (one read of a memory-mapped array, one copy)."""
+        torch = self.torch
+        a = np.asarray(a)
+        key = (a.shape, a.dtype.str)
+        buf = self._stage.get(key)
+        if buf is None:
+            buf = self._stage[key] = torch.empty(a.shape, dtype=getattr(torch, a.dtype.name), pin_memory=True)
+        buf.numpy()[...] = a
+        return buf.to(self.device)  # synchronous, so the staging buffer can be reused at once
+
+    def _decode(self, f: dict, k: int):
+        """Dynamic rows of keyframe k as float32 on the GPU (same arithmetic as `_Packed*.frame`)."""
+        torch, src = self.torch, f["src"]
+        if isinstance(src, _PackedMeans):
+            return f["ref"] + self._put(src.raw[k]).float()
+        if isinstance(src, _PackedCovs):
+            L = self._put(src.raw[k]).float() * f["scale"]
+            l00, l10, l20, l11, l21, l22 = L.unbind(1)
+            return torch.stack([l00 * l00, l00 * l10, l00 * l20, l10 * l10 + l11 * l11,
+                                l10 * l20 + l11 * l21, l20 * l20 + l21 * l21 + l22 * l22], 1)
+        if isinstance(src, _PackedU8):
+            return self._put(src.raw[k]).float() * (1.0 / 255.0)
+        return self._put(np.asarray(src[k], np.float32))
+
+    def _frame(self, name: str, k: int):
+        key = (name, k)
+        v = self._cache.pop(key, None)
+        if v is None:
+            v = self._decode(self.fields[name], k)
+        self._cache[key] = v  # most recently used goes last
+        while len(self._cache) > self.cache_size * len(self.fields):
+            self._cache.pop(next(iter(self._cache)))
+        return v
+
+    # ------------------------------------------------------------------ public
+    def at(self, t: float):
+        """(means [N,3], covs [N,6], opacities [N], colours [N,3] or SH [N,S,3]) at time t, torch float32 on the GPU."""
+        i0, i1, w = self.seq._bracket(t)
+        out = []
+        for name in ("means", "covs", "opacities", "sh" if self.use_sh else "colors"):
+            f = self.fields[name]
+            if f["kind"] == "const":
+                out.append(f["out"])
+                continue
+            d = self._frame(name, i0)
+            if not (w == 0.0 or i0 == i1):
+                d = self.torch.lerp(d, self._frame(name, i1), w)
+            if f["out"] is None:
+                out.append(d)
+            elif f["run"]:
+                a, b = f["run"]
+                f["out"][:a], f["out"][b:] = d[:a], d[a:]
+                out.append(f["out"])
+            else:
+                f["out"][f["dyn_sel"]] = d
+                out.append(f["out"])
+        return tuple(out)
+
+
 def main():
     import argparse
     import os
