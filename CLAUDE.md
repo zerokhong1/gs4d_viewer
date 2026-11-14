@@ -109,8 +109,16 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `tests/check_real.py` items `4dgaussians` and `4dgaussians_export` (the latter needs `gaussian_pertimestamp/`, run the export once).
   Training needed a patched clone in `/home/cont/gs4d_train/4dgaussians` (`np.byte` -> `np.uint8`), a built
   ingra14m depth-diff-gaussian-rasterization (+ `#include <cstdint>`), and shims for mmcv/open3d in `site_4dgaussians`.
-- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,
-  SC-GS with a motion mask, and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
+- Tested (WP16, 14/11/2026): `convert_deformable3dgs.py --sh` on the Deformable-3DGS default variant (no `--is_blender`, 20k iterations,
+  800 px): 35.35-43.14 dB, mean 39.62 on 20 test frames, no converter change; `tests/check_real.py` item `d3dgs_default`.
+- Tested (WP16): Deformable-3DGS `--is_blender --is_6dof` (20k iterations, 800 px): 36.99-43.75 dB, mean 40.34 on 20 test frames, no converter
+  change; `tests/check_real.py` item `d3dgs_6dof`.
+- Tested (WP16): SC-GS with motion mask (`--gs_with_motion_mask --gt_alpha_mask_as_dynamic_mask`, 512 nodes, hyper_dim 8, 20k iterations, 400 px): 35.48-43.14 dB,
+  mean 40.14 on 20 test frames; ply has 9 `fea_*` columns, converter recognises the mask, no change; item `scgs_mask`.
+- Tested (WP16, smoke only, no ground truth, no PSNR): `convert_spacetime.py --compact` on a second LITE model, Technicolor `Birthday` (`ours_lite`, 658,999 -> 596,601 Gaussians x 50, 583 MB, 20 s);
+  gsplat render at t = 0, 0.5, 1 from `cameras.json` camera 0 looks right by eye (image not in the repo, shows a person); item `spacetime_tb` (skips if data missing).
+  Still NOT tested: the full model with `rgbdecoder` (none public; needs training with the original repo on Technicolor / Neural 3D data, tens of GB, beyond 15 GB RAM).
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.

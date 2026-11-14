@@ -273,7 +273,7 @@ Còn mở, nằm ngoài điều kiện xong của các gói:
 
 - Đã chạy với output thật (14/11/2026): cả bốn converter của WP3–5 và native 4DGS; số đo ở bảng "Dùng với output
   thật" trong README, ảnh so với ảnh gốc ở `shots/real/`. Chưa thử: model Spacetime Gaussians bản đầy đủ (có
-  `rgbdecoder`), Deformable-3DGS biến thể mặc định và 6-DoF, SC-GS với motion mask, cảnh thật (không phải D-NeRF)
+  `rgbdecoder`), Deformable-3DGS biến thể mặc định và 6-DoF, cảnh thật (không phải D-NeRF)
   cho Deformable-3DGS, SC-GS và native 4DGS.
 - Câu hỏi cho giáo sư bên dưới chưa có câu trả lời được ghi lại; WP3–5 đã được làm mà không chờ.
 - Tốc độ hiển thị trong trình duyệt thật chưa đo (số trong README là phía server).
