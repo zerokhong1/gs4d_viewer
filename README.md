@@ -98,6 +98,31 @@ Thanh thời gian phủ từ mốc sớm nhất đến mốc muộn nhất của
 keyframe cuối của nó. Ô "Keyframe" và hai nút bước keyframe đi theo các mốc của file A. Hai file phải cùng hệ
 tọa độ và cùng trục up. Xuất video hoạt động ở cả ba chế độ. Ảnh chụp: `shots/compare/`.
 
+### Camera huấn luyện và ảnh gốc (`--cameras`)
+
+```bash
+python viewer.py bouncingballs.npz --cameras ../data_real/dnerf/data/bouncingballs/transforms_test.json
+```
+
+`--cameras` nhận `transforms_*.json` (NeRF / D-NeRF / instant-ngp, camera OpenGL, tự lật cột 1 và 2 của c2w) hoặc
+một `cameras.json` (`{"convention": "opencv"|"opengl", "frames": [{"c2w": [[4x4]], "fx" hoặc "fov_x"/"fov_y", "w", "h",
+"time", "image", "name"}]}`). Bảng điều khiển có mục **Cameras**: chọn camera trong danh sách (hoặc bấm
+`◀ previous camera` / `next camera ▶`) thì góc nhìn nhảy tới camera đó và thanh thời gian nhảy tới thời điểm của ảnh nếu
+file có `time`. Với renderer gsplat, ô **Ground truth beside render** vẽ ảnh render (trái) và ảnh gốc (phải) của camera
+đang chọn, kèm **PSNR** của frame đang xem. Các điểm cần biết:
+
+- PSNR tính ở kích thước ảnh gốc, bị chặn bởi **Max render height** (đặt 400 cho model huấn luyện ở 400 px, ví dụ SC-GS
+  và 4DGS gốc; kích thước khác kích thước huấn luyện làm PSNR tụt vài dB). Công thức giống `tests/check_real.py`:
+  ảnh RGBA ghép lên nền đen (ô **Image background** đổi sang trắng cho model huấn luyện nền trắng như 4DGaussians),
+  resize Lanczos. Hai thanh trượt Display (ngưỡng opacity, kích thước Gaussian) không áp dụng cho phép so này, nên
+  số hiển thị là của chính model. `tests/check_cameras.py`: lệch so với `check_real.py` tối đa 0,0002 dB trên 20 ảnh test
+  của SC-GS (400 px) và Deformable-3DGS (800 px).
+- Nếu thanh thời gian rời thời điểm của ảnh thì bảng ghi rõ hai bên lệch thời gian (PSNR vẫn tính, nhưng không còn là
+  so cùng một thời điểm).
+- Cạnh nhau chỉ có ở renderer gsplat và một sequence (không dùng cùng `--compare`); renderer client vẫn có danh sách
+  camera và nhảy camera/thời điểm.
+- `python -m gs4d.open` chưa tự truyền `--cameras`; hiện cần gõ tay. Ảnh chụp: `shots/cameras/`.
+
 ## Xuất video
 
 Trong bảng điều khiển mở mục **Export video**, đặt camera ở góc muốn quay, chọn "Frames per second" và
@@ -243,6 +268,7 @@ python tests/test_compact.py                              # lưu nén, nạp lư
 python tests/test_static.py                               # nhóm Gaussian tĩnh lưu một lần
 python tests/check_real.py                              # cần CUDA + dữ liệu thật (data_real, gs4d_train): PSNR trên toàn bộ ảnh test của 3 method; Spacetime/Shape of Motion chỉ kiểm số Gaussian và dung lượng
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
+python tests/check_cameras.py                            # cần CUDA, ../data_real, Chrome: --cameras và PSNR hiển thị so với check_real
 python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
 ```
 
