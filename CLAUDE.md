@@ -103,7 +103,9 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `tests/check_real.py` items `4dgaussians` and `4dgaussians_export` (the latter needs `gaussian_pertimestamp/`, run the export once).
   Training needed a patched clone in `/home/cont/gs4d_train/4dgaussians` (`np.byte` -> `np.uint8`), a built
   ingra14m depth-diff-gaussian-rasterization (+ `#include <cstdint>`), and shims for mmcv/open3d in `site_4dgaussians`.
-- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,
+- Tested (WP16, 14/11/2026): `convert_deformable3dgs.py --sh` on the Deformable-3DGS default variant (no `--is_blender`, 20k iterations,
+  800 px): 35.35-43.14 dB, mean 39.62 on 20 test frames, no converter change; `tests/check_real.py` item `d3dgs_default`.
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS 6-DoF variant,
   SC-GS with a motion mask, and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,

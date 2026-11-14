@@ -31,8 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), minus 0.5
-EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800}  # training resolution of each model
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -183,7 +183,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,scgs,native4d,4dgaussians,4dgaussians_export,spacetime,som")
+    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,d3dgs_default,scgs,native4d,4dgaussians,4dgaussians_export,spacetime,som")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -191,6 +191,7 @@ def main():
     E = os.environ.get
     paths = dict(
         deformable3dgs=E("GS4D_D3DGS") or os.path.join(opt.train, "out", "d3dgs_bouncingballs"),
+        d3dgs_default=E("GS4D_D3DGS_DEFAULT") or os.path.join(opt.train, "out", "d3dgs_default"),
         scgs=E("GS4D_SCGS") or os.path.join(opt.train, "out", "scgs_bouncingballs_node"),
         fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
         native4d=E("GS4D_NATIVE4D") or os.path.join(opt.train, "4dgs", "output", "dnerf", "bouncingballs", "chkpnt_best.pth"),
@@ -228,6 +229,9 @@ def main():
     items = [
         ("deformable3dgs", "Deformable-3DGS --sh", True,
          lambda: run_psnr("deformable3dgs", "Deformable-3DGS --sh", "convert_deformable3dgs.py", paths["deformable3dgs"],
+                          ["--frames", "60", "--sh"], work, opt.data, results)),
+        ("d3dgs_default", "Deformable-3DGS default --sh", True,
+         lambda: run_psnr("d3dgs_default", "Deformable-3DGS default --sh", "convert_deformable3dgs.py", paths["d3dgs_default"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),
         ("scgs", "SC-GS --sh", True,
          lambda: run_psnr("scgs", "SC-GS --sh", "convert_scgs.py", paths["scgs"],
