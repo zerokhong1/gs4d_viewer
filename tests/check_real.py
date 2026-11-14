@@ -2,9 +2,12 @@
 """Repeats the hand checks of 14/11/2026 on real method outputs, in one command. Needs CUDA and the real data.
 
 PSNR items (D-NeRF `bouncingballs`, ground-truth images exist): run the converter, render the .npz with gsplat at
-the camera and time of EVERY image in transforms_test.json (400 px, black background), print min/mean/max PSNR,
+the camera and time of EVERY image in transforms_test.json (black background), print min/mean/max PSNR,
 fail when the minimum is below the item's threshold.
   Deformable-3DGS --sh, SC-GS --sh, native 4DGS.
+  Evaluation size = the resolution each model was TRAINED at (a 3DGS model rendered at another size loses several
+  dB): Deformable-3DGS 800 px (resolution=-1), SC-GS 400 px (--resolution 2), native 4DGS 400 px (resolution: 2).
+  The 800 px ground truth is resized with LANCZOS on the RGBA image, then composited on black; fx scales with W.
 Smoke items (no original images in the data folder, so images are NOT compared): run the converter and check
 the Gaussian count, keyframe count and file size against the README.
   Spacetime Gaussians (lite model), Shape of Motion (paper-windmill).
@@ -28,7 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 30.15, "native4d": 23.62}  # measured minima: 37.20, 30.65, 24.12
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 25.54}  # measured minima 37.20, 35.35, 26.04, minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -59,14 +63,17 @@ def convert(script, args, out):
 
 
 # ------------------------------------------------------------------------------------------ PSNR items
-def load_test_set(scene):
+def load_test_set(scene, size):
     from PIL import Image
     meta = json.load(open(need(os.path.join(scene, "transforms_test.json"), "transforms_test.json")))
     fx_scale = float(meta["camera_angle_x"])
     out = []
     for fr in meta["frames"]:
         p = need(os.path.join(scene, fr["file_path"].lstrip("./") + ".png"), "test image")
-        im = np.asarray(Image.open(p).convert("RGBA")).astype(np.float32) / 255.0
+        pil = Image.open(p).convert("RGBA")
+        if pil.size[0] != size:
+            pil = pil.resize((size, size * pil.size[1] // pil.size[0]), Image.LANCZOS)
+        im = np.asarray(pil).astype(np.float32) / 255.0
         gt = im[..., :3] * im[..., 3:4]  # composite on black
         c2w = np.array(fr["transform_matrix"], np.float64)
         c2w[:3, 1:3] *= -1  # OpenGL -> OpenCV
@@ -110,14 +117,14 @@ def psnr_item(name, npz, test):
 
 # ------------------------------------------------------------------------------------------ items
 def run_psnr(name, label, script, model, extra, work, data, results):
-    test = load_test_set(os.path.join(data, "dnerf", "data", "bouncingballs"))
+    test = load_test_set(os.path.join(data, "dnerf", "data", "bouncingballs"), EVAL_SIZE[name])
     need(model, f"{label} model")
     out = os.path.join(work, f"{name}.npz")
     secs = convert(script, [model] + extra, out)
     ps, seq = psnr_item(name, out, test)
     thr = MIN_PSNR[name]
     ok = ps.min() >= thr
-    results.append(dict(name=label, kind="psnr", ok=ok, ps=ps, thr=thr, n=seq.num_gaussians, k=seq.num_frames,
+    results.append(dict(name=label, size=EVAL_SIZE[name], kind="psnr", ok=ok, ps=ps, thr=thr, n=seq.num_gaussians, k=seq.num_frames,
                         mb=os.path.getsize(out) / 1e6, secs=secs))
 
 
@@ -218,12 +225,12 @@ def main():
     if opt.work is None:
         shutil.rmtree(work, ignore_errors=True)
 
-    print(f"\nPSNR of the gsplat render against all test images (400 px, black background); thresholds from {MEASURED_ON}")
-    print(f"{'item':<30}{'imgs':>5}{'min':>8}{'mean':>8}{'max':>8}{'thr':>8}  result")
+    print(f"\nPSNR of the gsplat render against all test images (black background); thresholds from {MEASURED_ON}")
+    print(f"{'item':<30}{'px':>5}{'imgs':>5}{'min':>8}{'mean':>8}{'max':>8}{'thr':>8}  result")
     for r in results:
         if r["kind"] == "psnr":
             ps = r["ps"]
-            print(f"{r['name']:<30}{len(ps):>5}{ps.min():>8.2f}{ps.mean():>8.2f}{ps.max():>8.2f}{r['thr']:>8.2f}  "
+            print(f"{r['name']:<30}{r['size']:>5}{len(ps):>5}{ps.min():>8.2f}{ps.mean():>8.2f}{ps.max():>8.2f}{r['thr']:>8.2f}  "
                   + ("PASS" if r["ok"] else "FAIL"))
             if opt.per_image:
                 print("    per image:", " ".join(f"{v:.1f}" for v in ps))
