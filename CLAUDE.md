@@ -122,7 +122,9 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   73 min, 392k Gaussians, trained with the repo's own Nerfies loader through `tests/make_hypernerf_split.py`): `convert_deformable3dgs.py --frames 330 --sh --compact`, PSNR 19.28-29.78 dB, mean 24.72 on the 33 held-out frames
   at 268 px (lens distortion ignored, as the repo does). Time already in [0, 1] (time_id / max), no converter change. `tests/check_real.py` item `d3dgs_banana`. `tests/make_hypernerf_blender.py` writes the D-NeRF-style layout native 4DGS needs
   (it has no Nerfies reader); SC-GS reads the same split as Deformable-3DGS.
-- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for SC-GS / native 4DGS (Deformable-3DGS: see WP16 real scene); the client render of
+- Tested (WP16, 15/11/2026): SC-GS on the same real HyperNeRF `slice-banana` split (512 nodes, hyper_dim 8, 20k iterations, 52 min, 603k Gaussians, no `--is_blender`; the clone needed `np.float` -> `np.float64`):
+  `convert_scgs.py --frames 110 --sh --compact` (330 keyframes would not fit in 15 GB), PSNR 20.21-30.22 dB, mean 26.69 on 33 held-out frames at 268 px; held-out times fall between keyframes. No converter change; item `scgs_banana`.
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for native 4DGS; the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
