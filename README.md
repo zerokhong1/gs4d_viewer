@@ -164,6 +164,7 @@ python tests/test_deformable3dgs.py                       # converter Deformable
 python tests/test_shape_of_motion.py                      # converter Shape of Motion (cần torch, không thì tự bỏ qua)
 python tests/test_scgs.py                                 # converter SC-GS (cần torch, không thì tự bỏ qua)
 python tests/test_compact.py                              # lưu nén, nạp lười
+python tests/check_real.py                              # cần CUDA + dữ liệu thật (data_real, gs4d_train): PSNR trên toàn bộ ảnh test của 3 method; Spacetime/Shape of Motion chỉ kiểm số Gaussian và dung lượng
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
 python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
 ```
