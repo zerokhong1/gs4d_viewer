@@ -183,7 +183,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,native4d,4dgaussians,4dgaussians_export,spacetime,som")
+    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,native4d,4dgaussians,4dgaussians_export,spacetime,spacetime_tb,som")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -198,10 +198,13 @@ def main():
         fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
         native4d=E("GS4D_NATIVE4D") or os.path.join(opt.train, "4dgs", "output", "dnerf", "bouncingballs", "chkpnt_best.pth"),
         spacetime=E("GS4D_SPACETIME") or os.path.join(opt.data, "spacetime", "n3d_sear_steak_lite_allcam", "point_cloud"),
+        spacetime_tb=E("GS4D_SPACETIME_TB") or os.path.join(opt.data, "spacetime", "techni_Birthday_dl", "techni_Birthday_allcam_allpoints",
+                                                             "point_cloud", "iteration_20000", "point_cloud.ply"),
         som=E("GS4D_SOM") or os.path.join(opt.data, "som", "paper-windmill", "checkpoints", "last.ckpt"),
     )
     # README figures (14/11/2026)
     spacetime_expect = dict(n=98993, k=50, mb=199)
+    spacetime_tb_expect = dict(n=596601, k=50, mb=583)   # --compact; 658,999 in the ply, 62,398 dropped by --min-peak-opacity
     som_expect = dict(n=71867 + 924075, k=35, mb=147)   # 1270 MB before the static group (WP11)
 
     try:
@@ -255,6 +258,9 @@ def main():
         ("spacetime", "Spacetime Gaussians (smoke)", False,
          lambda: run_smoke("spacetime", "Spacetime Gaussians (smoke)", "convert_spacetime.py", spacetime_ply(),
                            ["--frames", "50", "--t0", "0", "--t1", "1"], work, spacetime_expect, results)),
+        ("spacetime_tb", "Spacetime Technicolor Birthday lite (smoke)", False,
+         lambda: run_smoke("spacetime_tb", "Spacetime Technicolor Birthday lite (smoke)", "convert_spacetime.py", paths["spacetime_tb"],
+                           ["--frames", "50", "--t0", "0", "--t1", "1", "--compact"], work, spacetime_tb_expect, results)),
         ("som", "Shape of Motion (smoke)", False,
          lambda: run_smoke("som", "Shape of Motion (smoke)", "convert_shape_of_motion.py", paths["som"],
                            ["--stride", "8", "--fps", "30"], work, som_expect, results)),
