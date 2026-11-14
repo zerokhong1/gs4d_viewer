@@ -118,7 +118,11 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Tested (WP16, smoke only, no ground truth, no PSNR): `convert_spacetime.py --compact` on a second LITE model, Technicolor `Birthday` (`ours_lite`, 658,999 -> 596,601 Gaussians x 50, 583 MB, 20 s);
   gsplat render at t = 0, 0.5, 1 from `cameras.json` camera 0 looks right by eye (image not in the repo, shows a person); item `spacetime_tb` (skips if data missing).
   Still NOT tested: the full model with `rgbdecoder` (none public; needs training with the original repo on Technicolor / Neural 3D data, tens of GB, beyond 15 GB RAM).
-- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
+- Tested (WP16, 15/11/2026): Deformable-3DGS on a REAL non-D-NeRF scene, HyperNeRF `slice-banana` (monocular video, 4x images 268x480, 297 train / 33 held-out, 20k iterations,
+  73 min, 392k Gaussians, trained with the repo's own Nerfies loader through `tests/make_hypernerf_split.py`): `convert_deformable3dgs.py --frames 330 --sh --compact`, PSNR 19.28-29.78 dB, mean 24.72 on the 33 held-out frames
+  at 268 px (lens distortion ignored, as the repo does). Time already in [0, 1] (time_id / max), no converter change. `tests/check_real.py` item `d3dgs_banana`. `tests/make_hypernerf_blender.py` writes the D-NeRF-style layout native 4DGS needs
+  (it has no Nerfies reader); SC-GS reads the same split as Deformable-3DGS.
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for SC-GS / native 4DGS (Deformable-3DGS: see WP16 real scene); the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
