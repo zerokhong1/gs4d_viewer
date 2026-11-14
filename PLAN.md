@@ -12,7 +12,7 @@ Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải 
    git branch --merged main           # xoá các nhánh cc-*/wp* đã merge
    ```
 2. **Demo cho giáo sư và chốt câu hỏi bên dưới** (WP9, người làm). Mọi gói ở đợt 2 chờ câu trả lời này.
-3. **Mở đợt 1**: ba phiên CC-A (WP11), CC-B (WP10), CC-C (WP12) chạy song song, không chờ giáo sư.
+3. ~~Mở đợt 1~~: WP10, WP11, WP12 đã xong và đã merge vào `main` (14/11/2026).
 
 ## Câu hỏi cho giáo sư (WP9)
 
@@ -33,9 +33,9 @@ và bảng "Dùng với output thật" trong README.
 | WP | Việc | Trạng thái | Nhánh | Ghi chú |
 |---|---|---|---|---|
 | 9 | Demo + chốt câu hỏi với giáo sư | Chưa | — | Người làm |
-| 10 | Lệnh mở thẳng một output | Chưa | `cc-b/wp10-open` | |
-| 11 | Tách Gaussian tĩnh và động trong định dạng | Xong, chưa merge | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
-| 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Chưa | `cc-c/wp12-check-real` | |
+| 10 | Lệnh mở thẳng một output | Xong | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; phiên WP10 báo mở được cả 6 output thật |
+| 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
+| 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
 | 13 | Native 4DGS: màu SH theo keyframe | Chờ WP9 | `cc-c/wp13-native4d-sh` | Chỉ khi lab dùng native 4DGS |
 | 14 | Giải mã và nội suy trên GPU khi play | Chưa | `cc-a/wp14-gpu-decode` | Sau WP11 |
 | 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Chờ WP9 | `cc-c/wp15-4dgaussians` | Chỉ khi lab dùng |

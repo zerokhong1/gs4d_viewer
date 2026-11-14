@@ -19,11 +19,14 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
 - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
 - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
-- `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32]` re-saves compact / plain
+- `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
+- `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
+  (`<name>.gs4d.npz`, reused while the output is unchanged) and opens the viewer
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_gsplat.py`
-  (needs CUDA), `check_compare.py` (needs Chrome), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
+  (needs CUDA), `check_compare.py` (needs Chrome), `test_open.py`,
+  `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
@@ -51,7 +54,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   `rgb_colors[T,N,3]`, `logit_opacities[N,1]`, `log_scales[N,3]`, `seg_colors[N,3]`.
 
 ## Status
-Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both methods) are merged into `main`.
+Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are merged into `main`; see `PLAN.md`.
 - Tested: client renderer in headless Chrome on the toy scene; `tests/test_all.py` (4 checks);
   `viewer.camera_matrices` (viser camera -> viewmat, K) against the browser render, `tests/check_camera.py`.
 - Tested on CUDA (RTX 3060, WP1): the gsplat `rasterization(...)` call and image streaming in `_draw_gsplat`,
@@ -67,6 +70,10 @@ Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both
   `at(t)` 34 -> 8.7 ms; Deformable-3DGS `bouncingballs` has no static Gaussians (unchanged). Renders before/after are
   identical at keyframes; between keyframes up to 7 of 702,845 pixels differ on `paper-windmill` because the old path
   blended static Gaussians with themselves (float32 rounding). Files with a static group cannot be read by older code.
+- Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
+  trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
+- WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real
+  outputs open with one command, re-checked here only for the SC-GS folder.
 - Tested with real output (WP2): `params.npz` reader on Dynamic 3D Gaussians `basketball`; up axis is `-y`.
 - Tested (WP7a): `--compare` in headless Chrome with both renderers, `tests/check_compare.py`. gsplat: split
   screen, same camera; client: B moved sideways in the scene (viser cannot split the viewport).
