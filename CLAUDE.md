@@ -26,7 +26,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `tests/run_all.py` runs every `test_*.py`/`check_*.py` one at a time and prints pass / skipped (reason) / failed; exit 1 on failure
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
-  `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_gsplat.py`
+  `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_cameras.py` (needs CUDA, data, Chrome), `check_gsplat.py`
   (needs CUDA), `check_compare.py` (needs Chrome), `test_open.py`,
   `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
@@ -78,6 +78,12 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   vs `frame_cpu` (`--cpu-decode`). Play frame 100 -> 2.2 ms (500k x 100 compact), 214 -> 3.1 ms (`paper-windmill` compact); renders differ
   <= 1/255; `check_real.py` PSNR unchanged (also run with `at` patched to GpuFrames). `tests/bench_large.py [--file f.npz]` prints the table.
   NOT measured: display FPS in a real GPU Chrome (built-in browser has no WebGL, Chrome extension not connected).
+- Tested (WP18, 14/11/2026): `viewer.py --cameras <transforms_*.json | cameras.json>` (`load_cameras`): Cameras folder in the panel,
+  selecting one moves the client camera and the slider to the image time; gsplat renderer: "Ground truth beside render" shows
+  render | image with PSNR (`Viewer.gt_compare`, ignores the opacity/size sliders, black or white background, capped by Max render
+  height). `tests/check_cameras.py`: PSNR matches `check_real.psnr_item` to 0.0002 dB on the 20 test cameras (SC-GS 400 px,
+  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. NOT done: `gs4d/open.py` does
+  not pass `--cameras` yet (CC-B file); GT view needs one sequence (not with `--compare`); display FPS in a real browser.
 - Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
   trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
 - WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real

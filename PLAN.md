@@ -73,7 +73,7 @@ và bảng "Dùng với output thật" trong README.
 | 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Xong (chưa merge) | `cc-c/wp15-4dgaussians` | `bouncingballs` tự train: 36,7–45,9 dB (trung bình 40,8), khớp `export_perframe_3DGS.py` đến 1e-6. gs4d/open.py chưa nhận dạng thư mục 4DGaussians (việc của CC-B) |
 | 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Chưa | `cc-c/wp16-<tên>` | Thuộc WP9; mỗi biến thể một phiên, một nhánh |
 | 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
-| 18 | Camera huấn luyện và ảnh gốc trong viewer | Chờ yêu cầu | `cc-a/wp18-cameras` | Chỉ khi giáo sư yêu cầu; sau WP14; không thuộc WP9 |
+| 18 | Camera huấn luyện và ảnh gốc trong viewer | Xong 14/11/2026 (chưa merge) | `claude/wp18-cameras-398403` | Người dùng yêu cầu chạy. `--cameras`, danh sách camera, ảnh gốc + PSNR (gsplat); PSNR khớp check_real 0,0002 dB; `gs4d/open.py` chưa tự truyền `--cameras` (việc của CC-B) |
 
 ## Phân công: 3 phiên Claude Code
 

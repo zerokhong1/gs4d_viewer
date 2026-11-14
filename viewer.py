@@ -15,6 +15,7 @@ Renderers:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import threading
 import time
@@ -84,6 +85,72 @@ def frame_gpu(gpu: GpuFrames, t: float, min_opacity: float, scale: float):
     return means[keep], full, opac[keep], cols[keep]
 
 
+def load_cameras(path: str) -> list[dict]:
+    """Cameras of a transforms_*.json (NeRF / D-NeRF / instant-ngp) or a cameras.json.
+
+    transforms_*.json: `camera_angle_x` (or `fl_x` + `w`), frames with `transform_matrix` (OpenGL c2w), optional `time`
+    and `file_path` (image, relative to the json, extension optional). cameras.json: `{"convention": "opencv"|"opengl",
+    "frames": [...]}` (or a bare list), each frame with `c2w`/`transform_matrix` [4x4] and `fov_x`, `fov_y` or `fx`
+    (+ `w`, `h`), optional `name`, `time`, `image`. Default convention: OpenGL when the file has `transform_matrix`,
+    else OpenCV. Returns dicts with c2w (OpenCV, 4x4), fx (pixels at width w), w, h (0 when unknown), time (None if absent),
+    image (path or None), name.
+    """
+    meta = json.load(open(path))
+    top = meta if isinstance(meta, dict) else {}
+    frames = meta if isinstance(meta, list) else (meta.get("frames") or meta.get("cameras") or [])
+    base = os.path.dirname(os.path.abspath(path))
+    out = []
+    for k, fr in enumerate(frames):
+        raw = fr.get("transform_matrix", fr.get("c2w"))
+        if raw is None:
+            raise ValueError(f"{path}: frame {k} has no transform_matrix / c2w")
+        c2w = np.array(raw, np.float64).reshape(4, 4)
+        conv = str(fr.get("convention", top.get("convention", "opengl" if "transform_matrix" in fr else "opencv"))).lower()
+        if conv == "opengl":
+            c2w[:3, 1:3] *= -1  # OpenGL (+y up, -z forward) -> OpenCV (+y down, +z forward)
+        img = fr.get("image", fr.get("file_path"))
+        if img:
+            img = os.path.join(base, img)
+            if not os.path.splitext(img)[1]:
+                img += ".png"
+            if not os.path.exists(img):
+                img = None
+        w = int(fr.get("w", fr.get("width", top.get("w", top.get("width", 0)))))
+        h = int(fr.get("h", fr.get("height", top.get("h", top.get("height", 0)))))
+        if (not w or not h) and img:
+            from PIL import Image
+            with Image.open(img) as im:
+                w, h = im.size
+        w, h = (w, h) if w and h else (0, 0)
+        get = lambda key: fr.get(key, top.get(key))  # noqa: E731
+        if get("fx") or get("fl_x"):
+            fx = float(get("fx") or get("fl_x"))
+        elif get("fov_x") or get("camera_angle_x"):
+            fx = 0.5 * (w or 1) / np.tan(0.5 * float(get("fov_x") or get("camera_angle_x")))
+        elif get("fov_y") and w and h:
+            fx = 0.5 * h / np.tan(0.5 * float(get("fov_y")))
+        else:
+            raise ValueError(f"{path}: frame {k} has no focal length (fx, fl_x, fov_x, fov_y or camera_angle_x)")
+        t = fr.get("time")
+        name = str(fr.get("name") or (os.path.splitext(os.path.basename(fr["file_path"]))[0] if fr.get("file_path")
+                                       else os.path.splitext(os.path.basename(img))[0] if img else k))
+        out.append(dict(c2w=c2w, fx=fx, w=w, h=h, time=None if t is None else float(t), image=img, name=name))
+    if not out:
+        raise ValueError(f"{path}: no cameras found")
+    return out
+
+
+def load_gt_image(path: str, W: int, H: int, white: bool) -> np.ndarray:
+    """Ground-truth image as float32 [H,W,3] in 0..1; RGBA is composited on white or black, and the image is
+    resized with Lanczos to W x H (same recipe as tests/check_real.py)."""
+    from PIL import Image
+    pil = Image.open(path).convert("RGBA")
+    if pil.size != (W, H):
+        pil = pil.resize((W, H), Image.LANCZOS)
+    im = np.asarray(pil).astype(np.float32) / 255.0
+    return im[..., :3] * im[..., 3:4] + ((1.0 - im[..., 3:4]) if white else 0.0)
+
+
 SIDE_BY_SIDE = "A | B"
 # initial camera direction (scene centre -> camera) for each world up axis
 VIEW_DIR = {"+z": (1.0, -1.0, 0.6), "-z": (1.0, -1.0, -0.6), "+y": (1.0, 0.6, 1.0),
@@ -114,6 +181,11 @@ class Viewer:
         self.lock = threading.Lock()
         self.dirty = True
         self.cam_stamp: dict[int, float] = {}
+        self.cameras = load_cameras(args.cameras) if getattr(args, "cameras", None) else []
+        self.cam_idx = -1  # selected camera (-1: none)
+        self.gt_cache: dict = {}
+        self.gt_key = None
+        self.gt_last = None
 
         # fixed subset for the browser renderer, so the splat count never changes between frames
         self.subsets = [None] * len(self.seqs)
@@ -165,6 +237,8 @@ class Viewer:
         self.next = g.add_button("next keyframe ▶")
         self.speed = g.add_slider("Speed (x)", min=0.1, max=4.0, step=0.1, initial_value=1.0)
         self.loop = g.add_checkbox("Loop", initial_value=True)
+        if self.cameras:
+            self._build_camera_gui()
         with g.add_folder("Display", expand_by_default=False):
             self.min_opacity = g.add_slider("Hide opacity below", min=0.0, max=0.5, step=0.005, initial_value=0.02)
             self.scale = g.add_slider("Gaussian size (x)", min=0.1, max=2.0, step=0.05, initial_value=1.0)
@@ -221,6 +295,58 @@ class Viewer:
         for h in (self.min_opacity, self.scale):
             h.on_update(lambda _e: setattr(self, "dirty", True))
 
+    def _build_camera_gui(self):
+        g, cams = self.server.gui, self.cameras
+        n_img = sum(c["image"] is not None for c in cams)
+        with g.add_folder(f"Cameras ({len(cams)})"):
+            self.cam_names = [f"{i}: {c['name']}" + (f"  t={c['time']:.3g}" if c["time"] is not None else "") for i, c in enumerate(cams)]
+            self.cam_none = "(free camera)"
+            self.cam_dd = g.add_dropdown("Camera", options=(self.cam_none, *self.cam_names), initial_value=self.cam_none)
+            self.cam_prev = g.add_button("◀ previous camera")
+            self.cam_next = g.add_button("next camera ▶")
+            self.gt_on = self.gt_bg = self.gt_info = None
+            if self.renderer == "gsplat" and n_img:
+                self.gt_on = g.add_checkbox("Ground truth beside render", initial_value=False)
+                self.gt_bg = g.add_dropdown("Image background", options=("black", "white"),
+                                            initial_value=self.args.gt_background)
+                self.gt_info = g.add_markdown("Pick a camera with an image to compare.")
+                for h in (self.gt_on, self.gt_bg):
+                    h.on_update(lambda _e: setattr(self, "dirty", True))
+            elif self.renderer == "gsplat":
+                g.add_markdown("_The cameras file has no images that could be found: no ground-truth view._")
+
+        @self.cam_dd.on_update
+        def _(e):
+            self._select_camera(self.cam_names.index(self.cam_dd.value) if self.cam_dd.value in self.cam_names else -1, e.client)
+
+        @self.cam_prev.on_click
+        def _(e):
+            self._select_camera((self.cam_idx - 1) % len(cams) if self.cam_idx >= 0 else len(cams) - 1, e.client)
+
+        @self.cam_next.on_click
+        def _(e):
+            self._select_camera((self.cam_idx + 1) % len(cams) if self.cam_idx >= 0 else 0, e.client)
+
+    def _select_camera(self, idx: int, client):
+        """Selects camera idx (-1: none): moves the clicking client's view there and the slider to the image's time."""
+        self.cam_idx = idx
+        self.dirty = True
+        if idx < 0:
+            return
+        if self.cam_dd.value != self.cam_names[idx]:
+            self.cam_dd.value = self.cam_names[idx]
+        c = self.cameras[idx]
+        if c["time"] is not None:
+            self.playing = False
+            self._set_time(c["time"])
+        if client is not None:
+            from viser.transforms import SO3
+            R, pos = c["c2w"][:3, :3], c["c2w"][:3, 3]
+            client.camera.wxyz = tuple(SO3.from_matrix(R).wxyz)
+            client.camera.position = tuple(pos)
+            if c["w"] and c["h"]:
+                client.camera.fov = 2 * float(np.arctan(0.5 * c["h"] / c["fx"]))
+
     def _set_time(self, t: float):
         self.time.value = float(np.clip(t, self.t0, self.t1))
         self.dirty = True
@@ -276,14 +402,14 @@ class Viewer:
     def _load_gsplat(self):
         """Tensors of the current time step for every shown sequence. Colours are SH coefficients [M,S,3]
         when the sequence has them. Decoding and interpolation run on the GPU (GpuFrames) unless --cpu-decode."""
-        self.cur = {}
-        for i in self._shown():
-            if getattr(self.args, "cpu_decode", False):
-                self.cur[i] = frame_cpu(self.seqs[i], self.time.value, self.min_opacity.value, self.scale.value, self.device)
-            else:
-                if self.gpu[i] is None:
-                    self.gpu[i] = GpuFrames(self.seqs[i], self.device)
-                self.cur[i] = frame_gpu(self.gpu[i], self.time.value, self.min_opacity.value, self.scale.value)
+        self.cur = {i: self._frame(i, self.min_opacity.value, self.scale.value) for i in self._shown()}
+
+    def _frame(self, i: int, min_opacity: float, scale: float):
+        if getattr(self.args, "cpu_decode", False):
+            return frame_cpu(self.seqs[i], self.time.value, min_opacity, scale, self.device)
+        if self.gpu[i] is None:
+            self.gpu[i] = GpuFrames(self.seqs[i], self.device)
+        return frame_gpu(self.gpu[i], self.time.value, min_opacity, scale)
 
     def render_gsplat(self, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
         """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background.
@@ -316,22 +442,83 @@ class Viewer:
             draw.text((x, y), text, fill=(0, 0, 0), font=font)
         return np.asarray(pil)
 
-    def _render_one(self, i: int, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
+    def _raster(self, i: int, viewmat_np, K_np, W: int, H: int, white: bool = True, frame=None):
+        """Current time step of sequence i for a world-to-camera matrix and intrinsics: float tensor [H,W,3] in 0..1 on the GPU,
+        over a white or black background."""
         torch = self.torch
         from gsplat import rasterization
 
-        means, covs, opac, cols = self.cur[i]
+        means, covs, opac, cols = self.cur[i] if frame is None else frame
         if len(means) == 0:  # everything hidden by the opacity threshold
-            return np.full((H, W, 3), 255, np.uint8)
-        viewmat_np, K_np = camera_matrices(wxyz, position, fov_y, W, H)
+            return torch.full((H, W, 3), 1.0 if white else 0.0, device=self.device)
         K = torch.from_numpy(K_np).to(self.device)
         viewmat = torch.from_numpy(viewmat_np).to(self.device)
         with torch.no_grad():
             img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
                                           sh_degree=self.seqs[i].sh_degree)
-            img = img[0] + (1.0 - alpha[0])  # composite over white, the browser renderer's background
-            # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
-        return (img.clamp(0, 1) * 255).round().to(torch.uint8).cpu().numpy()
+            if white:  # composite over white, the browser renderer's background
+                img = img[0] + (1.0 - alpha[0])  # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
+            else:
+                img = img[0]
+        return img.clamp(0, 1)
+
+    def _render_one(self, i: int, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
+        viewmat_np, K_np = camera_matrices(wxyz, position, fov_y, W, H)
+        img = self._raster(i, viewmat_np, K_np, W, H)
+        return (img * 255).round().to(self.torch.uint8).cpu().numpy()
+
+    # ---------------------------------------------------------------- ground truth next to the render
+    def gt_compare(self, i: int, cam_idx: int, white: bool, max_h: int):
+        """Render of sequence i at the current time from training camera cam_idx, next to its image: (render, ground truth) as
+        float32 [H,W,3] in 0..1 and the PSNR in dB. Size: the image's own, capped at height max_h (check_real.py's recipe)."""
+        c = self.cameras[cam_idx]
+        H = min(max_h, c["h"])
+        W = max(int(round(c["w"] * H / c["h"])), 1)
+        key = (c["image"], W, H, white)
+        if key not in self.gt_cache:
+            if len(self.gt_cache) > 64:
+                self.gt_cache.clear()
+            self.gt_cache[key] = load_gt_image(c["image"], W, H, white)
+        gt = self.gt_cache[key]
+        f = c["fx"] * W / c["w"]
+        K = np.array([[f, 0, W / 2], [0, f, H / 2], [0, 0, 1]], np.float32)
+        # the model as it is: the Display sliders (opacity threshold, size) do not apply, so the PSNR is the model's
+        pred = self._raster(i, np.linalg.inv(c["c2w"]).astype(np.float32), K, W, H, white, self._frame(i, 0.0, 1.0)).cpu().numpy()
+        mse = float(np.mean((pred - gt) ** 2))
+        return pred, gt, 10 * np.log10(1.0 / max(mse, 1e-12))
+
+    def _gt_view(self, W: int, H: int):
+        """Picture for a client window of W x H showing render | ground truth of the selected camera, or None when the
+        comparison is off. Also writes the PSNR to the panel."""
+        if self.gt_on is None or not self.gt_on.value or len(self._shown()) != 1:
+            return None
+        c = self.cameras[self.cam_idx] if self.cam_idx >= 0 else None
+        if c is None or c["image"] is None or not c["w"]:
+            self.gt_info.content = "Pick a camera that has an image."
+            return None
+        key = (self.cam_idx, self.time.value, self.max_res.value, self.gt_bg.value)
+        if self.gt_key != key or self.gt_last is None:
+            pred, gt, psnr = self.gt_compare(self._shown()[0], self.cam_idx, self.gt_bg.value == "white", int(self.max_res.value))
+            self.gt_last, self.gt_key = (pred, gt, psnr), key
+            off = c["time"] is not None and abs(c["time"] - self.time.value) > 1e-6 * max(self.duration, 1.0)
+            self.gt_info.content = (f"**PSNR {psnr:.2f} dB** · {pred.shape[1]}x{pred.shape[0]}"
+                                    + (f"\n\n_Slider is at t={self.time.value:.3g}, the image is at t={c['time']:.3g}: "
+                                       "the two differ in time._" if off else ""))
+        pred, gt, psnr = self.gt_last
+        from PIL import Image
+        wl = W // 2
+        panels = []
+        for im, w in ((pred, wl), (gt, W - wl)):
+            pil = Image.fromarray((im * 255).round().astype(np.uint8))
+            s = min(w / pil.size[0], H / pil.size[1])
+            pil = pil.resize((max(int(pil.size[0] * s), 1), max(int(pil.size[1] * s), 1)), Image.BILINEAR)
+            canvas = np.full((H, w, 3), 128, np.uint8)
+            y0, x0 = (H - pil.size[1]) // 2, (w - pil.size[0]) // 2
+            canvas[y0:y0 + pil.size[1], x0:x0 + pil.size[0]] = np.asarray(pil)
+            panels.append(canvas)
+        img = np.concatenate(panels, axis=1)
+        img[:, wl - 1: wl + 1] = 255
+        return self._caption(img, [(wl // 2, f"render · PSNR {psnr:.2f} dB"), (wl + (W - wl) // 2, f"ground truth · {c['name']}")])
 
     def _draw_gsplat(self, time_changed: bool):
         if time_changed or sorted(self.cur) != self._shown():
@@ -347,7 +534,9 @@ class Viewer:
             self.cam_stamp[cid] = stamp
             H = int(min(self.max_res.value, cam.image_height or self.max_res.value))
             W = max(int(round(H * cam.aspect)), 1)
-            rgb = self.render_gsplat(cam.wxyz, cam.position, cam.fov, W, H)
+            rgb = self._gt_view(W, H) if self.cameras else None
+            if rgb is None:
+                rgb = self.render_gsplat(cam.wxyz, cam.position, cam.fov, W, H)
             client.scene.set_background_image(rgb, format="jpeg", jpeg_quality=85)
 
     # ---------------------------------------------------------------- video export
@@ -434,6 +623,11 @@ def main():
     ap.add_argument("file", help="sequence in the common .npz format (see the convert_*.py scripts)")
     ap.add_argument("--compare", metavar="FILE", default=None,
                     help="second sequence to compare with the first: shown alone or side by side, same time slider")
+    ap.add_argument("--cameras", metavar="FILE", default=None,
+                    help="training cameras: transforms_*.json (NeRF/D-NeRF) or cameras.json; adds a camera list to the panel "
+                         "(jump to the camera and the image's time); gsplat renderer can show the image next to the render with PSNR")
+    ap.add_argument("--gt-background", choices=["black", "white"], default="black",
+                    help="background used for the ground-truth comparison (RGBA images and the render); default black as in tests/check_real.py")
     ap.add_argument("--renderer", choices=["auto", "gsplat", "client"], default="auto")
     ap.add_argument("--host", default="127.0.0.1", help="use 0.0.0.0 to accept connections from other machines")
     ap.add_argument("--port", type=int, default=8080)
