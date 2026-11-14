@@ -4,6 +4,19 @@ Viewer chạy trên trình duyệt (viser), có thanh trượt thời gian, play
 Viewer chỉ đọc **một file `.npz` theo định dạng chung** ("Gaussian theo từng keyframe"); mỗi loại
 output 4DGS có một script chuyển về định dạng đó.
 
+## Mở thẳng một output
+
+```bash
+python -m gs4d.open <đường_dẫn_output> [--port 8080 --renderer gsplat ...]
+```
+
+Tự nhận ra loại output, gọi đúng `convert_*.py`, rồi mở viewer. Các đối số khác được chuyển cho `viewer.py`.
+Nhận ra: `.npz` đã ở định dạng chung (mở luôn), `params.npz` hoặc thư mục ply từng frame, `chkpnt*.pth`,
+`last.ckpt` hoặc thư mục có `checkpoints/last.ckpt`, thư mục có `point_cloud/` + `deform/` (có cột `fea_*` thì SC-GS,
+không thì Deformable-3DGS), `point_cloud.ply` của Spacetime Gaussians. File chuyển đổi là `<tên>.gs4d.npz` cạnh output,
+dùng lại nếu output chưa đổi (`--reconvert` để ép chuyển lại, `--dry-run` để chỉ xem lệnh). Scene D-NeRF
+(`cfg_args` ghi dnerf/is_blender) tự đặt thời gian [0, 1]. Không nhận ra thì in các dấu hiệu đã kiểm tra và thoát mã 2.
+
 ## Chạy thử trong 1 phút
 
 ```bash
