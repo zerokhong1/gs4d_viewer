@@ -73,6 +73,10 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `at(t)` 34 -> 8.7 ms; Deformable-3DGS `bouncingballs` has no static Gaussians (unchanged). Renders before/after are
   identical at keyframes; between keyframes up to 7 of 702,845 pixels differ on `paper-windmill` because the old path
   blended static Gaussians with themselves (float32 rounding). Files with a static group cannot be read by older code.
+- Tested (WP14, 14/11/2026): `gs4d.GpuFrames` (format.py) decodes/interpolates on the GPU for the gsplat renderer; `viewer.frame_gpu`
+  vs `frame_cpu` (`--cpu-decode`). Play frame 100 -> 2.2 ms (500k x 100 compact), 214 -> 3.1 ms (`paper-windmill` compact); renders differ
+  <= 1/255; `check_real.py` PSNR unchanged (also run with `at` patched to GpuFrames). `tests/bench_large.py [--file f.npz]` prints the table.
+  NOT measured: display FPS in a real GPU Chrome (built-in browser has no WebGL, Chrome extension not connected).
 - Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
   trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
 - WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real

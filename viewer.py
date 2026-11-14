@@ -22,7 +22,7 @@ import time
 import numpy as np
 import viser
 
-from gs4d import Sequence4D, unpack_cov
+from gs4d import GpuFrames, Sequence4D, unpack_cov
 
 
 def pick_renderer(choice: str) -> str:
@@ -54,6 +54,34 @@ def camera_matrices(wxyz, position, fov_y: float, width: int, height: int):
     f = 0.5 * height / np.tan(0.5 * fov_y)
     K = np.array([[f, 0, width / 2], [0, f, height / 2], [0, 0, 1]], np.float32)
     return np.linalg.inv(c2w).astype(np.float32), K
+
+
+def frame_cpu(seq: Sequence4D, t: float, min_opacity: float, scale: float, device):
+    """gsplat inputs at time t, decoded and interpolated with numpy, then uploaded: (means, full covs [M,3,3], opacities,
+    colours or SH [M,S,3]) for the Gaussians whose opacity is at least min_opacity. The reference path."""
+    import torch
+
+    means, covs, opac, cols = seq.at(t)
+    sh = seq.sh_at(t)
+    opac = np.where(opac >= min_opacity, opac, 0.0).astype(np.float32)
+    covs = (unpack_cov(covs) * np.float32(scale ** 2)).astype(np.float32)
+    keep = opac > 0
+    return tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(device)
+                 for a in (means, covs, opac, cols if sh is None else sh))
+
+
+def frame_gpu(gpu: GpuFrames, t: float, min_opacity: float, scale: float):
+    """Same result as frame_cpu, with decoding, interpolation, unpacking and thresholding done on the GPU."""
+    torch = gpu.torch
+    means, covs, opac, cols = gpu.at(t)
+    opac = torch.where(opac >= min_opacity, opac, torch.zeros_like(opac))
+    keep = opac > 0
+    c = covs[keep] * (scale ** 2)
+    full = torch.empty((len(c), 3, 3), dtype=torch.float32, device=c.device)
+    full[:, 0, 0], full[:, 0, 1], full[:, 0, 2] = c[:, 0], c[:, 1], c[:, 2]
+    full[:, 1, 0], full[:, 1, 1], full[:, 1, 2] = c[:, 1], c[:, 3], c[:, 4]
+    full[:, 2, 0], full[:, 2, 1], full[:, 2, 2] = c[:, 2], c[:, 4], c[:, 5]
+    return means[keep], full, opac[keep], cols[keep]
 
 
 SIDE_BY_SIDE = "A | B"
@@ -110,6 +138,7 @@ class Viewer:
         self.server.on_client_connect(self._on_connect)
         self.splats = [None] * len(self.seqs)
         self.labels = None
+        self.gpu: list = [None] * len(self.seqs)  # GpuFrames per sequence, built on first use (gsplat renderer)
         self.cur: dict[int, tuple] = {}  # sequence index -> tensors of the current time step (gsplat renderer)
         if self.renderer == "gsplat":
             import torch
@@ -246,15 +275,15 @@ class Viewer:
 
     def _load_gsplat(self):
         """Tensors of the current time step for every shown sequence. Colours are SH coefficients [M,S,3]
-        when the sequence has them."""
-        torch = self.torch
+        when the sequence has them. Decoding and interpolation run on the GPU (GpuFrames) unless --cpu-decode."""
         self.cur = {}
         for i in self._shown():
-            means, covs, opac, cols = self._current(i)
-            sh = self.seqs[i].sh_at(self.time.value)
-            keep = opac > 0
-            self.cur[i] = tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(self.device)
-                                for a in (means, covs, opac, cols if sh is None else sh))
+            if getattr(self.args, "cpu_decode", False):
+                self.cur[i] = frame_cpu(self.seqs[i], self.time.value, self.min_opacity.value, self.scale.value, self.device)
+            else:
+                if self.gpu[i] is None:
+                    self.gpu[i] = GpuFrames(self.seqs[i], self.device)
+                self.cur[i] = frame_gpu(self.gpu[i], self.time.value, self.min_opacity.value, self.scale.value)
 
     def render_gsplat(self, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
         """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background.
@@ -412,6 +441,8 @@ def main():
                     help="world up axis; COLMAP-style scenes are usually -y, Blender/D-NeRF scenes +z")
     ap.add_argument("--max-splats", type=int, default=300_000, help="client renderer: cap on Gaussians sent to the browser")
     ap.add_argument("--max-res", type=int, default=1080, help="gsplat renderer: initial cap on the render height")
+    ap.add_argument("--cpu-decode", action="store_true",
+                    help="gsplat renderer: decode and interpolate keyframes with numpy instead of on the GPU (reference path)")
     ap.add_argument("--video-dir", default=".", help="folder for the mp4 files written by the Export video button")
     args = ap.parse_args()
     seq_b = Sequence4D.load(args.compare, lazy=True) if args.compare else None
