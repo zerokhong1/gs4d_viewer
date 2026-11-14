@@ -107,7 +107,9 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   800 px): 35.35-43.14 dB, mean 39.62 on 20 test frames, no converter change; `tests/check_real.py` item `d3dgs_default`.
 - Tested (WP16): Deformable-3DGS `--is_blender --is_6dof` (20k iterations, 800 px): 36.99-43.75 dB, mean 40.34 on 20 test frames, no converter
   change; `tests/check_real.py` item `d3dgs_6dof`.
-- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); SC-GS with a motion mask, and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
+- Tested (WP16): SC-GS with motion mask (`--gs_with_motion_mask --gt_alpha_mask_as_dynamic_mask`, 512 nodes, hyper_dim 8, 20k iterations, 400 px): 35.48-43.14 dB,
+  mean 40.14 on 20 test frames; ply has 9 `fea_*` columns, converter recognises the mask, no change; item `scgs_mask`.
+- NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.

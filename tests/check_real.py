@@ -31,8 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), minus 0.5
-EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800}  # training resolution of each model
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -183,7 +183,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,native4d,4dgaussians,4dgaussians_export,spacetime,som")
+    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,native4d,4dgaussians,4dgaussians_export,spacetime,som")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -193,6 +193,7 @@ def main():
         deformable3dgs=E("GS4D_D3DGS") or os.path.join(opt.train, "out", "d3dgs_bouncingballs"),
         d3dgs_default=E("GS4D_D3DGS_DEFAULT") or os.path.join(opt.train, "out", "d3dgs_default"),
         d3dgs_6dof=E("GS4D_D3DGS_6DOF") or os.path.join(opt.train, "out", "d3dgs_6dof"),
+        scgs_mask=E("GS4D_SCGS_MASK") or os.path.join(opt.train, "out", "scgs_mask_bouncingballs_node"),
         scgs=E("GS4D_SCGS") or os.path.join(opt.train, "out", "scgs_bouncingballs_node"),
         fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
         native4d=E("GS4D_NATIVE4D") or os.path.join(opt.train, "4dgs", "output", "dnerf", "bouncingballs", "chkpnt_best.pth"),
@@ -239,6 +240,9 @@ def main():
                           ["--frames", "60", "--sh"], work, opt.data, results)),
         ("scgs", "SC-GS --sh", True,
          lambda: run_psnr("scgs", "SC-GS --sh", "convert_scgs.py", paths["scgs"],
+                          ["--frames", "60", "--sh"], work, opt.data, results)),
+        ("scgs_mask", "SC-GS motion mask --sh", True,
+         lambda: run_psnr("scgs_mask", "SC-GS motion mask --sh", "convert_scgs.py", paths["scgs_mask"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),
         ("native4d", "native 4DGS --sh", True,
          lambda: run_psnr("native4d", "native 4DGS --sh", "convert_native4d.py", paths["native4d"],
