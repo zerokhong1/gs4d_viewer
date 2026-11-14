@@ -8,7 +8,8 @@ common `.npz` ("Gaussians per keyframe", `gs4d/format.py`, class `Sequence4D`). 
 its own `convert_<method>.py` that writes that format. The viewer never imports a method's code.
 
 ## Layout
-- `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`
+- `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`;
+  compact storage and the static group (Gaussians that never change are stored once, `save(split_static=True)`)
 - `gs4d/ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
   `--compare b.npz` shows a second sequence (A, B, or side by side) on the same time slider
@@ -20,7 +21,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32]` re-saves compact / plain
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
-- `tests/`          `test_sh.py`, `test_compact.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
+- `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_gsplat.py`
   (needs CUDA), `check_compare.py` (needs Chrome), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
@@ -61,6 +62,11 @@ Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both
 - Tested (WP7b): mp4 export from the current camera over the whole time range, both renderers.
 - Tested (WP8): compact save (float16 offsets, quantised Cholesky, uint8) and lazy memory-mapped load,
   `tests/test_compact.py`, `tests/bench_large.py`. Do not overwrite a file the viewer has open.
+- Tested (WP11, 14/11/2026): static group in the file format, `tests/test_static.py`; `at(t)` still returns all N
+  Gaussians in the original order, `viewer.py` unchanged. Real files: Shape of Motion `paper-windmill` 1271 -> 147 MB,
+  `at(t)` 34 -> 8.7 ms; Deformable-3DGS `bouncingballs` has no static Gaussians (unchanged). Renders before/after are
+  identical at keyframes; between keyframes up to 7 of 702,845 pixels differ on `paper-windmill` because the old path
+  blended static Gaussians with themselves (float32 rounding). Files with a static group cannot be read by older code.
 - Tested with real output (WP2): `params.npz` reader on Dynamic 3D Gaussians `basketball`; up axis is `-y`.
 - Tested (WP7a): `--compare` in headless Chrome with both renderers, `tests/check_compare.py`. gsplat: split
   screen, same camera; client: B moved sideways in the scene (viser cannot split the viewport).
@@ -69,9 +75,11 @@ Updated 14/11/2026. All eight work packages (WP1-WP8, WP7 both options, WP5 both
   - `convert_spacetime.py`: authors' `n3d_sear_steak_lite_allcam` (lite model: `f_dc` only, no `rgbdecoder`);
     checked by eye at training cameras, image not in the repo (shows a person).
   - `convert_shape_of_motion.py`: authors' `paper-windmill` checkpoint, checked by eye.
-  - `convert_deformable3dgs.py --sh`: self-trained D-NeRF `bouncingballs` (20k iterations), 29.3-33.2 dB on 5 test frames.
-  - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8), 36.2-41.3 dB.
-  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth`, 26.0-31.1 dB (the repo's own eval:
+  - `convert_deformable3dgs.py --sh`: self-trained D-NeRF `bouncingballs` (20k iterations, trained at 800 px), 37.2-43.6 dB
+    on all 20 test frames at 800 px (29.3-33.2 dB when rendered at 400 px: evaluate at the training resolution).
+  - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8, trained at 400 px), 35.4-43.0 dB
+    on all 20 test frames at 400 px.
+  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames (the repo's own eval:
     33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
 - Each of those converters also has a synthetic test, `tests/test_<name>.py`.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,

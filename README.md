@@ -18,12 +18,12 @@ python viewer.py toy.npz             # mở http://localhost:8080
 |---|---|---|
 | A. Gaussian theo từng frame | thư mục `.ply` mỗi frame (feed-forward, hoặc `gaussian_pertimestamp/` do `export_perframe_3DGS.py` của 4DGaussians xuất ra) | `python convert_per_frame.py <thư_mục> -o scene.npz --fps 30` |
 | A. | Dynamic 3D Gaussians (`params.npz`) — chạy với output thật `basketball` (375.870 Gaussian x 150 frame gốc) | `python convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only` rồi `python viewer.py scene.npz --up -y`. Đã đo: `--fg-only` cho 112.592 Gaussian x 30 keyframe, 163 MB (bỏ `--fg-only`: 375.870 Gaussian, 543 MB, nhưng cảnh bị nền và floater che). Trục up là `-y`; ảnh chụp ở `shots/wp2/`. Lưu ý: ~14% màu gốc nằm ngoài [0,1] và bị cắt; renderer client chưa đối chiếu với `visualize.py` gốc. |
-| B. Gaussian 4D | Native 4DGS của Yang et al. (`chkpnt*.pth`; chỉ màu SH bậc 0) — chạy với checkpoint thật tự train trên cảnh `bouncingballs` của D-NeRF (20.000 vòng, 38 phút trên RTX 3060) | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 10` (cảnh D-NeRF có thời gian trong [0, 1]: dùng `--t1 1`). Đã đo: 134.260 Gaussian trong checkpoint, giữ 116.193 x 60 keyframe, 116 MB, chuyển mất 2 giây. Render ở camera và thời điểm của 5 ảnh test: hình và chuyển động khớp, PSNR 26,0–31,1 dB (repo gốc tự đo 33,4 dB); màu loang nhẹ vì bỏ SH bậc cao theo hướng nhìn và thời gian. Ảnh: `shots/real/native4d_bouncingballs.png` |
+| B. Gaussian 4D | Native 4DGS của Yang et al. (`chkpnt*.pth`; chỉ màu SH bậc 0) — chạy với checkpoint thật tự train trên cảnh `bouncingballs` của D-NeRF (20.000 vòng, 38 phút trên RTX 3060) | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 10` (cảnh D-NeRF có thời gian trong [0, 1]: dùng `--t1 1`). Đã đo: 134.260 Gaussian trong checkpoint, giữ 116.193 x 60 keyframe, 116 MB, chuyển mất 2 giây. Render ở camera và thời điểm của cả 20 ảnh test, ở 400 px (độ phân giải lúc train): hình và chuyển động khớp, PSNR 26,0–31,9 dB, trung bình 29,0 dB (repo gốc tự đo 33,4 dB); màu loang nhẹ vì bỏ SH bậc cao theo hướng nhìn và thời gian. Ảnh: `shots/real/native4d_bouncingballs.png` |
 | C. Hàm chuyển động tham số | Spacetime Gaussians (`point_cloud.ply`; chỉ màu cơ sở, bỏ MLP `rgbdecoder`) — chạy với model thật `n3d_sear_steak_lite_allcam` do tác giả công bố | `python convert_spacetime.py point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1`. Đã đo: 108.317 Gaussian trong ply, giữ 98.993 x 50 keyframe, 199 MB, chuyển mất 3 giây. Render gsplat từ hai camera huấn luyện (`cameras.json`) ra đúng cảnh, người và vật chuyển động theo thời gian. Model lite này chỉ có `f_dc_0..2` và không kèm `rgbdecoder`; model đầy đủ (có `rgbdecoder`) chưa thử. |
-| C. | Shape of Motion (`checkpoints/last.ckpt`; motion bases SE(3) + hệ số, nền tĩnh; cần torch để đọc checkpoint) — chạy với checkpoint thật `paper-windmill` do tác giả công bố | `python convert_shape_of_motion.py last.ckpt -o scene.npz --fps 30` (`--fg-only` bỏ nền, `--stride n` lấy thưa frame). Đã đo với `--stride 8`: 71.867 Gaussian tiền cảnh + 924.075 nền x 35 keyframe (277 frame gốc), 1,27 GB, chuyển mất 10 giây, RAM đỉnh 3,2 GB. Render gsplat từ camera huấn luyện (`Ks`, `w2cs` trong checkpoint) khớp cảnh, ảnh ở `shots/real/`. Nền tĩnh vẫn bị lặp lại ở mọi keyframe nên file lớn: dùng `--stride` hoặc `python -m gs4d` để nén. |
+| C. | Shape of Motion (`checkpoints/last.ckpt`; motion bases SE(3) + hệ số, nền tĩnh; cần torch để đọc checkpoint) — chạy với checkpoint thật `paper-windmill` do tác giả công bố | `python convert_shape_of_motion.py last.ckpt -o scene.npz --fps 30` (`--fg-only` bỏ nền, `--stride n` lấy thưa frame). Đã đo với `--stride 8`: 71.867 Gaussian tiền cảnh + 924.075 nền x 35 keyframe (277 frame gốc), 147 MB (nền tĩnh chỉ lưu một lần; trước khi có nhóm tĩnh là 1,27 GB), chuyển mất 10 giây, RAM đỉnh 3,2 GB. Render gsplat từ camera huấn luyện (`Ks`, `w2cs` trong checkpoint) khớp cảnh, ảnh ở `shots/real/`. |
 | D. Mạng biến dạng | 4DGaussians: đi qua `export_perframe_3DGS.py` rồi dùng dòng A | |
-| D. | Deformable-3DGS (thư mục model có `point_cloud/` và `deform/`; chạy lại MLP biến dạng trên CPU, cần torch; nhận cả biến thể D-NeRF và 6-DoF) — chạy với model thật tự train trên cảnh `bouncingballs` của D-NeRF (biến thể D-NeRF, 20.000 vòng, 34 phút trên RTX 3060); biến thể mặc định và 6-DoF chưa thử với output thật | `python convert_deformable3dgs.py <thư_mục_model> -o scene.npz --frames 60` (thêm `--sh` để giữ màu theo hướng nhìn). Đã đo với `--sh`: 64.571 Gaussian x 60 keyframe, SH bậc 3, 153 MB, chuyển mất 49 giây. Render ở camera và thời điểm của 5 ảnh test: PSNR 29,3–33,2 dB. Ảnh: `shots/real/deformable3dgs_bouncingballs.png` |
-| D. | SC-GS (thư mục model `<tên>_node` có `point_cloud/` và `deform/`; control node + MLP + nội suy theo K node gần nhất, chạy trên CPU, cần torch; không hỗ trợ `--use_hash`, `--skinning`; bỏ qua `--pred_color`) — chạy với model thật tự train trên cảnh `bouncingballs` của D-NeRF (512 node, `--local_frame`, 20.000 vòng sau 10.000 bước khởi tạo node, 19 phút trên RTX 3060) | `python convert_scgs.py <thư_mục_model> -o scene.npz --frames 60` (`--knn` = `--K` lúc train nếu khác 3; thêm `--sh` để giữ màu theo hướng nhìn). Đã đo: 165.900 Gaussian x 60 keyframe, chuyển mất 10 giây; 361 MB, với `--sh` (SH bậc 3) 393 MB. Render ở camera và thời điểm của 5 ảnh test: PSNR 36,2–41,3 dB với `--sh`, 27,8–33,5 dB khi chỉ dùng màu cơ sở. Ảnh: `shots/real/scgs_bouncingballs.png` |
+| D. | Deformable-3DGS (thư mục model có `point_cloud/` và `deform/`; chạy lại MLP biến dạng trên CPU, cần torch; nhận cả biến thể D-NeRF và 6-DoF) — chạy với model thật tự train trên cảnh `bouncingballs` của D-NeRF (biến thể D-NeRF, 20.000 vòng, 34 phút trên RTX 3060); biến thể mặc định và 6-DoF chưa thử với output thật | `python convert_deformable3dgs.py <thư_mục_model> -o scene.npz --frames 60` (thêm `--sh` để giữ màu theo hướng nhìn). Đã đo với `--sh`: 64.571 Gaussian x 60 keyframe, SH bậc 3, 153 MB, chuyển mất 49 giây. Render ở camera và thời điểm của cả 20 ảnh test, ở 800 px (độ phân giải lúc train): PSNR 37,2–43,6 dB, trung bình 40,3 dB (ở 400 px chỉ còn 29,3–33,2 dB trên 5 ảnh, vì model train ở 800 px). Ảnh (400 px): `shots/real/deformable3dgs_bouncingballs.png` |
+| D. | SC-GS (thư mục model `<tên>_node` có `point_cloud/` và `deform/`; control node + MLP + nội suy theo K node gần nhất, chạy trên CPU, cần torch; không hỗ trợ `--use_hash`, `--skinning`; bỏ qua `--pred_color`) — chạy với model thật tự train trên cảnh `bouncingballs` của D-NeRF (512 node, `--local_frame`, 20.000 vòng sau 10.000 bước khởi tạo node, 19 phút trên RTX 3060) | `python convert_scgs.py <thư_mục_model> -o scene.npz --frames 60` (`--knn` = `--K` lúc train nếu khác 3; thêm `--sh` để giữ màu theo hướng nhìn). Đã đo: 165.900 Gaussian x 60 keyframe, chuyển mất 10 giây; 361 MB, với `--sh` (SH bậc 3) 393 MB. Render ở camera và thời điểm của cả 20 ảnh test, ở 400 px (độ phân giải lúc train): PSNR 35,4–43,0 dB, trung bình 40,3 dB với `--sh`; 27,8–33,5 dB trên 5 ảnh khi chỉ dùng màu cơ sở. Ảnh: `shots/real/scgs_bouncingballs.png` |
 
 Sau đó: `python viewer.py scene.npz`.
 
@@ -145,6 +145,31 @@ Sai số vị trí 0,002 là với Gaussian dịch tới 5,35 đơn vị so vớ
 lớn nhất của Gaussian đó. Đổi lại, dạng nén giải mã mỗi frame chậm hơn (77 ms so với 14 ms ở 500.000
 Gaussian), nên khi play scene lớn tốc độ cập nhật thấp hơn dạng float32.
 
+### Gaussian tĩnh chỉ lưu một lần
+
+Khi lưu, `Sequence4D.save` tự tìm các Gaussian không đổi qua mọi keyframe ở mọi trường (sai khác so với keyframe
+đầu không quá 10⁻⁶ lần độ lớn của giá trị) và lưu chúng một lần thay vì K lần; `save(path, split_static=False)`
+tắt việc này. Người gọi không phải biết: `at(t)` vẫn trả về đủ N Gaussian theo đúng thứ tự cũ, `viewer.py` không
+sửa dòng nào. File cũ vẫn đọc được; `python -m gs4d cũ.npz mới.npz --float32` chuyển file cũ sang dạng mới không
+mất mát (bỏ `--float32` để nén thêm, thêm `--no-split` để ghi theo kiểu cũ). File dạng mới không đọc được bằng
+bản viewer cũ.
+
+Đo với output thật (14/11/2026, nạp lười, `at(t)` là trung bình 39 thời điểm nằm giữa các keyframe):
+
+| | Shape of Motion `paper-windmill`, trước | sau | sau + nén | Deformable-3DGS `bouncingballs`, trước | sau |
+|---|---|---|---|---|---|
+| Gaussian tĩnh / tổng | — | 924.075 / 995.942 | 924.075 / 995.942 | — | 0 / 64.571 |
+| Dung lượng file | 1271 MB | 147 MB | 103 MB | 153 MB | 153 MB |
+| RAM sau khi nạp hết (không lười) | 1248 MB | 177 MB | 135 MB | 181 MB | 181 MB |
+| RAM sau khi play hết dải thời gian (nạp lười) | 1248 MB | 205 MB | 161 MB | 166 MB | 167 MB |
+| Lấy một frame nội suy (`at(t)`) | 34 ms | 8,7 ms | 10,9 ms | 1,7 ms | 1,6 ms |
+
+`bouncingballs` không có Gaussian tĩnh nào vì MLP biến dạng của Deformable-3DGS dịch mọi Gaussian một chút, nên
+file giữ nguyên. Ảnh gsplat render từ file trước và sau: `bouncingballs` giống hệt ở cả 3 thời điểm; `paper-windmill`
+(715 × 983, camera huấn luyện) giống hệt tại keyframe, còn giữa hai keyframe có 0–7 trên 702.845 pixel lệch quá
+1/255 (lớn nhất 8,6/255). Nguyên nhân đã kiểm: bản cũ nội suy cả Gaussian tĩnh với chính nó nên giá trị bị làm
+tròn lệch tới 5·10⁻⁷; thay các giá trị đó bằng giá trị gốc thì ảnh cũ trùng ảnh mới từng pixel.
+
 ## Giới hạn hiện tại
 
 - Màu phụ thuộc hướng nhìn chỉ có khi file có trường `sh` và dùng renderer gsplat; renderer client luôn
@@ -164,6 +189,7 @@ python tests/test_deformable3dgs.py                       # converter Deformable
 python tests/test_shape_of_motion.py                      # converter Shape of Motion (cần torch, không thì tự bỏ qua)
 python tests/test_scgs.py                                 # converter SC-GS (cần torch, không thì tự bỏ qua)
 python tests/test_compact.py                              # lưu nén, nạp lười
+python tests/test_static.py                               # nhóm Gaussian tĩnh lưu một lần
 python tests/check_gsplat.py                              # cần CUDA + Chrome: so ảnh gsplat với client ở 3 thời điểm
 python tests/check_compare.py                             # cần Chrome: --compare ở cả hai renderer (gsplat tự bỏ qua nếu không có CUDA)
 ```
