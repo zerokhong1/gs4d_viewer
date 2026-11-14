@@ -14,7 +14,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
   `--compare b.npz` shows a second sequence (A, B, or side by side) on the same time slider
 - `convert_per_frame.py`  type A: folder of per-frame ply, Dynamic 3D Gaussians `params.npz`
-- `convert_native4d.py`   type B: Yang et al. `chkpnt*.pth`
+- `convert_native4d.py`   type B: Yang et al. `chkpnt*.pth` (`--sh`: view- and time-dependent SH per keyframe)
 - `convert_spacetime.py`  type C: Spacetime Gaussians `point_cloud.ply` (base colour only)
 - `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
 - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
@@ -93,7 +93,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
     on all 20 test frames at 800 px (29.3-33.2 dB when rendered at 400 px: evaluate at the training resolution).
   - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8, trained at 400 px), 35.4-43.0 dB
     on all 20 test frames at 400 px.
-  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames (the repo's own eval:
+  - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames, mean 29.0; with `--sh` (WP13) 27.3-39.6 dB, mean 32.9 (the repo's own eval:
     33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
 - Each of those converters also has a synthetic test, `tests/test_<name>.py`.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,

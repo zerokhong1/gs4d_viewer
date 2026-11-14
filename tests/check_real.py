@@ -31,7 +31,7 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 25.54}  # measured minima 37.20, 35.35, 26.04, minus 0.5
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), minus 0.5
 EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
@@ -198,9 +198,9 @@ def main():
         ("scgs", "SC-GS --sh", True,
          lambda: run_psnr("scgs", "SC-GS --sh", "convert_scgs.py", paths["scgs"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),
-        ("native4d", "native 4DGS", True,
-         lambda: run_psnr("native4d", "native 4DGS", "convert_native4d.py", paths["native4d"],
-                          ["--frames", "60", "--t0", "0", "--t1", "1"], work, opt.data, results)),
+        ("native4d", "native 4DGS --sh", True,
+         lambda: run_psnr("native4d", "native 4DGS --sh", "convert_native4d.py", paths["native4d"],
+                          ["--frames", "60", "--t0", "0", "--t1", "1", "--sh"], work, opt.data, results)),
         ("spacetime", "Spacetime Gaussians (smoke)", False,
          lambda: run_smoke("spacetime", "Spacetime Gaussians (smoke)", "convert_spacetime.py", spacetime_ply(),
                            ["--frames", "50", "--t0", "0", "--t1", "1"], work, spacetime_expect, results)),
