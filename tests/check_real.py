@@ -31,8 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), minus 0.5
-EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400}  # training resolution of each model
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -63,7 +63,10 @@ def convert(script, args, out):
 
 
 # ------------------------------------------------------------------------------------------ PSNR items
-def load_test_set(scene, size):
+WHITE_BG = {"4dgaussians"}  # trained with white_background=True: compare on white, not black
+
+
+def load_test_set(scene, size, white=False):
     from PIL import Image
     meta = json.load(open(need(os.path.join(scene, "transforms_test.json"), "transforms_test.json")))
     fx_scale = float(meta["camera_angle_x"])
@@ -74,7 +77,7 @@ def load_test_set(scene, size):
         if pil.size[0] != size:
             pil = pil.resize((size, size * pil.size[1] // pil.size[0]), Image.LANCZOS)
         im = np.asarray(pil).astype(np.float32) / 255.0
-        gt = im[..., :3] * im[..., 3:4]  # composite on black
+        gt = im[..., :3] * im[..., 3:4] + ((1.0 - im[..., 3:4]) if white else 0.0)  # composite on black (white)
         c2w = np.array(fr["transform_matrix"], np.float64)
         c2w[:3, 1:3] *= -1  # OpenGL -> OpenCV
         out.append((float(fr["time"]), np.linalg.inv(c2w).astype(np.float32), gt))
@@ -103,12 +106,12 @@ def psnr_item(name, npz, test):
         else:
             colors = torch.from_numpy(np.ascontiguousarray(cols, np.float32)).to(dev)
         with torch.no_grad():
-            img, _, _ = rasterization(
+            img, alpha, _ = rasterization(
                 torch.from_numpy(np.ascontiguousarray(means, np.float32)).to(dev), None, None,
                 torch.from_numpy(np.ascontiguousarray(opac, np.float32)).to(dev), colors,
                 torch.from_numpy(viewmat).to(dev)[None], Kt, W, H,
                 covars=torch.from_numpy(unpack_cov(np.ascontiguousarray(covs, np.float32))).to(dev), **kw)
-        pred = img[0].clamp(0, 1).cpu().numpy()
+        pred = (img[0] + ((1.0 - alpha[0]) if name in WHITE_BG else 0.0)).clamp(0, 1).cpu().numpy()
         mse = float(np.mean((pred - gt) ** 2))
         ps.append(10 * np.log10(1.0 / max(mse, 1e-12)))
         del img
@@ -117,7 +120,7 @@ def psnr_item(name, npz, test):
 
 # ------------------------------------------------------------------------------------------ items
 def run_psnr(name, label, script, model, extra, work, data, results):
-    test = load_test_set(os.path.join(data, "dnerf", "data", "bouncingballs"), EVAL_SIZE[name])
+    test = load_test_set(os.path.join(data, "dnerf", "data", "bouncingballs"), EVAL_SIZE[name], name in WHITE_BG)
     need(model, f"{label} model")
     out = os.path.join(work, f"{name}.npz")
     secs = convert(script, [model] + extra, out)
@@ -126,6 +129,36 @@ def run_psnr(name, label, script, model, extra, work, data, results):
     ok = ps.min() >= thr
     results.append(dict(name=label, size=EVAL_SIZE[name], kind="psnr", ok=ok, ps=ps, thr=thr, n=seq.num_gaussians, k=seq.num_frames,
                         mb=os.path.getsize(out) / 1e6, secs=secs))
+
+
+def run_vs_export(label, model, data, results):
+    """convert_4dgaussians.py against the per-frame ply written by the repo's export_perframe_3DGS.py
+    (<model>/gaussian_pertimestamp, one ply per test camera). The export is run once by hand, see README."""
+    import torch
+    sys.path.insert(0, ROOT)
+    import convert_4dgaussians as c4
+    from gs4d.ply import gaussians_from_ply, read_ply_vertices
+    ref = os.path.join(model, "gaussian_pertimestamp")
+    need(ref, "gaussian_pertimestamp (run export_perframe_3DGS.py once)")
+    meta = json.load(open(need(os.path.join(data, "dnerf", "data", "bouncingballs", "transforms_test.json"), "transforms_test.json")))
+    times = [float(f["time"]) for f in meta["frames"]]
+    ply, pth, cfg = c4.find_files(model, None, -1)
+    net = c4.HexPlaneDeform(torch.load(pth, map_location="cpu", weights_only=True), c4.read_flags(cfg))
+    v = read_ply_vertices(ply)
+    g = lambda names: np.stack([v[k] for k in names], -1).astype(np.float32)  # noqa: E731
+    t0 = time.time()
+    means, covs, opac = c4.deform_sequence(g(["x", "y", "z"]), g([f"scale_{i}" for i in range(3)]),
+                                           g([f"rot_{i}" for i in range(4)]), v["opacity"].astype(np.float32)[:, None], net, times)
+    secs = time.time() - t0
+    em = ec = eo = 0.0
+    for k in range(len(times)):
+        m, cv, op, _ = gaussians_from_ply(os.path.join(ref, f"time_{k:05d}.ply"))
+        em = max(em, float(np.abs(means[k] - m).max()))
+        ec = max(ec, float((np.abs(covs[k] - cv) / (np.abs(cv).max(1, keepdims=True) + 1e-12)).max()))
+        eo = max(eo, float(np.abs((opac[k] if opac.ndim == 2 else opac) - op).max()))
+    bad = [f"{n} {e:.1e} > {t:.0e}" for n, e, t in (("mean", em, 1e-4), ("cov(rel)", ec, 1e-4), ("opacity", eo, 1e-5)) if e > t]
+    results.append(dict(name=label, kind="export", ok=not bad, bad=bad, n=len(v), k=len(times), secs=secs,
+                        note=f"max error vs export: mean {em:.1e}, cov(rel) {ec:.1e}, opacity {eo:.1e}"))
 
 
 def run_smoke(name, label, script, model, extra, work, expect, results):
@@ -150,7 +183,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,scgs,native4d,spacetime,som")
+    ap.add_argument("--only", default="", help="comma list of: deformable3dgs,scgs,native4d,4dgaussians,4dgaussians_export,spacetime,som")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -159,6 +192,7 @@ def main():
     paths = dict(
         deformable3dgs=E("GS4D_D3DGS") or os.path.join(opt.train, "out", "d3dgs_bouncingballs"),
         scgs=E("GS4D_SCGS") or os.path.join(opt.train, "out", "scgs_bouncingballs_node"),
+        fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
         native4d=E("GS4D_NATIVE4D") or os.path.join(opt.train, "4dgs", "output", "dnerf", "bouncingballs", "chkpnt_best.pth"),
         spacetime=E("GS4D_SPACETIME") or os.path.join(opt.data, "spacetime", "n3d_sear_steak_lite_allcam", "point_cloud"),
         som=E("GS4D_SOM") or os.path.join(opt.data, "som", "paper-windmill", "checkpoints", "last.ckpt"),
@@ -201,6 +235,11 @@ def main():
         ("native4d", "native 4DGS --sh", True,
          lambda: run_psnr("native4d", "native 4DGS --sh", "convert_native4d.py", paths["native4d"],
                           ["--frames", "60", "--t0", "0", "--t1", "1", "--sh"], work, opt.data, results)),
+        ("4dgaussians", "4DGaussians --sh", True,
+         lambda: run_psnr("4dgaussians", "4DGaussians --sh", "convert_4dgaussians.py", paths["fourdg"],
+                          ["--frames", "60", "--sh"], work, opt.data, results)),
+        ("4dgaussians_export", "4DGaussians vs export_perframe_3DGS", False,
+         lambda: run_vs_export("4DGaussians vs export_perframe_3DGS", paths["fourdg"], opt.data, results)),
         ("spacetime", "Spacetime Gaussians (smoke)", False,
          lambda: run_smoke("spacetime", "Spacetime Gaussians (smoke)", "convert_spacetime.py", spacetime_ply(),
                            ["--frames", "50", "--t0", "0", "--t1", "1"], work, spacetime_expect, results)),
@@ -240,6 +279,9 @@ def main():
         for r in smoke:
             print(f"{r['name']:<30} {r['n']} Gaussians x {r['k']} keyframes, {r['mb']:.0f} MB, {r['secs']:.0f} s  "
                   + ("PASS (count/size match README)" if r["ok"] else "FAIL: " + "; ".join(r["bad"])))
+    for r in [r for r in results if r["kind"] == "export"]:
+        print(f"\n{r['name']}: {r['n']} Gaussians x {r['k']} test times, {r['note']}  "
+              + ("PASS" if r["ok"] else "FAIL: " + "; ".join(r["bad"])))
     for label, why in skipped:
         print(f"SKIPPED {label}: {why}")
     failed = [r["name"] for r in results if not r["ok"]]

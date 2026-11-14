@@ -19,6 +19,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
 - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
 - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
+- `convert_4dgaussians.py`  type D: hustvl 4DGaussians model folder (HexPlane + MLP re-run on CPU); checked on a self-trained `bouncingballs`
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
 - `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
   (`<name>.gs4d.npz`, reused while the output is unchanged) and opens the viewer
@@ -96,6 +97,12 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames, mean 29.0; with `--sh` (WP13) 27.3-39.6 dB, mean 32.9 (the repo's own eval:
     33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
 - Each of those converters also has a synthetic test, `tests/test_<name>.py`.
+- Tested with real output (WP15, 14/11/2026): `convert_4dgaussians.py --sh` on self-trained hustvl 4DGaussians `bouncingballs`
+  (20k iterations, white background, net_width 64, defor_depth 0): 36.7-45.9 dB, mean 40.8 on 20 test frames at 800 px (white
+  composite); matches the repo's `export_perframe_3DGS.py` per-frame ply to 1e-6 (position), 7e-6 (relative covariance).
+  `tests/check_real.py` items `4dgaussians` and `4dgaussians_export` (the latter needs `gaussian_pertimestamp/`, run the export once).
+  Training needed a patched clone in `/home/cont/gs4d_train/4dgaussians` (`np.byte` -> `np.uint8`), a built
+  ingra14m depth-diff-gaussian-rasterization (+ `#include <cstdint>`), and shims for mmcv/open3d in `site_4dgaussians`.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); Deformable-3DGS default and 6-DoF variants,
   SC-GS with a motion mask, and any non-D-NeRF scene for Deformable-3DGS / SC-GS / native 4DGS; the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
