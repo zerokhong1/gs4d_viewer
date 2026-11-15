@@ -29,7 +29,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_cameras.py` (needs CUDA, data, Chrome), `check_gsplat.py`
   (needs CUDA), `check_compare.py` (needs Chrome), `test_open.py`,
-  `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; screenshots and the demo mp4 are in `shots/`
+  `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; `bench_display.py` (WP19b: opens a GPU Chrome window, prints sent / shown / browser frames per second; needs an unlocked screen and a free GPU, no valid run yet); screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
@@ -148,6 +148,13 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   coefficient's range in time (median 0.03) is far below its magnitude (DC up to 6.8), so a global int8 scale is ~300x worse (rms 1.6e-2 vs 5e-5).
   The writer's scratch files are still float32 (25 GB for banana 330 kf). `gs4d/open.py::estimate_bytes` does not know about per-keyframe `sh` (CC-B's file, not changed).
 - Tested (WP19c part 3, 15/11/2026): the 1.9 dB gap of native 4DGS on `slice-banana` (ours 24.23, repo 26.14) is a bug in the repo's camera path for OUR Blender layout, not the converter: per-frame `fl_x/fl_y/cx/cy` leave `FovX = FovY = -1`, so the CUDA rasteriser's 2D covariance uses focal `W/(2 tan 0.5)` and clamps x/z to -0.71 (min > max), and the model learned to compensate. Emulating that in gsplat (`tests/diag_native4d_banana.py --steps c_focal`) gives mean 26.13 dB. No effect: keyframes at the 33 test times 24.27, no compact 24.27, `marginal_t` cut 24.29, near plane 0.2 24.27, SH direction from un-offset xyz 24.27; SH degree 0 / 1 only 22.38 / 23.05. `slice_native4d` matches the CUDA `computeCov3D_conditional` to 1e-15. No converter change. The diag script needs one process per step (110 keyframes with `--sh` get OOM-killed).
+- Tested (WP20, 15/11/2026): native 4DGS `slice-banana` retrained with correct cameras: `tests/make_hypernerf_blender.py` now writes top-level `camera_angle_x` and no per-frame `fl_x/fl_y/cx/cy` (those left FovX = FovY = -1 in the repo). Same config (20k iterations, 20 min, `configs/banana_fov.yaml`, data `/home/cont/gs4d_train/data/banana_blender_fov`, output `4dgs/output/banana_fov`): repo eval 26.30 dB; `convert_native4d.py --frames 110 --sh --compact` + gsplat 21.41-29.17 dB, mean 26.31 on 33 held-out frames at 268 px (old model 24.23). Gap closed; no converter change; `check_real.py` item `native4d_banana` uses the new checkpoint (threshold min 20.91).
+- Tested (WP23, 15/11/2026): hustvl 4DGaussians on the real HyperNeRF `slice-banana` (repo's own HyperNeRF reader, `arguments/hypernerf/banana.py`, 14k iterations, 18 min,
+  52,741 Gaussians; data folder `/home/cont/gs4d_train/data/banana_4dgaussians` = symlinks + the 297/33 `dataset.json` + `points3D_downsample2.ply` written from the RAW
+  `points.npy`; clone patched `Load_hyper_data(datadir, 0.5 -> 0.25)` to read the 4x images). `convert_4dgaussians.py --frames 330 --sh --compact`: 325 MB, 35 s, peak RAM 1.5 GB;
+  PSNR 22.05-30.39 dB, mean 27.13 on the 33 held-out frames at 268 px; the repo's own renders of the same frames 27.13 (per image within 0.003 dB). No converter change;
+  `check_real.py` item `4dgaussians_banana` (threshold min 21.55). This repo keeps HyperNeRF cameras and points in RAW coordinates (no centre/scale, unlike Deformable-3DGS / SC-GS)
+  and time = warp_id / max; its FovX/FovY come from the focal length and are correct. `gs4d.open` opens the folder but finds no camera list for this layout.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,

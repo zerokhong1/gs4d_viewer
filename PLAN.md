@@ -6,13 +6,16 @@ Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải 
 
 ## Làm ngay
 
-1. **WP20** (một phiên, cần GPU trống khoảng 30 phút): train lại native 4DGS `slice-banana` với camera đúng. Con số 24,23 dB
+1. ~~**WP20**~~ (xong 15/11/2026) (một phiên, cần GPU trống khoảng 30 phút): train lại native 4DGS `slice-banana` với camera đúng. Con số 24,23 dB
    hiện tại đo trên một model train với camera sai. Đây là gói duy nhất còn chặn dòng native 4DGS của WP9.
 2. **WP19b: đo tốc độ hiển thị trong Chrome trên máy này** (người làm, 5 phút; phiên Claude Code không nối được Chrome thật).
    Chạy `python -m gs4d.open ../data_real/som/paper-windmill.npz --renderer gsplat`, mở `http://localhost:8080` bằng Chrome,
    bấm play ở 1280×720, đọc FPS (DevTools → Rendering → Frame Rendering Stats) và ghi cạnh số phía server trong README.
+   Hoặc tự động (15/11/2026): `python tests/bench_display.py --rates 20 30 40 50 60` mở một cửa sổ Chrome có GPU và in bảng
+   gửi / hiển thị / trình duyệt. Chỉ hợp lệ khi màn hình đang mở (không khoá) và không có job train nào trên GPU; lần thử 15/11
+   bị hỏng vì cả hai (màn hình khoá → Chrome chỉ chạy 1 frame/giây; WP23 đang train), nên README chưa có số.
 3. **Mở song song với WP20** (không dùng GPU lúc đang train): WP22 (CC-B, bốn converter). WP21 (CC-A) đã xong 15/11/2026, chờ merge nhánh `cc-a/wp21-compact-sh`.
-4. **Sau WP20, từng gói một vì chung GPU:** WP23 (4DGaussians trên cảnh thật, có train) → WP19c phần 1 → WP19c phần 2.
+4. **Sau WP20, từng gói một vì chung GPU:** ~~WP23~~ (xong 15/11/2026) → WP19c phần 1 → WP19c phần 2.
 5. **Dọn worktree** (người làm). Git còn đăng ký 10 worktree, kể cả `gs4d-wp19c` (đã merge) và `gs4d-wp2` từ giai đoạn 1.
    ```bash
    git worktree list
@@ -38,8 +41,8 @@ nhận dạng trong `gs4d/open.py`.
 | Thư mục ply 3DGS từng frame (mọi phương pháp xuất được) | `convert_per_frame.py` | Xong: `gaussian_pertimestamp/` của 4DGaussians `bouncingballs`, mục `4dgaussians_export` | — | — |
 | Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Xong (`basketball`) | — | — |
 | Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Xong (`paper-windmill`, kiểm bằng mắt; `check_real.py` chỉ kiểm số Gaussian và dung lượng) | Số PSNR so với ảnh gốc (không chặn) | WP19c phần 1 |
-| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27,3–39,6 dB, trung bình 32,9 (repo gốc 33,4). Cảnh thật `slice-banana`: 24,23 dB (110 keyframe), 24,27 dB (330 keyframe, RAM đỉnh 1,3 GB từ WP19d); repo gốc tự đo 26,14 | Khoảng lệch 1,9 dB đã rõ (WP19c phần 3): không phải converter, mà model được train với `FovX = FovY = -1` do layout của `tests/make_hypernerf_blender.py`; giả lập lỗi đó cho 26,13 dB. Cần train lại với camera đúng và đo lại. File 330 keyframe: 19,9 → 5,8 GB từ WP21 (`sh` nén uint8) | WP20 |
-| 4DGaussians (hustvl), thư mục model | `convert_4dgaussians.py` | Converter xong: `bouncingballs` 36,7–45,9 dB, trung bình 40,8; khớp `export_perframe_3DGS.py` đến 1e-6 | Xong (WP19a): `gs4d.open` nhận thư mục này, mở có danh sách camera. Chưa thử cảnh thật (không chặn) | WP23 |
+| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27,3–39,6 dB, trung bình 32,9 (repo gốc 33,4). Cảnh thật `slice-banana` (train lại với camera đúng, WP20): 26,31 dB (110 keyframe), repo gốc tự đo 26,30 | Xong. Gap 1,9 dB cũ là do layout cũ của `make_hypernerf_blender.py` (`FovX = FovY = -1`), đã sửa và train lại. File 330 keyframe: 19,9 → 5,8 GB từ WP21 (`sh` nén uint8) | WP20 |
+| 4DGaussians (hustvl), thư mục model | `convert_4dgaussians.py` | Converter xong: `bouncingballs` 36,7–45,9 dB, trung bình 40,8; khớp `export_perframe_3DGS.py` đến 1e-6 | Xong (WP19a): `gs4d.open` nhận thư mục này, mở có danh sách camera. Cảnh thật `slice-banana` (WP23): 22,05–30,39 dB, trung bình 27,13, khớp repo; `gs4d.open` mở được nhưng không có danh sách camera cho layout HyperNeRF | — |
 | Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Hai model lite (`n3d_sear_steak`, Technicolor `Birthday`), kiểm bằng mắt, chưa có PSNR. Bản đầy đủ (`rgbdecoder`): converter dừng và nêu tên, `--base-color-only` để chuyển tiếp (WP19a) | PSNR cho bản lite. Bản đầy đủ là giới hạn đã ghi nhận: không có model công khai, train vượt 15 GB RAM | WP19c phần 2 |
 | Deformable-3DGS, thư mục model | `convert_deformable3dgs.py` | Xong: D-NeRF 37,2–43,6 dB; mặc định 35,35–43,14; 6-DoF 36,99–43,75; cảnh thật `slice-banana` 19,28–29,78 (trung bình 24,72) | — | — |
 | SC-GS, thư mục model | `convert_scgs.py` | Xong: D-NeRF 35,4–43,0 dB; motion mask 35,48–43,14; cảnh thật `slice-banana` trung bình 26,69 dB (110 keyframe), 26,87 dB (330 keyframe, RAM đỉnh 1,4 GB từ WP19d). `--use_hash`, `--skinning`, tắt `d_rot_as_res`, `--pred_color` (`--ignore-pred-color` để chuyển tiếp): dừng có thông báo | — | — |
@@ -88,10 +91,10 @@ và bảng "Dùng với output thật" trong README.
 | 19b | Đo FPS hiển thị trong Chrome có GPU | Chưa | — | Người làm, trên Chrome của máy này; còn nợ từ WP14 |
 | 19c | PSNR cho Spacetime và Shape of Motion; nguyên nhân lệch 1,9 dB của native 4DGS trên cảnh thật | Phần 3 xong 15/11/2026 (đã merge); phần 1, 2 chưa, đã mở | `cc-c/wp19c-psnr` (`../gs4d-wp19c`) | Phần 3: lệch do model train với `FovX = FovY = -1` (layout của `make_hypernerf_blender.py`), không phải converter; giả lập trong gsplat cho 26,13 dB (repo 26,14); `tests/diag_native4d_banana.py`. Phần 1, 2: làm sau WP23 vì chung GPU |
 | 19d | Converter ghi từng keyframe ra đĩa để không giữ cả sequence trong RAM | Xong 15/11/2026 (đã commit) | làm thẳng trên `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bằng `save` từng bit); SC-GS, native 4DGS, Deformable-3DGS dùng nó. RAM đỉnh: SC-GS 4,5 → 1,4 GB, native 4DGS 8,3 → 1,3 GB, Deformable-3DGS 7,2 → 1,0 GB; 330 keyframe của `slice-banana` chuyển được. `check_real.py` vẫn đo ở 110 keyframe |
-| 20 | Train lại native 4DGS `slice-banana` với camera đúng, đo lại | Chưa | `cc-c/wp20-native4d-banana` | Chặn dòng native 4DGS của WP9; cần GPU trống |
+| 20 | Train lại native 4DGS `slice-banana` với camera đúng, đo lại | Xong 15/11/2026 (chưa merge) | `cc-c/wp20-native4d-banana` | Train lại với `camera_angle_x` (không `fl_x` từng frame), 20.000 vòng, 20 phút: repo tự đo 26,30 dB; converter + gsplat 21,41–29,17, trung bình **26,31 dB** (trước 24,23): gap 1,9 dB hết. `make_hypernerf_blender.py` đã sửa; `check_real.py` trỏ `output/banana_fov`, ngưỡng min 20,91 |
 | 21 | Nén trường `sh` theo keyframe | Xong 15/11/2026 (chưa merge) | `cc-a/wp21-compact-sh` | `sh` theo keyframe thành uint8 trên khoảng riêng theo thời gian của từng hệ số (`sh_lo`, `sh_step`, `sh_u8`). Native 4DGS `slice-banana` 330 keyframe: 19,86 → 5,82 GB (0,29 lần), PSNR 24,2687 dB không đổi (ảnh xấu nhất −0,0002 dB); `bouncingballs`: 1412 → 453 MB, 32,9117 dB không đổi. Lấy frame đường GPU 2,2 → 1,4 ms; đường CPU 60 → 128 ms. Còn lại cho CC-B: `estimate_bytes` trong `gs4d/open.py` chưa tính `sh` theo keyframe |
 | 22 | `Sequence4DWriter` cho bốn converter còn lại | Chưa | `cc-b/wp22-writer-rest` | 4DGaussians, Shape of Motion, Spacetime, per-frame vẫn dựng cả sequence trong RAM. Đã mở (giáo sư: tất cả phương pháp) |
-| 23 | 4DGaussians trên cảnh thật `slice-banana` | Chưa | `cc-c/wp23-4dgaussians-banana` | Phương pháp duy nhất có converter trực tiếp mà chưa thử cảnh thật; có train, cần GPU trống |
+| 23 | 4DGaussians trên cảnh thật `slice-banana` | Xong 15/11/2026 (chưa commit) | làm thẳng trên `main` | Train 14.000 vòng (config hypernerf của repo), 18 phút, 52.741 Gaussian. PSNR 33 ảnh giữ lại: của ta 22,05–30,39, trung bình 27,13; repo tự render 27,13 (từng ảnh lệch ≤ 0,003 dB). Không sửa converter; mục `4dgaussians_banana` trong `check_real.py`. Camera của repo đã kiểm: FovX/FovY tính từ focal, đúng |
 | 24 | Chế độ vẽ tâm Gaussian thành điểm | Chờ xác nhận | `cc-a/wp24-points` | Chỉ làm nếu "quan sát các điểm 4DGS" nghĩa là xem dạng đám mây điểm; di chuyển camera tự do thì đã có |
 
 ## Phân công: 3 phiên Claude Code

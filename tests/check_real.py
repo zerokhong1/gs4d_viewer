@@ -31,8 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98, "d3dgs_banana": 18.78, "scgs_banana": 19.71, "native4d_banana": 20.64}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
-EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400, "d3dgs_banana": 268, "scgs_banana": 268, "native4d_banana": 268}  # training resolution of each model
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98, "d3dgs_banana": 18.78, "scgs_banana": 19.71, "native4d_banana": 20.91, "4dgaussians_banana": 21.55}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400, "d3dgs_banana": 268, "scgs_banana": 268, "native4d_banana": 268, "4dgaussians_banana": 268}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -63,7 +63,7 @@ def convert(script, args, out):
 
 
 # ------------------------------------------------------------------------------------------ PSNR items
-WHITE_BG = {"4dgaussians"}  # trained with white_background=True: compare on white, not black
+WHITE_BG = {"4dgaussians", "4dgaussians_banana"}  # trained with white_background=True: compare on white, not black
 
 
 def load_test_set(scene, size, white=False):
@@ -137,35 +137,38 @@ def banana_scene(train):
     return os.environ.get("GS4D_BANANA") or os.path.join(train, "data", "vrig_slice-banana", "slice-banana")
 
 
-def load_nerfies_val_set(scene):
+def load_nerfies_val_set(scene, raw=False):
     """Held-out frames (dataset.json val_ids) of a HyperNeRF scene at 4x. Same camera maths as the repos'
     readNerfiesCameras: position = (position - center) * scale, w2c rotation = orientation, f = focal / 4, principal
-    point at the image centre, no lens distortion; time = time_id / max(time_id) (in [0, 1])."""
+    point at the image centre, no lens distortion; time = time_id / max(time_id) (in [0, 1]).
+    raw=True: hustvl 4DGaussians (scene/hyper_loader.py) keeps the camera positions as stored, without centre and scale,
+    and uses warp_id / max(warp_id) as time."""
     from PIL import Image
     need(os.path.join(scene, "dataset.json"), "HyperNeRF dataset.json")
     sc = json.load(open(os.path.join(scene, "scene.json")))
     meta = json.load(open(os.path.join(scene, "metadata.json")))
     ids = json.load(open(os.path.join(scene, "dataset.json")))["val_ids"]
-    tmax = max(m["time_id"] for m in meta.values())
+    tkey = "warp_id" if raw else "time_id"
+    tmax = max(m[tkey] for m in meta.values())
     out = []
     for i in ids:
         cam = json.load(open(os.path.join(scene, "camera", f"{i}.json")))
-        pos = (np.array(cam["position"]) - np.array(sc["center"])) * sc["scale"]
+        pos = np.array(cam["position"]) if raw else (np.array(cam["position"]) - np.array(sc["center"])) * sc["scale"]
         R = np.array(cam["orientation"])
         vm = np.eye(4)
         vm[:3, :3], vm[:3, 3] = R, -R @ pos
         gt = np.asarray(Image.open(need(os.path.join(scene, "rgb", "4x", f"{i}.png"), "4x image")).convert("RGB"), np.float32) / 255.0
         H, W = gt.shape[:2]
         f = cam["focal_length"] / 4
-        out.append((meta[i]["time_id"] / tmax, vm.astype(np.float32), gt, f))
+        out.append((meta[i][tkey] / tmax, vm.astype(np.float32), gt, f))
     H, W = out[0][2].shape[:2]
     f = out[0][3]
     K = np.array([[f, 0, W / 2], [0, f, H / 2], [0, 0, 1]], np.float32)
     return [o[:3] for o in out], K, W, H
 
 
-def run_banana(name, label, script, model, extra, work, train, results, thr_key=None):
-    test = load_nerfies_val_set(need(banana_scene(train), "HyperNeRF slice-banana split (run tests/make_hypernerf_split.py)"))
+def run_banana(name, label, script, model, extra, work, train, results, thr_key=None, raw=False):
+    test = load_nerfies_val_set(need(banana_scene(train), "HyperNeRF slice-banana split (run tests/make_hypernerf_split.py)"), raw)
     need(model, f"{label} model")
     out = os.path.join(work, f"{name}.npz")
     secs = convert(script, [model] + extra, out)
@@ -228,7 +231,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: native4d_banana,d3dgs_banana,scgs_banana,deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,native4d,4dgaussians,4dgaussians_export,spacetime,spacetime_tb,som")
+    ap.add_argument("--only", default="", help="comma list of: native4d_banana,d3dgs_banana,scgs_banana,4dgaussians_banana,deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,native4d,4dgaussians,4dgaussians_export,spacetime,spacetime_tb,som")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -240,9 +243,10 @@ def main():
         d3dgs_6dof=E("GS4D_D3DGS_6DOF") or os.path.join(opt.train, "out", "d3dgs_6dof"),
         d3dgs_banana=E("GS4D_D3DGS_BANANA") or os.path.join(opt.train, "out", "d3dgs_banana"),
         scgs_banana=E("GS4D_SCGS_BANANA") or os.path.join(opt.train, "out", "scgs_banana_node"),
-        native4d_banana=E("GS4D_NATIVE4D_BANANA") or os.path.join(opt.train, "4dgs", "output", "banana", "chkpnt_best.pth"),
+        native4d_banana=E("GS4D_NATIVE4D_BANANA") or os.path.join(opt.train, "4dgs", "output", "banana_fov", "chkpnt_best.pth"),
         scgs_mask=E("GS4D_SCGS_MASK") or os.path.join(opt.train, "out", "scgs_mask_bouncingballs_node"),
         scgs=E("GS4D_SCGS") or os.path.join(opt.train, "out", "scgs_bouncingballs_node"),
+        fourdg_banana=E("GS4D_4DGAUSSIANS_BANANA") or os.path.join(opt.train, "4dgaussians", "output", "hypernerf", "banana"),
         fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
         native4d=E("GS4D_NATIVE4D") or os.path.join(opt.train, "4dgs", "output", "dnerf", "bouncingballs", "chkpnt_best.pth"),
         spacetime=E("GS4D_SPACETIME") or os.path.join(opt.data, "spacetime", "n3d_sear_steak_lite_allcam", "point_cloud"),
@@ -298,6 +302,9 @@ def main():
         ("native4d_banana", "native 4DGS HyperNeRF banana", True,
          lambda: run_banana("native4d_banana", "native 4DGS HyperNeRF banana", "convert_native4d.py", paths["native4d_banana"],
                             ["--frames", "110", "--t0", "0", "--t1", "1", "--sh", "--compact"], work, opt.train, results)),
+        ("4dgaussians_banana", "4DGaussians HyperNeRF banana", True,
+         lambda: run_banana("4dgaussians_banana", "4DGaussians HyperNeRF banana", "convert_4dgaussians.py", paths["fourdg_banana"],
+                            ["--frames", "330", "--sh", "--compact"], work, opt.train, results, raw=True)),
         ("scgs", "SC-GS --sh", True,
          lambda: run_psnr("scgs", "SC-GS --sh", "convert_scgs.py", paths["scgs"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),

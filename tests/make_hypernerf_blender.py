@@ -4,8 +4,10 @@
 That repo only has Colmap and `transforms_train.json` (D-NeRF) readers, not the HyperNeRF/Nerfies one. This writes
 <out>/transforms_train.json, transforms_test.json (frames of the dataset.json train_ids / val_ids written by
 tests/make_hypernerf_split.py) and points3d.ply, next to symlinks to rgb/4x. Per frame: file_path, time = time_id /
-max(time_id) in [0, 1], an OpenGL c2w matrix and fl_x, fl_y, cx, cy (4x images, principal point at the image centre,
-no lens distortion: the same simplifications as the other two repos' Nerfies readers). World coordinates are
+max(time_id) in [0, 1] and an OpenGL c2w matrix. Intrinsics go in a top-level `camera_angle_x` (4x images, one focal for
+the whole scene, principal point at the image centre, no lens distortion: the same simplifications as the other two repos'
+Nerfies readers). Do NOT write per-frame fl_x/fl_y/cx/cy: that repo then leaves FovX = FovY = -1 and its rasteriser
+uses a wrong focal (WP19c part 3; the model trained on that layout scored 24.2 dB, 1.9 dB under the repo's own eval). World coordinates are
 (x - scene.center) * scene.scale, as in those readers.
 
     python tests/make_hypernerf_blender.py <split>/vrig_slice-banana/slice-banana <out_dir>
@@ -25,6 +27,9 @@ ds = json.load(open(os.path.join(src, "dataset.json")))
 tmax = max(m["time_id"] for m in meta.values())
 
 
+focal = set()
+
+
 def frames(ids):
     fr = []
     for i in ids:
@@ -36,13 +41,16 @@ def frames(ids):
         c2w[:3, 1:3] *= -1  # OpenCV -> OpenGL (the loader flips them back)
         W, H = Image.open(os.path.join(src, "rgb", "4x", f"{i}.png")).size
         f = cam["focal_length"] / 4
-        fr.append(dict(file_path=f"rgb/4x/{i}", time=meta[i]["time_id"] / tmax, transform_matrix=c2w.tolist(),
-                       fl_x=f, fl_y=f, cx=W / 2, cy=H / 2))
+        fr.append(dict(file_path=f"rgb/4x/{i}", time=meta[i]["time_id"] / tmax, transform_matrix=c2w.tolist()))
+        focal.add((f, W))
     return fr
 
 
 for name, ids in (("train", ds["train_ids"]), ("test", ds["val_ids"])):
-    json.dump(dict(frames=frames(ids)), open(os.path.join(out, f"transforms_{name}.json"), "w"))
+    fr = frames(ids)
+    assert len(focal) == 1, f"one focal and image width needed for camera_angle_x, got {focal}"
+    f, W = next(iter(focal))
+    json.dump(dict(camera_angle_x=2 * float(np.arctan(W / 2 / f)), frames=fr), open(os.path.join(out, f"transforms_{name}.json"), "w"))
     print(name, len(ids))
 
 xyz = (np.load(os.path.join(src, "points.npy")) - np.array(sc["center"])) * sc["scale"]
