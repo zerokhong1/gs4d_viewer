@@ -123,7 +123,78 @@ def test_edge_cases():
     print("ok  static fields untouched, float16 overflow falls back to float32, `python -m gs4d` re-saves")
 
 
+def test_sh_per_keyframe():
+    """Per-keyframe sh: uint8 over each coefficient's own range in time."""
+    s = make()
+    amp = np.exp(rng.uniform(np.log(1e-3), np.log(2.0), (N, 16, 3))).astype(np.float32)  # ranges from 0.001 to 2
+    sh = (rng.normal(0, 1, (N, 16, 3)) + amp * rng.uniform(-0.5, 0.5, (K, N, 16, 3))).astype(np.float32)
+    sh[:, :, 5] = sh[0, :, 5]          # a coefficient that is constant in time
+    s = Sequence4D(s.times, s.means, s.covs, s.opacities, s.colors, sh=sh, source="test")
+    plain, small = os.path.join(tmp, "shp.npz"), os.path.join(tmp, "shs.npz")
+    s.save(plain)
+    s.save(small, compact=True)
+    keys = set(np.load(small).files)
+    assert {"sh_lo", "sh_step", "sh_u8"} <= keys and "sh" not in keys and np.load(small)["sh_u8"].dtype == np.uint8
+    span = sh.max(0) - sh.min(0)
+    for lazy in (False, True):
+        c = Sequence4D.load(small, lazy=lazy)
+        assert c.is_compact and c.sh.shape == sh.shape and c.sh_degree == 3 and "per keyframe" in c.summary()
+        assert not lazy or mapped(c.sh.raw)
+        err = np.abs(np.asarray(c.sh) - sh)
+        assert (err <= span / 510 * 1.001 + 1e-6).all(), err.max()   # half a step of that coefficient's own range
+        assert np.array_equal(np.asarray(c.sh)[:, :, 5], sh[:, :, 5])
+        t = 0.5 * (s.times[2] + s.times[3])
+        assert np.allclose(c.sh_at(t), 0.5 * (c.sh[2] + c.sh[3]), atol=1e-6) and c.sh_at(t).dtype == np.float32
+        assert np.array_equal(c.sh_at(s.times[4]), c.sh[4])
+    again, back = os.path.join(tmp, "sha.npz"), os.path.join(tmp, "shb.npz")
+    Sequence4D.load(small, lazy=True).save(again, compact=True)        # compact -> compact keeps the stored bits
+    assert all(np.array_equal(np.load(again)[k], np.load(small)[k]) for k in keys)
+    Sequence4D.load(small, lazy=True).save(back)                        # compact -> plain float32
+    b = Sequence4D.load(back)
+    assert not b.is_compact and b.sh.dtype == np.float32 and np.array_equal(b.sh, np.asarray(c.sh))
+    # file written before sh was part of the compact layout: compact fields + float32 sh [K,N,S,3]
+    old = os.path.join(tmp, "sho.npz")
+    z = dict(np.load(small))
+    for k in ("sh_lo", "sh_step", "sh_u8"):
+        del z[k]
+    np.savez(old, sh=sh, **z)
+    o = Sequence4D.load(old, lazy=True)
+    assert o.is_compact and np.array_equal(o.sh, sh) and np.array_equal(o.sh_at(0.3), s.sh_at(0.3))
+    # static group: the static Gaussians keep their float32 sh, the others are quantised
+    st = Sequence4D(s.times, s.means.copy(), s.covs.copy(), s.opacities.copy(), s.colors.copy(), sh=sh.copy())
+    for a in (st.means, st.covs, st.opacities, st.colors, st.sh):
+        a[:, 200:900] = a[0, 200:900]
+    st.save(small, compact=True)
+    c = Sequence4D.load(small, lazy=True)
+    assert c.num_static == 700 and np.load(small)["sh_u8"].shape == (K, N - 700, 16, 3)
+    assert np.array_equal(np.asarray(c.sh)[:, 200:900], st.sh[:, 200:900])
+    assert (np.abs(np.asarray(c.sh) - st.sh) <= span / 510 * 1.001 + 1e-6).all()
+    # a value that is not finite: sh stays float32, the rest is still compact
+    bad = sh.copy()
+    bad[2, 7, 3, 1] = np.inf
+    Sequence4D(s.times, s.means, s.covs, s.opacities, s.colors, sh=bad).save(small, compact=True)
+    assert "sh" in np.load(small).files and "sh_u8" not in np.load(small).files and "covs_q" in np.load(small).files
+    ratio = os.path.getsize(plain) / os.path.getsize(again)
+    try:
+        import torch
+        cuda = torch.cuda.is_available()
+    except ImportError:
+        cuda = False
+    gpu = "GPU decode not checked (no CUDA)"
+    if cuda:
+        from gs4d import GpuFrames
+        for path in (again, small):  # without and with a static group
+            c = Sequence4D.load(path, lazy=True)
+            g = GpuFrames(c)
+            d = max(float(np.abs(g.at(t)[3].cpu().numpy() - c.sh_at(t)).max()) for t in (0.0, 0.13, 0.5, 1.0))
+            assert d < 1e-5, d
+        gpu = f"GpuFrames differs from the CPU decode by {d:.0e}"
+    print(f"ok  per-keyframe sh ({ratio:.2f}x smaller file): error at most half a step of each coefficient's own range "
+          f"(largest {err.max():.1e} for ranges up to {span.max():.1f}), old files load, {gpu}")
+
+
 test_roundtrip()
 test_plain_and_lazy()
 test_edge_cases()
+test_sh_per_keyframe()
 print("all checks passed")

@@ -22,7 +22,10 @@ time-varying fields by smaller ones; `load` reads both layouts:
                   l00 l10 l20 l11 l21 l22) divided by covs_scale, times 32767. Always decodes to a PSD matrix.
     opacities  -> opacities_u8 [K,N] uint8
     colors     -> colors_u8 [K,N,3] uint8
-Static fields and `sh` stay float32. A compact field is decoded one keyframe at a time when it is used.
+    sh         -> sh_lo [N,S,3] float32 + sh_step [N,S,3] float32 + sh_u8 [K,N,S,3] uint8: every coefficient of every
+                  Gaussian is quantised over its own range in time, sh = sh_lo + sh_u8 * sh_step
+                  (sh_lo = smallest value over the keyframes, sh_step = (largest - smallest) / 255)
+Fields without the K axis stay float32. A compact field is decoded one keyframe at a time when it is used.
 `Sequence4DWriter` writes the same file one keyframe at a time (for sequences that do not fit in memory).
 
 Static group (written by `save` unless `split_static=False`): Gaussians that do not change over the keyframes in
@@ -111,7 +114,7 @@ class _Virtual:
         return out if dtype is None else out.astype(dtype, copy=False)
 
     def __getattr__(self, name):  # numpy methods (max, mean, ...) on the decoded field
-        if name.startswith("__") or name in ("raw", "ref", "scale", "dyn", "static", "layout", "name"):
+        if name.startswith("__") or name in ("raw", "ref", "scale", "lo", "step", "dyn", "static", "layout", "name"):
             raise AttributeError(name)
         return getattr(np.asarray(self), name)
 
@@ -240,6 +243,56 @@ class _PackedU8(_Packed):
 
     def take(self, sel):
         return _PackedU8(self.raw[:, sel], self.name)
+
+
+class _PackedSH(_Packed):
+    """Per-keyframe SH coefficients as uint8 over each coefficient's own range in time: lo + raw * step."""
+
+    def __init__(self, lo: np.ndarray, step: np.ndarray, raw: np.ndarray):
+        self.lo, self.step, self.raw, self.tail = lo, step, raw, tuple(raw.shape[2:])
+
+    @staticmethod
+    def grow_range(lo: np.ndarray, hi: np.ndarray, frame: np.ndarray) -> None:
+        """Running minimum and maximum, in place."""
+        np.minimum(lo, frame, out=lo)
+        np.maximum(hi, frame, out=hi)
+
+    @staticmethod
+    def step_of(lo: np.ndarray, hi: np.ndarray):
+        """Quantisation step [N,S,3] float32 (0 where a coefficient is constant), or None when a value is not finite."""
+        with np.errstate(over="ignore", invalid="ignore"):
+            step = (hi - lo) / np.float32(255)
+        return step if np.isfinite(lo).all() and np.isfinite(step).all() else None
+
+    @staticmethod
+    def encode(a):
+        lo, hi = np.array(a[0], np.float32), np.array(a[0], np.float32)
+        for k in range(1, a.shape[0]):
+            _PackedSH.grow_range(lo, hi, a[k])
+        step = _PackedSH.step_of(lo, hi)
+        if step is None:
+            return None
+        raw = np.empty(a.shape, np.uint8)
+        for k in range(a.shape[0]):
+            raw[k] = _PackedSH.encode_frame(a[k], lo, step)
+        return _PackedSH(lo, step, raw)
+
+    @staticmethod
+    def encode_frame(frame: np.ndarray, lo: np.ndarray, step: np.ndarray) -> np.ndarray:
+        q = (frame - lo) / np.where(step > 0, step, np.float32(1))
+        return np.clip(np.rint(q, out=q), 0, 255, out=q).astype(np.uint8)
+
+    def frame(self, k):
+        out = self.raw[k].astype(np.float32)
+        out *= self.step
+        out += self.lo
+        return out
+
+    def files(self):
+        return {"sh_lo": self.lo, "sh_step": self.step, "sh_u8": self.raw}
+
+    def take(self, sel):
+        return _PackedSH(self.lo[sel], self.step[sel], self.raw[:, sel])
 
 
 class _Layout:
@@ -453,23 +506,26 @@ class Sequence4D:
 
     def compact(self) -> "Sequence4D":
         """Re-encodes the time-varying fields in place (see the module docstring); lossy. Returns self."""
-        for name, static_ndim in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2)):
+        for name, static_ndim in (("means", 2), ("covs", 2), ("opacities", 1), ("colors", 2), ("sh", 3)):
             a = getattr(self, name)
+            if a is None:
+                continue
             d = a.dyn if isinstance(a, _Split) else a
             if isinstance(d, _Packed) or a.ndim == static_ndim:
                 continue
-            packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode}.get(name, lambda x: _PackedU8.encode(x, name))(d)
+            packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode,
+                      "sh": _PackedSH.encode}.get(name, lambda x: _PackedU8.encode(x, name))(d)
             if packed is not None:
                 setattr(self, name, _Split(packed, a.static, a.layout) if isinstance(a, _Split) else packed)
         return self
 
     @property
     def is_compact(self) -> bool:
-        return any(isinstance(getattr(a, "dyn", a), _Packed) for a in (self.means, self.covs, self.opacities, self.colors))
+        return any(isinstance(getattr(a, "dyn", a), _Packed) for a in (self.means, self.covs, self.opacities, self.colors, self.sh))
 
     def save(self, path: str, compact: bool = False, split_static: bool = True) -> None:
         """Writes the .npz. compact=True stores the time-varying fields in the smaller lossy encoding
-        (about 2.2x smaller); compact=False writes plain float32, also for a sequence that is compact in memory.
+        (about 2.2x smaller, about 3x with per-keyframe sh); compact=False writes plain float32, also for a sequence that is compact in memory.
         split_static=True stores Gaussians that never change once instead of at every keyframe (lossless up to
         the tolerance of `split_static`); False writes every Gaussian at every keyframe, as older versions did."""
         src = Sequence4D(self.times, self.means, self.covs, self.opacities, self.colors, sh=self.sh)  # shares the arrays
@@ -506,7 +562,11 @@ class Sequence4D:
         covs = _PackedCovs(np.asarray(z["covs_scale"], np.float32), z["covs_q"]) if "covs_q" in z else z["covs"]
         opac = _PackedU8(z["opacities_u8"], "opacities") if "opacities_u8" in z else z["opacities"]
         cols = _PackedU8(z["colors_u8"], "colors") if "colors_u8" in z else z["colors"]
-        fields = {"means": means, "covs": covs, "opacities": opac, "colors": cols, "sh": z["sh"] if "sh" in z else None}
+        if "sh_u8" in z:
+            sh = _PackedSH(np.asarray(z["sh_lo"], np.float32), np.asarray(z["sh_step"], np.float32), z["sh_u8"])
+        else:
+            sh = z["sh"] if "sh" in z else None
+        fields = {"means": means, "covs": covs, "opacities": opac, "colors": cols, "sh": sh}
         if "static_index" in z:
             idx = np.asarray(z["static_index"])
             split = [n for n in fields if n + "_static" in z]
@@ -572,6 +632,7 @@ class Sequence4DWriter:
         self._static = None                 # [N] bool: unchanged so far in every time-varying field
         self._scale = None                  # running covs_scale (float64), compact only
         self._means_ok = None               # [N] bool: float16 offsets finite so far, compact only
+        self._sh_lo = self._sh_hi = None    # running range of every sh coefficient, compact only
         self._closed = False
         self._dir = tempfile.mkdtemp(prefix=".gs4d_writer_", dir=os.path.dirname(os.path.abspath(self.path)))
 
@@ -608,6 +669,8 @@ class Sequence4DWriter:
                 self._scale = np.zeros(self.n, np.float64)
             if self.compact and "means" in names:
                 self._means_ok = np.ones(self.n, bool)
+            if self.compact and "sh" in names:
+                self._sh_lo, self._sh_hi = fields["sh"].copy(), fields["sh"].copy()
         elif sorted(fields) != sorted(self.names):
             raise ValueError(f"keyframe has fields {sorted(fields)}, the first one had {sorted(self.names)}")
         t = float(np.float32(t))
@@ -624,6 +687,8 @@ class Sequence4DWriter:
                 _PackedCovs.grow_scale(self._scale, a)
             if n == "means" and self._means_ok is not None:
                 self._means_ok &= np.isfinite(_PackedMeans.encode_frame(a, self._first[n])).all(1)
+            if n == "sh" and self._sh_lo is not None:
+                _PackedSH.grow_range(self._sh_lo, self._sh_hi, a)
             a.tofile(self._files[n])
         self.times.append(t)
 
@@ -686,6 +751,12 @@ class Sequence4DWriter:
                         put_frames("covs_q", n, np.int16, lambda a: _PackedCovs.encode_frame(a, scale))
                     elif self.compact and n in ("opacities", "colors"):
                         put_frames(n + "_u8", n, np.uint8, _PackedU8.encode_frame)
+                    elif self.compact and n == "sh" and _PackedSH.step_of(self._sh_lo[sel], self._sh_hi[sel]) is not None:
+                        lo = np.array(self._sh_lo[sel], np.float32)
+                        step = _PackedSH.step_of(lo, self._sh_hi[sel])
+                        put("sh_lo", lo)
+                        put("sh_step", step)
+                        put_frames("sh_u8", n, np.uint8, lambda a: _PackedSH.encode_frame(a, lo, step))
                     else:
                         put_frames(n, n, np.float32, lambda a: a)
             os.replace(tmp, self.path)
@@ -715,7 +786,7 @@ class GpuFrames:
     """Decodes and interpolates a sequence on the GPU with torch (for the gsplat renderer; `Sequence4D.at` is the CPU path).
 
     Only the keyframes around the current time are held on the GPU, decoded to float32 (a small least-recently-used
-    cache): the raw arrays (float16 / int16 / uint8 in the compact layout) are copied to the GPU one keyframe at a
+    cache): the raw arrays (float16 / int16 / uint8 in the compact layout, per-keyframe sh included) are copied to the GPU one keyframe at a
     time, the first time the slider reaches a new keyframe interval. Fields without a K axis and the static group
     are uploaded once, in `__init__`; their rows stay in the output buffers, so a frame only writes the dynamic rows.
 
@@ -757,6 +828,8 @@ class GpuFrames:
                 f["ref"] = self._put(src.ref)
             elif isinstance(src, _PackedCovs):
                 f["scale"] = self._put(src.scale)[:, None] / 32767.0
+            elif isinstance(src, _PackedSH):
+                f["lo"], f["step"] = self._put(src.lo), self._put(src.step)
             self.fields[name] = f
 
     # ------------------------------------------------------------------ helpers
@@ -783,6 +856,8 @@ class GpuFrames:
                                 l10 * l20 + l11 * l21, l20 * l20 + l21 * l21 + l22 * l22], 1)
         if isinstance(src, _PackedU8):
             return self._put(src.raw[k]).float() * (1.0 / 255.0)
+        if isinstance(src, _PackedSH):
+            return self._put(src.raw[k]).float().mul_(f["step"]).add_(f["lo"])
         return self._put(np.asarray(src[k], np.float32))
 
     def _frame(self, name: str, k: int):

@@ -9,7 +9,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 
 ## Layout
 - `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`;
-  compact storage and the static group (Gaussians that never change are stored once, `save(split_static=True)`);
+  compact storage (also per-keyframe `sh`, WP21) and the static group (Gaussians that never change are stored once, `save(split_static=True)`);
   `Sequence4DWriter` writes the same file one keyframe at a time (used by the SC-GS, native 4DGS and Deformable-3DGS converters)
 - `gs4d/ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
@@ -139,6 +139,14 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   (110 kf: 26.69); native 4DGS 5 min, 19.9 GB file (per-keyframe `sh` is float32), PSNR 21.22-26.12, mean 24.27 (110 kf: 24.23), so interpolation between
   keyframes does not explain the 1.9 dB gap to the repo's eval. `check_real.py` items still use 110 keyframes; `psnr_item` loads eagerly, so the 19.9 GB
   file needs `load(lazy=True)`. The other converters still build the whole sequence in RAM.
+- Tested (WP21, 15/11/2026): compact layout now also packs per-keyframe `sh`: `sh_lo [N,S,3]` + `sh_step [N,S,3]` float32 + `sh_u8 [K,N,S,3]`
+  (`_PackedSH` in format.py; every coefficient of every Gaussian quantised over its own range in time, `sh = sh_lo + sh_u8 * sh_step`); constant `sh` stays
+  float32; non-finite `sh` falls back to float32. `save`, `Sequence4DWriter` (bit for bit equal), lazy load, `GpuFrames`, static group all handle it;
+  old compact files (float32 `sh`) still load; files with `sh_u8` cannot be read by older code. `tests/test_compact.py::test_sh_per_keyframe`, `tests/test_writer.py`.
+  Native 4DGS `--sh --compact`: `slice-banana` 330 kf 19.86 -> 5.82 GB, PSNR mean 24.2687 both (worst image -0.0002 dB); `bouncingballs` 60 kf 1412 -> 453 MB,
+  mean 32.9117 both (worst -0.0004 dB). Play frame, GPU path 2.2 -> 1.4 ms (banana), CPU path (`--cpu-decode`) 60 -> 128 ms (numpy decode of `sh`). Step 0: a
+  coefficient's range in time (median 0.03) is far below its magnitude (DC up to 6.8), so a global int8 scale is ~300x worse (rms 1.6e-2 vs 5e-5).
+  The writer's scratch files are still float32 (25 GB for banana 330 kf). `gs4d/open.py::estimate_bytes` does not know about per-keyframe `sh` (CC-B's file, not changed).
 - Tested (WP19c part 3, 15/11/2026): the 1.9 dB gap of native 4DGS on `slice-banana` (ours 24.23, repo 26.14) is a bug in the repo's camera path for OUR Blender layout, not the converter: per-frame `fl_x/fl_y/cx/cy` leave `FovX = FovY = -1`, so the CUDA rasteriser's 2D covariance uses focal `W/(2 tan 0.5)` and clamps x/z to -0.71 (min > max), and the model learned to compensate. Emulating that in gsplat (`tests/diag_native4d_banana.py --steps c_focal`) gives mean 26.13 dB. No effect: keyframes at the 33 test times 24.27, no compact 24.27, `marginal_t` cut 24.29, near plane 0.2 24.27, SH direction from un-offset xyz 24.27; SH degree 0 / 1 only 22.38 / 23.05. `slice_native4d` matches the CUDA `computeCov3D_conditional` to 1e-15. No converter change. The diag script needs one process per step (110 keyframes with `--sh` get OOM-killed).
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).

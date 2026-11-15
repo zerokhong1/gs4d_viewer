@@ -45,9 +45,9 @@ def breakdown(seq, k=3, w=0.4):
     import torch
     from gs4d.format import _Split
     rows = {"read": 0.0, "decode": 0.0, "interpolate": 0.0, "upload": 0.0}
-    for name in ("means", "covs", "opacities", "colors"):
+    for name in ("means", "covs", "opacities", "sh" if seq.sh is not None else "colors"):  # what the gsplat renderer reads
         f = getattr(seq, name)
-        if f.ndim <= (1 if name == "opacities" else 2):
+        if f.ndim <= {"opacities": 1, "sh": 3}.get(name, 2):
             continue
         dyn = f.dyn if isinstance(f, _Split) else f
         raw = getattr(dyn, "raw", None)

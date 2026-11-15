@@ -16,7 +16,7 @@ K, N = 9, 3000
 KFIELDS = ("means", "covs", "opacities", "colors", "sh")
 
 
-def make(static_idx=(), const=("colors", "sh"), far=False, k=K):
+def make(static_idx=(), const=("colors", "sh"), far=False, k=K, bad_sh=False):
     """Random scene; the fields named in `const` have no keyframe axis, Gaussians in static_idx never change."""
     f = dict(means=rng.uniform(-5, 5, (k, N, 3)).astype(np.float32),
              covs=cov_from_quat_scale(rng.normal(size=(k, N, 4)).astype(np.float32),
@@ -26,6 +26,8 @@ def make(static_idx=(), const=("colors", "sh"), far=False, k=K):
              sh=rng.normal(size=(k, N, 4, 3)).astype(np.float32))
     if far:
         f["means"][k // 2, 7] = 1e6  # offset beyond float16: means must stay float32 in the compact file
+    if bad_sh:
+        f["sh"][k // 2, 11, 2, 0] = np.inf  # sh must stay float32 in the compact file
     for n in KFIELDS:
         f[n][:, list(static_idx)] = f[n][0, list(static_idx)]
         if n in const:
@@ -67,7 +69,8 @@ def test_bit_identical():
              ("covs and opacities constant", dict(const=("covs", "opacities", "colors", "sh"))),
              ("all Gaussians static", dict(static_idx=range(N))),
              ("one keyframe", dict(k=1)),
-             ("offset beyond float16", dict(static_idx=some, far=True))]
+             ("offset beyond float16", dict(static_idx=some, far=True)),
+             ("sh value not finite", dict(static_idx=some, const=(), bad_sh=True))]
     for label, kw in cases:
         times, f = make(**kw)
         for compact in (False, True):
@@ -77,6 +80,10 @@ def test_bit_identical():
                     assert ("static_index" in names) == split and ("means_d16" in names) == compact
                 if label == "offset beyond float16" and compact:
                     assert "means" in names and "means_d16" not in names and "covs_q" in names
+                if label == "every field per keyframe":
+                    assert ("sh_u8" in names) == compact and ("sh" in names) != compact and ("sh_static" in names) == split
+                if label == "sh value not finite" and compact:
+                    assert "sh" in names and "sh_u8" not in names and "covs_q" in names
                 if label == "all Gaussians static" and split:
                     assert "static_index" not in names and "means_d16" not in names
         same_arrays(*write_both(times, f, True, True, with_sh=False, interpolate=False))

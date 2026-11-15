@@ -167,7 +167,7 @@ python -m gs4d scene_small.npz scene.npz --float32   # trả về float32 thư�
 Trong code: `seq.save(path, compact=True)`; mặc định `compact=False` (float32, không mất mát). `Sequence4D.load`
 đọc được cả hai dạng và mọi file cũ. Dạng nén chỉ đổi các trường thay đổi theo thời gian: `means` thành
 float16 theo offset so với keyframe đầu, `covs` thành thừa số Cholesky lượng tử hóa int16 (giải mã luôn ra ma
-trận nửa xác định dương), `opacities` và `colors` thành uint8. Viewer nạp lười (`load(path, lazy=True)`, ánh xạ
+trận nửa xác định dương), `opacities` và `colors` thành uint8, `sh` theo keyframe thành uint8 (mục dưới). Viewer nạp lười (`load(path, lazy=True)`, ánh xạ
 file vào bộ nhớ): chỉ keyframe đang xem mới được đọc từ đĩa, nên không được ghi đè file khi viewer đang mở nó.
 
 Đo bằng `python tests/bench_large.py` với 500.000 Gaussian × 100 keyframe sinh ngẫu nhiên (means, covs,
@@ -186,6 +186,45 @@ Sai số vị trí 0,002 là với Gaussian dịch tới 5,35 đơn vị so vớ
 (float16 có 11 bit có nghĩa). Sai số opacity lớn nhất 0,002; sai số covariance lớn nhất 7·10⁻⁵ lần phương sai
 lớn nhất của Gaussian đó. Đổi lại, dạng nén giải mã mỗi frame chậm hơn (77 ms so với 14 ms ở 500.000
 Gaussian), nên khi play scene lớn tốc độ cập nhật thấp hơn dạng float32.
+
+### `sh` theo keyframe trong dạng nén
+
+Trước đây dạng nén giữ `sh` ở float32. Native 4DGS với `--sh` ghi `sh` theo từng keyframe (`[K,N,16,3]`), nên gần như
+toàn bộ file là `sh`. Bây giờ mỗi hệ số của mỗi Gaussian được lượng tử hóa thành uint8 trên khoảng giá trị của chính nó
+theo thời gian: file có `sh_lo [N,S,3]` (giá trị nhỏ nhất qua các keyframe), `sh_step [N,S,3]` (= (lớn nhất − nhỏ nhất) / 255)
+và `sh_u8 [K,N,S,3]`; `sh = sh_lo + sh_u8 · sh_step`. `sh` hằng theo thời gian vẫn là float32. `Sequence4DWriter`, nạp lười
+và `GpuFrames` đều đọc/ghi dạng này; file cũ (nén, `sh` float32) vẫn đọc được, `python -m gs4d cũ.npz mới.npz` chuyển sang
+dạng mới. File có `sh_u8` không đọc được bằng bản viewer cũ. `sh` có giá trị không hữu hạn thì giữ float32.
+
+Bước 0, phân bố `sh` trên file thật (12 keyframe rải đều; "khoảng theo thời gian" là lớn nhất − nhỏ nhất của một hệ số
+của một Gaussian):
+
+| | Bậc 0: khoảng giá trị | \|x\| ở phân vị 99 | khoảng theo thời gian, trung vị / lớn nhất | Bậc 1–3: khoảng giá trị | \|x\| ở phân vị 99 | khoảng theo thời gian, trung vị / lớn nhất |
+|---|---|---|---|---|---|---|
+| `bouncingballs` | −2,10 … 4,40 | 1,88 | 0,026 / 0,36 | −0,72 … 0,64 | 0,14–0,21 | 0,035–0,040 / 0,62 |
+| `slice-banana` | −2,09 … 6,79 | 2,76 | 0,028 / 0,47 | −0,94 … 0,94 | 0,16–0,18 | 0,032–0,038 / 0,95 |
+
+Một hệ số đổi theo thời gian ít hơn nhiều so với độ lớn của nó, nên lượng tử hóa trên khoảng riêng chính xác hơn hẳn
+thang chung. Sai số RMS của hệ số bậc 0 trên `slice-banana`: int8 một thang cho mỗi bậc 1,6·10⁻²; int8 một thang cho mỗi
+hệ số của mỗi Gaussian 2,3·10⁻³; float16 2,3·10⁻⁴ (file chỉ nhỏ đi một nửa); uint8 trên khoảng riêng theo thời gian
+5,3·10⁻⁵ (bậc 1–3: 6–8·10⁻⁵, lớn nhất 1,8·10⁻³).
+
+Đo với output thật của native 4DGS (15/11/2026, `convert_native4d.py --sh --compact`, trước = code cũ, sau = code mới,
+cùng checkpoint; PSNR bằng code của `tests/check_real.py`, nạp lười; lấy frame bằng `python tests/bench_large.py --file`):
+
+| | `slice-banana` 330 keyframe, trước | sau | `bouncingballs` 60 keyframe, trước | sau |
+|---|---|---|---|---|
+| Gaussian | 297.745 | 297.745 | 116.193 | 116.193 |
+| Dung lượng file | 19.858 MB | 5.824 MB (0,29 lần) | 1.412 MB | 453 MB (0,32 lần) |
+| PSNR trung bình (nhỏ nhất – lớn nhất) | 24,2687 dB (21,220–26,119), 33 ảnh | 24,2687 dB (21,220–26,119) | 32,9117 dB (27,281–39,594), 20 ảnh | 32,9117 dB (27,281–39,593) |
+| PSNR giảm nhiều nhất ở một ảnh | — | 0,0002 dB | — | 0,0004 dB |
+| Lấy frame khi play, đường GPU (`GpuFrames`) | 2,2 ms | 1,4 ms | 1,1 ms | 0,8 ms |
+| Lấy frame khi play, đường CPU (`--cpu-decode`) | 60 ms | 128 ms | 29 ms | 49 ms |
+| Thời gian chuyển / RAM đỉnh | 4 phút 58 giây / 1,3 GB | 4 phút 04 giây / 1,5 GB | 10 giây / 0,8 GB | 14 giây / 0,8 GB |
+
+Mục tiêu (dung lượng không quá 1/3, PSNR giảm không quá 0,1 dB) đạt ở cả hai. Đường CPU chậm hơn vì phải giải mã `sh`
+bằng numpy ở mỗi frame (trước đây chỉ đọc float32 từ đĩa); renderer gsplat mặc định dùng đường GPU, renderer client không
+dùng `sh`. Lúc ghi, `Sequence4DWriter` vẫn cần đĩa tạm cho `sh` float32 (25 GB với `slice-banana` 330 keyframe).
 
 ### Giải mã và nội suy trên GPU khi play (renderer gsplat)
 
