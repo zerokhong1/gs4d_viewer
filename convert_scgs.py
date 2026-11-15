@@ -25,7 +25,7 @@ mask = sigmoid(last fea column) when the model was trained with --gs_with_motion
 fea columns), otherwise 1. Colour is SH degree 0; --sh keeps all SH coefficients (constant in time).
 
 Not supported (the script stops and says so): hash-grid networks (--use_hash), --skinning, and models
-trained with d_rot_as_res off. A colour head (--pred_color) is ignored. --max_d_scale must be repeated here.
+trained with d_rot_as_res off. A colour head (--pred_color) stops the converter unless --ignore-pred-color is given (colour then stays constant). --max_d_scale must be repeated here.
 
 Example:
     python convert_scgs.py outputs/jumpingjacks_node -o scene.npz --frames 60
@@ -38,7 +38,7 @@ import re
 
 import numpy as np
 
-from gs4d import Sequence4D, cov_from_quat_scale
+from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 XYZ_FREQS = 10  # `multires` of the position embedding; fixed in the repo
@@ -160,15 +160,12 @@ def quat_matrix(q: np.ndarray) -> np.ndarray:
                      s * (i * k - j * r), s * (j * k + i * r), 1 - s * (i * i + j * j)], -1).reshape(q.shape[:-1] + (3, 3))
 
 
-def deform_sequence(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False):
+def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False):
     """Canonical xyz [N,3], activated scales [N,3], raw quaternions [N,4], opacities [N], motion mask [N,1]
-    -> means [K,N,3], covs [K,N,6], opacities [K,N] or None when the model has no opacity head."""
+    -> per time one (means [N,3], covs [N,6], opacities [N] or None when the model has no opacity head)."""
     import torch
 
-    K, N = len(times), len(xyz)
-    means = np.empty((K, N, 3), np.float32)
-    covs = np.empty((K, N, 6), np.float32)
-    opacs = np.empty((K, N), np.float32) if mlp.pred_opacity else None
+    K = len(times)
     node_t = torch.from_numpy(nodes_xyz.astype(np.float32))
     x = xyz.astype(np.float64)
     blend = lambda v: (v[idx] * w[..., None]).sum(1)  # noqa: E731  node values [M,C] -> per Gaussian [N,C]
@@ -184,16 +181,22 @@ def deform_sequence(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeM
                 shift = (Ax * w[..., None]).sum(1) - x
             else:
                 shift = blend(v["d_xyz"])
-            means[k] = x + shift * mask
-            covs[k] = cov_from_quat_scale((rots + blend(v["d_rot"]) * mask).astype(np.float32),
-                                          (scales + blend(v["d_scale"]) * mask).astype(np.float32))
-            if opacs is not None:
-                opacs[k] = np.clip(opac + (blend(v["d_opacity"]) * mask)[:, 0], 0.0, 1.0)
+            means = (x + shift * mask).astype(np.float32)
+            covs = cov_from_quat_scale((rots + blend(v["d_rot"]) * mask).astype(np.float32),
+                                       (scales + blend(v["d_scale"]) * mask).astype(np.float32))
+            opacs = None
+            if mlp.pred_opacity:
+                opacs = np.clip(opac + (blend(v["d_opacity"]) * mask)[:, 0], 0.0, 1.0).astype(np.float32)
             if progress:
-                print(f"\r  time {k + 1}/{K}", end="", flush=True)
-    if progress:
-        print()
-    return means, covs, opacs
+                print(f"\r  time {k + 1}/{K}", end="\n" if k + 1 == K else "", flush=True)
+            yield means, covs, opacs
+
+
+def deform_sequence(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False):
+    """Same as deform_frames, the whole sequence in memory: means [K,N,3], covs [K,N,6], opacities [K,N] or None."""
+    frames = list(deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp, times, progress))
+    return (np.stack([f[0] for f in frames]), np.stack([f[1] for f in frames]),
+            np.stack([f[2] for f in frames]) if mlp.pred_opacity else None)
 
 
 def main():
@@ -201,6 +204,9 @@ def main():
     ap.add_argument("model", help="model folder (with point_cloud/ and deform/), or a point_cloud.ply")
     ap.add_argument("-o", "--output", required=True)
     ap.add_argument("--deform", default=None, help="deform.pth, when it is not at its usual place in the model folder")
+    ap.add_argument("--ignore-pred-color", action="store_true",
+                    help="convert a model trained with --pred_color although its time-dependent colour is not reproduced "
+                         "(without this flag the converter stops)")
     ap.add_argument("--iteration", type=int, default=-1, help="model folder: iteration to use (default: the last)")
     ap.add_argument("--frames", type=int, default=60, help="number of keyframes K")
     ap.add_argument("--t0", type=float, default=0.0, help="start time (the repo's times are in [0,1])")
@@ -243,16 +249,24 @@ def main():
           + (", D-NeRF time net" if mlp.blender else "") + (", local frame" if mlp.local_frame else "")
           + (", motion mask" if n_fea == H + 1 else "") + (", opacity head" if mlp.pred_opacity else ""))
     if mlp.pred_color:
+        if not a.ignore_pred_color:
+            raise SystemExit(f"{a.model}: SC-GS trained with --pred_color (colour head gaussian_color*): its colour changes "
+                             "in time and is not reproduced. Run again with --ignore-pred-color to convert anyway "
+                             "(colours then stay constant in time).")
         print("warning: the model has a colour head (--pred_color); it is ignored, colours stay constant in time")
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
 
     idx, w = knn_weights(np.concatenate([xyz, fea[:, :H]], 1), node_sd, a.knn)
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
-    means, covs, opacs = deform_sequence(xyz, scales, rots, opac[keep], mask, idx, w, node_sd["nodes"][:, :3], mlp, times, progress=True)
-    seq = Sequence4D(times, means, covs, opac[keep] if opacs is None else opacs, colors[keep],
-                     sh=sh[keep] if (a.sh and sh is not None) else None, source=f"SC-GS: {ply}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
+    const = dict(colors=colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None)
+    if not mlp.pred_opacity:
+        const["opacities"] = opac[keep]
+    frames = deform_frames(xyz, scales, rots, opac[keep], mask, idx, w, node_sd["nodes"][:, :3], mlp, times, progress=True)
+    # one keyframe at a time to disk, so memory does not grow with --frames
+    with Sequence4DWriter(a.output, compact=a.compact, source=f"SC-GS: {ply}", **const) as wr:
+        for t, (means, covs, opacs) in zip(times, frames):
+            wr.add_keyframe(t, means=means, covs=covs, opacities=opacs)
+    print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
 
 
 if __name__ == "__main__":

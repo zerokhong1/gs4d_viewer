@@ -1,19 +1,35 @@
 # Kế hoạch giai đoạn 2 — gs4d_viewer
 
-Cập nhật 14/11/2026. Giai đoạn 1 (WP1–WP8) đã xong và đã merge vào `main`; kế hoạch gốc nằm ở phụ lục cuối file.
+Cập nhật 15/11/2026 (13:30). Giai đoạn 1 (WP1–WP8) đã xong; kế hoạch gốc nằm ở phụ lục cuối file. Giai đoạn 2: WP10–WP18, WP19a,
+WP19d và WP19c phần 3 đã làm. Còn lại: commit và merge (mục "Làm ngay"), WP19b, WP19c phần 1–2, và ba gói mới WP20–WP22.
 Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải thích lại bối cảnh.
 
 ## Làm ngay
 
-1. **Dọn worktree cũ** (người làm, 2 phút). `gs4d-wp2` còn giữ `PLAN.md` và `README.md` bản cũ, dễ mở nhầm.
+1. **Commit `main` rồi merge WP19c** (người làm). WP19a và WP19d đang nằm chung, chưa commit, trong thư mục `main`
+   (log của `main` dừng ở lần merge 06:14 ngày 15/11); WP19c phần 3 đã commit trên nhánh `cc-c/wp19c-psnr` ở `../gs4d-wp19c`.
    ```bash
-   git -C ../gs4d-wp2 status          # phải sạch; nếu còn thay đổi thì commit hoặc bỏ trước
-   git worktree remove ../gs4d-wp2
-   git branch --merged main           # xoá các nhánh cc-*/wp* đã merge
+   git status --short                 # xem trước: không được có file .npz, .gs4d_writer_* hay dữ liệu lạ
+   git add -A
+   git commit -m "WP19a: open.py nhận 4DGaussians, --cameras, dừng ở biến thể chưa hỗ trợ; WP19d: Sequence4DWriter; PLAN.md"
+   git merge cc-c/wp19c-psnr          # PLAN.md không xung đột (nhánh không sửa); CLAUDE.md và README.md có thể xung đột
+   python tests/run_all.py && python tests/check_real.py
    ```
-2. **WP9: đọc và xem được mọi file 4DGS** (mục tiêu sản phẩm, bảng bên dưới). Các gói WP13, WP15, WP16 thuộc WP9 và
-   không còn chờ giáo sư; câu trả lời của giáo sư chỉ dùng để xếp thứ tự.
-3. ~~Mở đợt 1~~: WP10, WP11, WP12 đã xong và đã merge vào `main` (14/11/2026).
+   Nếu xung đột ở `CLAUDE.md` / `README.md`: giữ cả hai phía (hai bên chỉ thêm dòng), rồi sửa hai chỗ còn ghi
+   "gap 1.9 dB not isolated" / "chưa rõ nguyên nhân" cho khớp kết luận của WP19c phần 3.
+2. **Dọn worktree** (người làm), sau khi merge xong. Git đang đăng ký 10 worktree, kể cả `gs4d-wp2` từ giai đoạn 1.
+   ```bash
+   git worktree list
+   git branch --no-merged main        # phải trống trước khi xoá
+   git worktree remove ../gs4d-wp19c && git worktree remove ../gs4d-wp2
+   git worktree remove <đường dẫn từng worktree claude/* đã merge> && git worktree prune
+   ```
+3. **WP19b: đo tốc độ hiển thị trong Chrome có GPU** (người làm, 5 phút; phiên Claude Code không nối được Chrome thật).
+   Chạy `python -m gs4d.open ../data_real/som/paper-windmill.npz --renderer gsplat`, mở bằng Chrome trên máy có GPU,
+   bấm play ở 1280×720, đọc FPS (DevTools → Rendering → Frame Rendering Stats) và ghi cạnh số phía server trong README.
+4. **WP20** (một phiên, cần GPU trống khoảng 30 phút): train lại native 4DGS `slice-banana` với camera đúng. Con số 24,23 dB
+   hiện tại đo trên một model train với camera sai, nên chưa nói được gì về converter trên cảnh thật.
+5. **Hỏi giáo sư** (bảng câu hỏi bên dưới vẫn trống). Câu trả lời quyết định có làm WP19c phần 1–2, WP21, WP22 hay không.
 
 ## WP9 — sản phẩm: đọc và xem được mọi file 4DGS
 
@@ -27,14 +43,14 @@ nhận dạng trong `gs4d/open.py`.
 
 | Loại file | Converter | Hiện tại | Còn thiếu | Gói |
 |---|---|---|---|---|
-| Thư mục ply 3DGS từng frame (mọi phương pháp xuất được) | `convert_per_frame.py` | Có test tổng hợp | Thử với một thư mục ply thật (có sẵn khi làm WP15) | WP15 |
+| Thư mục ply 3DGS từng frame (mọi phương pháp xuất được) | `convert_per_frame.py` | Xong: `gaussian_pertimestamp/` của 4DGaussians `bouncingballs`, mục `4dgaussians_export` | — | — |
 | Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Xong (`basketball`) | — | — |
-| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Xong (`paper-windmill`, kiểm bằng mắt) | — | — |
-| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | Xem được, 26,0–31,9 dB, màu loang vì chỉ SH bậc 0 | Màu SH theo keyframe | WP13 |
-| 4DGaussians (hustvl), thư mục model | chưa có | Chỉ xem được sau khi chạy `export_perframe_3DGS.py` của repo gốc | Converter trực tiếp | WP15 |
-| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Bản lite (chỉ `f_dc`) | Bản đầy đủ có `rgbdecoder` | WP16 |
-| Deformable-3DGS, thư mục model | `convert_deformable3dgs.py` | D-NeRF `--is_blender`, 37,2–43,6 dB | Bản mặc định, bản 6-DoF, một cảnh thật | WP16 |
-| SC-GS, thư mục model | `convert_scgs.py` | D-NeRF, 35,4–43,0 dB | Motion mask, `--use_hash`, `--skinning`, `--pred_color`, tắt `d_rot_as_res`, một cảnh thật | WP16 |
+| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Xong (`paper-windmill`, kiểm bằng mắt; `check_real.py` chỉ kiểm số Gaussian và dung lượng) | Số PSNR so với ảnh gốc (không chặn) | WP19c phần 1 |
+| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27,3–39,6 dB, trung bình 32,9 (repo gốc 33,4). Cảnh thật `slice-banana`: 24,23 dB (110 keyframe), 24,27 dB (330 keyframe, RAM đỉnh 1,3 GB từ WP19d); repo gốc tự đo 26,14 | Khoảng lệch 1,9 dB đã rõ (WP19c phần 3): không phải converter, mà model được train với `FovX = FovY = -1` do layout của `tests/make_hypernerf_blender.py`; giả lập lỗi đó cho 26,13 dB. Cần train lại với camera đúng và đo lại. File 330 keyframe nặng 19,9 GB vì `sh` lưu float32 | WP20, WP21 |
+| 4DGaussians (hustvl), thư mục model | `convert_4dgaussians.py` | Converter xong: `bouncingballs` 36,7–45,9 dB, trung bình 40,8; khớp `export_perframe_3DGS.py` đến 1e-6 | Xong (WP19a): `gs4d.open` nhận thư mục này, mở có danh sách camera | — | — |
+| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Hai model lite (`n3d_sear_steak`, Technicolor `Birthday`), kiểm bằng mắt, chưa có PSNR. Bản đầy đủ (`rgbdecoder`): converter dừng và nêu tên, `--base-color-only` để chuyển tiếp (WP19a) | PSNR cho bản lite. Bản đầy đủ là giới hạn đã ghi nhận: không có model công khai, train vượt 15 GB RAM | WP19c phần 2 |
+| Deformable-3DGS, thư mục model | `convert_deformable3dgs.py` | Xong: D-NeRF 37,2–43,6 dB; mặc định 35,35–43,14; 6-DoF 36,99–43,75; cảnh thật `slice-banana` 19,28–29,78 (trung bình 24,72) | — | — |
+| SC-GS, thư mục model | `convert_scgs.py` | Xong: D-NeRF 35,4–43,0 dB; motion mask 35,48–43,14; cảnh thật `slice-banana` trung bình 26,69 dB (110 keyframe), 26,87 dB (330 keyframe, RAM đỉnh 1,4 GB từ WP19d). `--use_hash`, `--skinning`, tắt `d_rot_as_res`, `--pred_color` (`--ignore-pred-color` để chuyển tiếp): dừng có thông báo | — | — |
 | File không thuộc loại nào ở trên | `gs4d/open.py` | Báo đã thử nhận dạng những gì | — | — |
 
 **Điều kiện xong của WP9** (thêm vào "Điều kiện xong, áp dụng cho mọi gói"):
@@ -64,16 +80,23 @@ và bảng "Dùng với output thật" trong README.
 
 | WP | Việc | Trạng thái | Nhánh | Ghi chú |
 |---|---|---|---|---|
-| 9 | Sản phẩm: đọc và xem được mọi file 4DGS | Đang làm | — (gồm WP13, WP15, WP16) | 3/9 dòng trong bảng WP9 đã xong; xong khi cả bảng xong |
+| 9 | Sản phẩm: đọc và xem được mọi file 4DGS | Đang làm | — | 7/9 dòng trong bảng WP9 đã xong; còn native 4DGS (WP20) và Spacetime (PSNR bản lite, WP19c phần 2) |
 | 10 | Lệnh mở thẳng một output | Xong | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; phiên WP10 báo mở được cả 6 output thật |
 | 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
 | 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
-| 13 | Native 4DGS: màu SH theo keyframe | Xong (chưa merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
+| 13 | Native 4DGS: màu SH theo keyframe | Xong (đã merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
 | 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU chưa đo (không có Chrome nối được, trình duyệt trong app không có WebGL) |
-| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Xong (chưa merge) | `cc-c/wp15-4dgaussians` | `bouncingballs` tự train: 36,7–45,9 dB (trung bình 40,8), khớp `export_perframe_3DGS.py` đến 1e-6. gs4d/open.py chưa nhận dạng thư mục 4DGaussians (việc của CC-B) |
-| 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Xong một phần (đã merge) | `claude/wp16-variants-8fe2f3` | Đã kiểm với model thật tự train trên `bouncingballs`: Deformable-3DGS mặc định 35,35–43,14 dB, 6-DoF 36,99–43,75 dB, SC-GS có motion mask 35,48–43,14 dB; Spacetime lite Technicolor Birthday chạy được (chưa có ảnh gốc). Còn thiếu: Spacetime đầy đủ (`rgbdecoder`, cần dataset Technicolor/N3D và train bằng repo gốc) và cảnh thật cho Deformable-3DGS, SC-GS, native 4DGS |
+| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Xong (đã merge) | `cc-c/wp15-4dgaussians` | `bouncingballs` tự train: 36,7–45,9 dB (trung bình 40,8), khớp `export_perframe_3DGS.py` đến 1e-6. `gs4d/open.py` nhận dạng thư mục 4DGaussians từ WP19a |
+| 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Xong, trừ Spacetime đầy đủ (đã merge) | `claude/wp16-variants-8fe2f3`, `claude/wp16-real-scene-5cd4d8` | `bouncingballs`: Deformable-3DGS mặc định 35,35–43,14 dB, 6-DoF 36,99–43,75, SC-GS có motion mask 35,48–43,14. Cảnh thật HyperNeRF `slice-banana` (15/11/2026, 33 ảnh giữ lại, 268 px): Deformable-3DGS trung bình 24,72 dB, SC-GS 26,69, native 4DGS 24,23 (model train với camera sai, xem WP20). Spacetime: thêm model lite `Birthday`, chưa có ảnh gốc; bản đầy đủ (`rgbdecoder`) không làm được trên máy này |
 | 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
-| 18 | Camera huấn luyện và ảnh gốc trong viewer | Xong 14/11/2026 (chưa merge) | `claude/wp18-cameras-398403` | Người dùng yêu cầu chạy. `--cameras`, danh sách camera, ảnh gốc + PSNR (gsplat); PSNR khớp check_real 0,0002 dB; `gs4d/open.py` chưa tự truyền `--cameras` (việc của CC-B) |
+| 18 | Camera huấn luyện và ảnh gốc trong viewer | Xong 14/11/2026 (đã merge) | `claude/wp18-cameras-398403` | `--cameras`, danh sách camera, ảnh gốc + PSNR (gsplat); PSNR khớp check_real 0,0002 dB; không dùng được cùng `--compare`; `gs4d/open.py` tự truyền `--cameras` từ WP19a |
+| 19a | `open.py` nhận 4DGaussians và `--cameras`; converter dừng ở biến thể chưa hỗ trợ | Xong 15/11/2026 (chưa commit) | làm thẳng trên `main` | `gs4d.open` nhận 4DGaussians và truyền `--cameras` (bỏ qua `cameras.json` kiểu 3DGS vì `load_cameras` không đọc được); SC-GS `--pred_color` và Spacetime đầy đủ dừng, có cờ chuyển tiếp |
+| 19b | Đo FPS hiển thị trong Chrome có GPU | Chưa | — | Người làm; còn nợ từ WP14 |
+| 19c | PSNR cho Spacetime và Shape of Motion; nguyên nhân lệch 1,9 dB của native 4DGS trên cảnh thật | Phần 3 xong 15/11/2026 (đã commit trên nhánh, chưa merge); phần 1, 2 chưa | `cc-c/wp19c-psnr` (`../gs4d-wp19c`) | Phần 3: lệch do model train với `FovX = FovY = -1` (layout của `make_hypernerf_blender.py`), không phải converter; giả lập trong gsplat cho 26,13 dB (repo 26,14); `tests/diag_native4d_banana.py`. Phần 1, 2 không chặn WP9; làm khi lab dùng các phương pháp này |
+| 19d | Converter ghi từng keyframe ra đĩa để không giữ cả sequence trong RAM | Xong 15/11/2026 (chưa commit) | làm thẳng trên `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bằng `save` từng bit); SC-GS, native 4DGS, Deformable-3DGS dùng nó. RAM đỉnh: SC-GS 4,5 → 1,4 GB, native 4DGS 8,3 → 1,3 GB, Deformable-3DGS 7,2 → 1,0 GB; 330 keyframe của `slice-banana` chuyển được. `check_real.py` vẫn đo ở 110 keyframe |
+| 20 | Train lại native 4DGS `slice-banana` với camera đúng, đo lại | Chưa | `cc-c/wp20-native4d-banana` | Chặn dòng native 4DGS của WP9; cần GPU trống |
+| 21 | Nén trường `sh` theo keyframe | Chưa | `cc-a/wp21-compact-sh` | File native 4DGS 330 keyframe: 19,9 GB. Làm khi cần xem cảnh dài có `--sh` |
+| 22 | `Sequence4DWriter` cho bốn converter còn lại | Chưa | `cc-b/wp22-writer-rest` | 4DGaussians, Shape of Motion, Spacetime, per-frame vẫn dựng cả sequence trong RAM. Làm khi gặp cảnh không vừa RAM |
 
 ## Phân công: 3 phiên Claude Code
 
@@ -98,7 +121,10 @@ Quy ước chung (giữ từ giai đoạn 1, sửa chỗ đã lệch):
 - **Đợt 1 (song song, không chờ giáo sư):** WP10 + WP11 + WP12. Ba gói không sửa chung file nào và có ích cho mọi phương pháp.
 - **Đợt 2 (WP9, không chờ giáo sư):** CC-A làm WP14; CC-B đã xong WP17; CC-C làm WP15 → WP13 → WP16, từng gói một.
   WP15 đi trước vì 4DGaussians là phương pháp duy nhất chưa đọc trực tiếp được; câu trả lời của giáo sư có thể đổi thứ tự này.
-- **Đợt 3 (khi được yêu cầu):** WP18.
+- **Đợt 3 (khi được yêu cầu):** WP18 (đã làm 14/11/2026).
+- **Đợt 4 (15/11/2026):** WP19a, WP19d và WP19c phần 3 đã làm. WP19b còn chờ người làm.
+- **Đợt 5:** commit và merge trước (mục "Làm ngay"), rồi WP20. WP21 (`gs4d/format.py`) và WP22 (bốn converter) không sửa chung file,
+  chạy song song được, nhưng chỉ sau khi WP20 train xong vì chung GPU. WP19c phần 1–2, WP21, WP22 chờ câu trả lời của giáo sư.
 
 ## Điều kiện xong, áp dụng cho mọi gói
 
@@ -245,6 +271,113 @@ kèm PSNR của frame đang xem. Quy ước camera đã ghi trong CLAUDE.md (D-N
 Chỉ sửa viewer.py; gs4d/open.py tự truyền --cameras khi tìm thấy file (ghi vào báo cáo cho CC-B nếu cần sửa).
 Xong khi: chạy với ../data_real/dnerf/data/bouncingballs và một model đã chuyển, có ảnh chụp trong shots/, PSNR hiển thị
 khớp tests/check_real.py trong 0,1 dB, README có một đoạn hướng dẫn. Báo cáo 5 dòng rồi dừng.
+```
+
+### WP19a — `open.py` nhận 4DGaussians và `--cameras`; dừng ở biến thể chưa hỗ trợ
+```
+Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Việc 1: trong gs4d/open.py, thêm nhánh nhận dạng thư mục model của 4DGaussians (hustvl) và gọi convert_4dgaussians.py.
+Đọc phần đầu convert_4dgaussians.py để lấy đúng các file nó cần; phân biệt với Deformable-3DGS / SC-GS (có `deform/`)
+và Spacetime Gaussians bằng dấu hiệu trong file, không bằng tên thư mục. Thêm trường hợp này vào tests/test_open.py.
+Việc 2: gs4d/open.py tự truyền `--cameras` cho viewer khi tìm thấy `cameras.json` trong thư mục model, hoặc
+`transforms_test.json` của dataset (đọc đường dẫn dataset từ `cfg_args` nếu có); người dùng tự truyền thì giữ của người dùng.
+Không tìm thấy thì không truyền và không báo lỗi.
+Việc 3 (điều kiện 2 của WP9): biến thể chưa hỗ trợ phải dừng và nêu tên biến thể.
+ - convert_scgs.py: model có đầu màu (`--pred_color`) hiện chỉ in cảnh báo. Đổi thành dừng, trừ khi có cờ `--ignore-pred-color`.
+ - convert_spacetime.py: ply của bản đầy đủ (có `f_dc_3..`, hoặc có file `rgbdecoder` cạnh ply) hiện được chuyển bằng màu cơ sở
+   mà không báo. Đổi thành dừng và nêu "Spacetime Gaussians full model (rgbdecoder)", trừ khi có cờ `--base-color-only`.
+   Hai model lite đang có trong ../data_real phải vẫn chạy như cũ, không cần cờ.
+ Thông báo dừng phải ghi luôn cờ để chạy tiếp. Cập nhật test của hai converter cho hai trường hợp này.
+Việc 4: sửa câu đã cũ trong mục Status của CLAUDE.md ("SH degree 0 only, so colours are mottled" sau số đo của `--sh`).
+Chỉ sửa: gs4d/open.py, tests/test_open.py, convert_scgs.py, convert_spacetime.py, tests/test_scgs.py, tests/test_spacetime.py,
+README (dòng tương ứng), CLAUDE.md, và bảng trạng thái trong PLAN.md.
+Xong khi: `python -m gs4d.open <thư mục 4DGaussians bouncingballs trong /home/cont/gs4d_train>` mở được viewer có danh sách camera;
+`python tests/run_all.py` và `python tests/check_real.py` qua, PSNR không đổi; bảng WP9 trong PLAN.md cập nhật.
+Báo cáo 5 dòng rồi dừng.
+```
+
+### WP19b — đo FPS hiển thị trong Chrome có GPU (người làm)
+
+Các bước ở mục "Làm ngay", điểm 2. Xong khi README có số FPS trong trình duyệt ở 1280×720 cạnh số phía server, kèm tên GPU
+và phiên bản Chrome; xoá dòng "display FPS in a real browser" khỏi phần NOT tested của `CLAUDE.md`.
+
+### WP19c — PSNR cho Spacetime và Shape of Motion; lệch 1,9 dB của native 4DGS (khi lab dùng)
+```
+Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Mỗi phần một phiên; nêu phần nào khi dán.
+Phần 1 — Shape of Motion `paper-windmill`: lấy ảnh gốc của cảnh từ bộ iPhone của DyCheck (chỉ cảnh này), render ở camera
+huấn luyện (`Ks`, `w2cs` trong checkpoint) và thêm PSNR có ngưỡng vào mục tương ứng của tests/check_real.py.
+Báo dung lượng cần tải ở lượt đầu và dừng nếu vượt 5 GB.
+Phần 2 — Spacetime Gaussians `n3d_sear_steak` (lite): tương tự với video `sear_steak` của Neural 3D Video và `cameras.json`.
+Báo dung lượng cần tải ở lượt đầu và dừng nếu vượt 5 GB. Ảnh có người: không commit ảnh vào repo, chỉ ghi số.
+Phần 3 — native 4DGS trên `slice-banana`: của ta 24,23 dB, repo gốc tự đo 26,14 dB. Chỉ chẩn đoán, không chỉnh cho khớp.
+Thử lần lượt và ghi PSNR sau mỗi bước: (a) keyframe đặt đúng tại 33 thời điểm test thay vì nội suy; (b) ngưỡng lọc
+marginal_t và cách nhân opacity theo thời gian so với renderer gốc; (c) nền và độ phân giải dùng khi đo so với eval của repo;
+(d) SH: bậc và phần phụ thuộc thời gian có được tính đủ không. Dừng ở bước giải thích được phần lớn khoảng lệch.
+Chỉ sửa: tests/check_real.py; convert_native4d.py và tests/test_native4d_sh.py nếu phần 3 tìm ra lỗi trong converter;
+dòng tương ứng trong README, CLAUDE.md và PLAN.md.
+Xong khi: README có PSNR (phần 1, 2) hoặc bảng PSNR theo từng bước và kết luận (phần 3). Báo cáo 5 dòng rồi dừng.
+```
+
+### WP19d — converter ghi từng keyframe ra đĩa (khi cần cảnh dài) — XONG 15/11/2026
+Kết quả: `Sequence4DWriter` trong `gs4d/format.py` (giữ cả nhóm tĩnh và dạng nén, file bằng `save` từng bit), `tests/test_writer.py`;
+`slice-banana` 330 keyframe: SC-GS RAM đỉnh 1,4 GB, 26,87 dB; native 4DGS 1,3 GB, 24,27 dB; Deformable-3DGS 7,2 → 1,0 GB.
+```
+Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Vấn đề: converter dựng cả sequence [K,N,...] trong RAM rồi mới lưu. Trên `slice-banana` (392k–603k Gaussian), SC-GS và
+native 4DGS chỉ chuyển được 110 keyframe; 330 keyframe thì hết 15 GB RAM và tiến trình bị kill.
+Bước 0: đo RAM đỉnh của `convert_scgs.py --frames 110 --sh --compact` trên `slice-banana` và xác định mảng nào chiếm chỗ
+(thường là `sh` [K,N,16,3]).
+Việc: thêm vào gs4d/format.py một cách ghi tăng dần (ví dụ `Sequence4DWriter`: mở file, `add_keyframe(t, means, covs, ...)`,
+`close()`), ghi được cả dạng thường và dạng nén, RAM đỉnh không phụ thuộc K; file ra đọc được bằng `Sequence4D.load` hiện tại.
+Phát hiện nhóm tĩnh (WP11) có thể bỏ qua ở đường ghi này nếu cần hai lượt; ghi rõ nếu bỏ. Sau đó chuyển convert_scgs.py,
+convert_native4d.py và convert_deformable3dgs.py sang dùng nó; các converter khác giữ nguyên.
+Chỉ sửa: gs4d/format.py, ba converter trên, thêm tests/test_writer.py, dòng tương ứng trong README.
+Xong khi: test so file ghi tăng dần với file ghi một lần (bằng nhau từng bit ở dạng thường); SC-GS và native 4DGS chuyển được
+330 keyframe của `slice-banana` với RAM đỉnh dưới 8 GB; tests/check_real.py qua, và ghi PSNR `scgs_banana`, `native4d_banana`
+ở 330 keyframe cạnh số 110 keyframe. Báo cáo 5 dòng rồi dừng.
+```
+
+### WP20 — train lại native 4DGS `slice-banana` với camera đúng
+```
+Đọc CLAUDE.md (mục WP19c phần 3) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: nhánh cc-c/wp19c-psnr đã merge.
+Vấn đề: tests/make_hypernerf_blender.py ghi `fl_x/fl_y/cx/cy` theo từng frame; reader Blender của fudan-zvg/4d-gaussian-splatting
+khi đó để `FovX = FovY = -1`, nên model `slice-banana` được train với camera sai và 24,23 dB của ta (repo tự đo 26,14) không
+phản ánh chất lượng converter.
+Bước 0: `nvidia-smi`; nếu GPU còn dưới 10 GB trống thì báo và dừng (lần trước một game giữ ~3 GB và ba lần train bị CUDA OOM).
+Việc: đọc reader của repo để biết nó lấy FoV từ trường nào, sửa tests/make_hypernerf_blender.py để ghi đúng trường đó
+(không vá repo gốc), tạo lại layout, train lại trong /home/cont/gs4d_train với cùng config (20k vòng, batch_size 1,
+densify_until_num_points 250_000), rồi chạy lại eval của repo và `convert_native4d.py --frames 110 --sh --compact`.
+Chỉ sửa: tests/make_hypernerf_blender.py, mục `native4d_banana` và ngưỡng của nó trong tests/check_real.py,
+tests/diag_native4d_banana.py (bỏ bước giả lập nếu không còn cần), dòng tương ứng trong README, CLAUDE.md, PLAN.md.
+Không sửa convert_native4d.py; nếu sau khi train lại vẫn lệch quá 0,5 dB so với eval của repo thì báo số theo từng bước
+của diag script và dừng, không chỉnh cho khớp.
+Xong khi: README ghi PSNR mới của repo và của ta trên 33 ảnh giữ lại; hai số lệch không quá 0,5 dB; check_real.py qua.
+Báo cáo 5 dòng rồi dừng.
+```
+
+### WP21 — nén trường `sh` theo keyframe (khi cần cảnh dài có `--sh`)
+```
+Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Vấn đề: dạng nén (WP8) không đụng tới `sh`. Native 4DGS ghi `sh` theo từng keyframe [K,N,S,3] ở float32:
+`slice-banana` 330 keyframe ra 19,9 GB, và check_real.py không nạp nổi file đó nếu không `load(lazy=True)`.
+Bước 0: đo phân bố giá trị của `sh` trên file thật (bậc 0 so với bậc cao) để chọn cách lượng tử hóa; ghi số.
+Việc: trong dạng nén, lưu `sh` thay đổi theo thời gian ở dạng lượng tử hóa (ví dụ float16, hoặc int8 với thang riêng cho từng bậc),
+`sh` hằng theo thời gian giữ nguyên; `Sequence4DWriter`, nạp lười và `GpuFrames` đều đọc được; file cũ vẫn đọc được.
+Chỉ sửa: gs4d/format.py, tests/test_compact.py, tests/test_writer.py, tests/bench_large.py, đoạn "File lớn" trong README.
+Xong khi: README có bảng trước/sau cho native 4DGS `slice-banana` 330 keyframe và `bouncingballs --sh` (dung lượng, thời gian
+lấy frame khi play, PSNR); mục tiêu dung lượng không quá 1/3 bản float32 và PSNR giảm không quá 0,1 dB; check_real.py qua.
+Báo cáo 5 dòng rồi dừng.
+```
+
+### WP22 — `Sequence4DWriter` cho bốn converter còn lại (khi gặp cảnh không vừa RAM)
+```
+Đọc CLAUDE.md (mục WP19d) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
+Việc: chuyển convert_4dgaussians.py, convert_shape_of_motion.py, convert_spacetime.py và convert_per_frame.py sang ghi bằng
+`gs4d.Sequence4DWriter`, theo đúng cách convert_scgs.py đã làm; không đổi công thức nào. Với convert_per_frame.py ở chế độ
+số Gaussian thay đổi theo frame (`interpolate=False`): nếu Writer không hỗ trợ thì giữ đường cũ cho chế độ đó và ghi rõ.
+Chỉ sửa bốn converter trên và dòng tương ứng trong README, CLAUDE.md, PLAN.md.
+Xong khi: với mỗi converter, file ra trên output thật trong ../data_real giống file của code cũ ở mọi mảng (so bằng script, dán
+kết quả vào báo cáo); README có RAM đỉnh trước/sau; `python tests/run_all.py` và check_real.py qua. Báo cáo 5 dòng rồi dừng.
 ```
 
 ---

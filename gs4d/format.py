@@ -23,6 +23,7 @@ time-varying fields by smaller ones; `load` reads both layouts:
     opacities  -> opacities_u8 [K,N] uint8
     colors     -> colors_u8 [K,N,3] uint8
 Static fields and `sh` stay float32. A compact field is decoded one keyframe at a time when it is used.
+`Sequence4DWriter` writes the same file one keyframe at a time (for sequences that do not fit in memory).
 
 Static group (written by `save` unless `split_static=False`): Gaussians that do not change over the keyframes in
 any time-varying field are stored once instead of K times. The file then has
@@ -136,10 +137,14 @@ class _PackedMeans(_Packed):
     def encode(a: np.ndarray):
         ref = np.array(a[0], np.float32)
         raw = np.empty(a.shape, np.float16)
-        with np.errstate(over="ignore"):
-            for k in range(a.shape[0]):
-                raw[k] = a[k] - ref
+        for k in range(a.shape[0]):
+            raw[k] = _PackedMeans.encode_frame(a[k], ref)
         return _PackedMeans(ref, raw) if np.isfinite(raw).all() else None  # offsets beyond float16 range
+
+    @staticmethod
+    def encode_frame(frame: np.ndarray, ref: np.ndarray) -> np.ndarray:
+        with np.errstate(over="ignore"):
+            return (frame - ref).astype(np.float16)
 
     def frame(self, k):
         return self.ref + self.raw[k]
@@ -174,13 +179,22 @@ class _PackedCovs(_Packed):
     def encode(a: np.ndarray):
         K, N = a.shape[:2]
         scale = np.zeros(N, np.float64)
-        for k in range(K):  # every |L_ij| is at most sqrt(largest diagonal entry)
-            np.maximum(scale, np.sqrt(np.maximum(a[k][:, [0, 3, 5]].max(-1), 0)), out=scale)
+        for k in range(K):
+            _PackedCovs.grow_scale(scale, a[k])
         scale = np.where(scale > 0, scale, 1.0)
         raw = np.empty((K, N, 6), np.int16)
         for k in range(K):
-            raw[k] = np.rint(np.clip(_PackedCovs._cholesky(a[k]) / scale[:, None], -1, 1) * 32767)
+            raw[k] = _PackedCovs.encode_frame(a[k], scale)
         return _PackedCovs(scale.astype(np.float32), raw) if np.isfinite(scale).all() else None
+
+    @staticmethod
+    def grow_scale(scale: np.ndarray, frame: np.ndarray) -> None:
+        """Running maximum, in place: every |L_ij| is at most sqrt(largest diagonal entry)."""
+        np.maximum(scale, np.sqrt(np.maximum(frame[:, [0, 3, 5]].max(-1), 0)), out=scale)
+
+    @staticmethod
+    def encode_frame(frame: np.ndarray, scale: np.ndarray) -> np.ndarray:
+        return np.rint(np.clip(_PackedCovs._cholesky(frame) / scale[:, None], -1, 1) * 32767).astype(np.int16)
 
     def frame(self, k):
         L = self.raw[k].astype(np.float32) * (self.scale[:, None] / np.float32(32767))
@@ -211,8 +225,12 @@ class _PackedU8(_Packed):
     def encode(a: np.ndarray, name: str):
         raw = np.empty(a.shape, np.uint8)
         for k in range(a.shape[0]):
-            raw[k] = np.rint(np.clip(a[k], 0, 1) * 255)
+            raw[k] = _PackedU8.encode_frame(a[k])
         return _PackedU8(raw, name)
+
+    @staticmethod
+    def encode_frame(frame: np.ndarray) -> np.ndarray:
+        return np.rint(np.clip(frame, 0, 1) * 255).astype(np.uint8)
 
     def frame(self, k):
         return self.raw[k].astype(np.float32) * np.float32(1 / 255)
@@ -512,6 +530,185 @@ class Sequence4D:
                    + (" (per keyframe)" if self.sh.ndim == 4 else ""))
                 + (f", {self.num_static:,} static Gaussians stored once" if self.num_static else "")
                 + (", compact storage" if self.is_compact else ""))
+
+
+_TAILS = {"means": (3,), "covs": (6,), "opacities": (), "colors": (3,)}
+
+
+class Sequence4DWriter:
+    """Writes the same .npz as `Sequence4D.save`, one keyframe at a time; peak memory is a few keyframes, whatever K is.
+
+        with Sequence4DWriter("out.npz", compact=True, source="...", colors=colors, sh=sh) as w:   # constant fields
+            for t in times:
+                w.add_keyframe(t, means=m, covs=c, opacities=o)                                    # the other fields
+
+    Fields given to the constructor ([N,...]) are constant over time; the others are given to every `add_keyframe`
+    (the same set each time). means, covs, opacities and colors must each be in one of the two places; sh is optional.
+    Keyframes go to raw float32 scratch files in a folder beside the output (about K x N x 40 bytes, more with
+    per-keyframe sh; removed by `close`). `close` reads them back one keyframe at a time and writes the .npz with the
+    static group and the compact encoding decided exactly as `save` does, so the arrays in the file are bit for bit
+    those of `Sequence4D(...).save(path, compact, split_static)`; `Sequence4D.load` reads it.
+    """
+
+    def __init__(self, path: str, compact: bool = False, split_static: bool = True, interpolate: bool = True,
+                 source: str = "", **constant):
+        import os
+        import tempfile
+
+        self.path = path if path.endswith(".npz") else path + ".npz"  # as np.savez
+        self.compact, self.split_static, self.interpolate, self.source = compact, split_static, interpolate, source
+        unknown = set(constant) - set(_TAILS) - {"sh"}
+        if unknown:
+            raise ValueError(f"unknown fields: {sorted(unknown)}")
+        self.const = {n: np.asarray(a, np.float32) for n, a in constant.items() if a is not None}
+        self.n = None
+        for n, a in self.const.items():
+            self._check(n, a)
+        self.times: list = []
+        self.names: Optional[list] = None   # time-varying fields, in file order
+        self.tails: dict = {}
+        self._files: dict = {}
+        self._first: dict = {}              # first keyframe of every time-varying field
+        self._static = None                 # [N] bool: unchanged so far in every time-varying field
+        self._scale = None                  # running covs_scale (float64), compact only
+        self._means_ok = None               # [N] bool: float16 offsets finite so far, compact only
+        self._closed = False
+        self._dir = tempfile.mkdtemp(prefix=".gs4d_writer_", dir=os.path.dirname(os.path.abspath(self.path)))
+
+    def _check(self, name: str, a: np.ndarray):
+        if self.n is None:
+            self.n = len(a)
+        if name == "sh":
+            if a.ndim != 3 or a.shape[0] != self.n or a.shape[1] not in (1, 4, 9, 16) or a.shape[2] != 3:
+                raise ValueError(f"sh has shape {a.shape}, expected {(self.n, 'S', 3)} with S in 1, 4, 9, 16")
+        elif a.shape != (self.n,) + _TAILS[name]:
+            raise ValueError(f"{name} has shape {a.shape}, expected {(self.n,) + _TAILS[name]}")
+
+    def add_keyframe(self, t: float, **fields) -> None:
+        import os
+
+        if self._closed:
+            raise ValueError("writer is closed")
+        fields = {n: np.ascontiguousarray(a, np.float32) for n, a in fields.items() if a is not None}
+        if self.names is None:
+            names = [n for n in ("means", "covs", "opacities", "colors", "sh") if n in fields]
+            missing = [n for n in _TAILS if n not in fields and n not in self.const]
+            both = [n for n in fields if n in self.const]
+            if missing or both or len(names) != len(fields):
+                raise ValueError(f"fields missing: {missing}, given twice: {both}, unknown: {sorted(set(fields) - set(names))}")
+            for n in names:
+                self._check(n, fields[n])
+                self.tails[n] = fields[n].shape[1:]
+                self._files[n] = open(os.path.join(self._dir, n + ".f32"), "wb")
+                self._first[n] = fields[n].copy()
+            self.names = names
+            if self.split_static and names:
+                self._static = np.ones(self.n, bool)
+            if self.compact and "covs" in names:
+                self._scale = np.zeros(self.n, np.float64)
+            if self.compact and "means" in names:
+                self._means_ok = np.ones(self.n, bool)
+        elif sorted(fields) != sorted(self.names):
+            raise ValueError(f"keyframe has fields {sorted(fields)}, the first one had {sorted(self.names)}")
+        t = float(np.float32(t))
+        if self.times and t <= self.times[-1]:
+            raise ValueError("times must be strictly increasing")
+        for n in self.names:
+            a = fields[n]
+            if a.shape != (self.n,) + self.tails[n]:
+                raise ValueError(f"{n} has shape {a.shape}, expected {(self.n,) + self.tails[n]}")
+            if self._static is not None and self.times:  # same rule as Sequence4D.split_static
+                ref = self._first[n]
+                self._static &= (np.abs(a - ref) <= 1e-6 * np.abs(ref)).reshape(self.n, -1).all(1)
+            if n == "covs" and self._scale is not None:
+                _PackedCovs.grow_scale(self._scale, a)
+            if n == "means" and self._means_ok is not None:
+                self._means_ok &= np.isfinite(_PackedMeans.encode_frame(a, self._first[n])).all(1)
+            a.tofile(self._files[n])
+        self.times.append(t)
+
+    def close(self) -> None:
+        """Writes the .npz (to a scratch file first, then renamed) and removes the scratch folder."""
+        import os
+
+        if self._closed:
+            return
+        try:
+            if not self.times:
+                raise ValueError("no keyframe was added")
+            for f in self._files.values():
+                f.close()
+            K, N, names = len(self.times), self.n, self.names
+            all_static = self._static is not None and bool(self._static.all())
+            split = self._static is not None and bool(self._static.any()) and not all_static
+            lay = _Layout(np.flatnonzero(self._static), N) if split else None
+            sel = slice(None) if lay is None else lay.dyn_sel()
+            nd = N if lay is None else len(lay.dyn_idx)
+            tmp = os.path.join(self._dir, "out.npz")
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+                def put(name, arr):
+                    with zf.open(name + ".npy", "w", force_zip64=True) as f:
+                        np.lib.format.write_array(f, np.asanyarray(arr), allow_pickle=False)
+
+                def put_frames(name, n, dtype, encode):
+                    """Member [K,nd,...]: frame k is encode(float32 keyframe k of field n, dynamic rows only)."""
+                    count = N * int(np.prod(self.tails[n], dtype=np.int64))
+                    with zf.open(name + ".npy", "w", force_zip64=True) as f, open(os.path.join(self._dir, n + ".f32"), "rb") as src:
+                        np.lib.format.write_array_header_1_0(f, {"descr": np.lib.format.dtype_to_descr(np.dtype(dtype)),
+                                                                 "fortran_order": False, "shape": (K, nd) + tuple(self.tails[n])})
+                        for _ in range(K):
+                            a = np.fromfile(src, np.float32, count).reshape((N,) + self.tails[n])[sel]
+                            f.write(np.ascontiguousarray(encode(a), dtype).tobytes())
+
+                put("times", np.asarray(self.times, np.float32))
+                put("interpolate", np.bool_(self.interpolate))
+                put("source", np.str_(self.source))
+                if lay is not None:
+                    put("static_index", lay.static_idx)
+                for n in ("means", "covs", "opacities", "colors", "sh"):
+                    if n in self.const:
+                        put(n, self.const[n])
+                    if n not in names:
+                        continue
+                    first = self._first[n]
+                    if all_static:  # nothing moves: the field loses the keyframe axis
+                        put(n, first)
+                        continue
+                    if lay is not None:
+                        put(n + "_static", first[lay.static_idx])
+                    if self.compact and n == "means" and self._means_ok[sel].all():
+                        ref = np.array(first[sel], np.float32)
+                        put("means_ref", ref)
+                        put_frames("means_d16", n, np.float16, lambda a: _PackedMeans.encode_frame(a, ref))
+                    elif self.compact and n == "covs" and np.isfinite(self._scale[sel]).all():
+                        scale = np.where(self._scale[sel] > 0, self._scale[sel], 1.0)
+                        put("covs_scale", scale.astype(np.float32))
+                        put_frames("covs_q", n, np.int16, lambda a: _PackedCovs.encode_frame(a, scale))
+                    elif self.compact and n in ("opacities", "colors"):
+                        put_frames(n + "_u8", n, np.uint8, _PackedU8.encode_frame)
+                    else:
+                        put_frames(n, n, np.float32, lambda a: a)
+            os.replace(tmp, self.path)
+        finally:
+            self.abort()
+
+    def abort(self) -> None:
+        """Removes the scratch folder without writing the .npz."""
+        import shutil
+
+        self._closed = True
+        for f in self._files.values():
+            f.close()
+        shutil.rmtree(self._dir, ignore_errors=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, *_):
+        if exc_type is None:
+            self.close()
+        else:
+            self.abort()
 
 
 class GpuFrames:

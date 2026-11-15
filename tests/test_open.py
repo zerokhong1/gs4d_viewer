@@ -69,10 +69,45 @@ def test_all():
         check(d / "sc", "scgs", "convert_scgs.py", ["--t0", "0", "--t1", "1"])
         (d / "sc" / "cfg_args").unlink()
         check(d / "sc", "scgs", "convert_scgs.py")
+        # 4DGaussians: deformation.pth beside the ply, no deform/; also holds gaussian_pertimestamp/ (must not win)
+        ply(d / "hv4" / "point_cloud" / "iteration_20000" / "point_cloud.ply", BASE)
+        (d / "hv4" / "point_cloud" / "iteration_20000" / "deformation.pth").write_bytes(b"x")
+        for i in range(3):
+            ply(d / "hv4" / "gaussian_pertimestamp" / f"time_{i}.ply", BASE)
+        check(d / "hv4", "4dgaussians", "convert_4dgaussians.py")
+        (d / "hv4" / "cfg_args").write_text("Namespace(source_path='/x/data/dnerf/ball')")
+        check(d / "hv4", "4dgaussians", "convert_4dgaussians.py", ["--t0", "0", "--t1", "1"])
         # Spacetime Gaussians, ply and folder
         ply(d / "st" / "point_cloud" / "iteration_25000" / "point_cloud.ply", ST)
         check(d / "st" / "point_cloud" / "iteration_25000" / "point_cloud.ply", "spacetime", "convert_spacetime.py")
         check(d / "st", "spacetime", "convert_spacetime.py")
+        # cameras: cameras.json wins, else transforms_test.json of cfg_args' source_path, else nothing
+        assert gopen.find_cameras(d / "st") is None
+        ds = d / "dataset"
+        ds.mkdir()
+        (d / "hv4" / "cfg_args").write_text(f"Namespace(source_path='{ds}', model_path='x')")
+        assert gopen.find_cameras(d / "hv4") is None                 # dataset has no transforms_test.json
+        (ds / "transforms_test.json").write_text('{"frames": [{"transform_matrix": []}]}')
+        assert gopen.find_cameras(d / "hv4") == ds / "transforms_test.json"
+        (d / "hv4" / "cameras.json").write_text('[{"position": [0, 0, 0], "rotation": []}]')   # 3DGS format: unreadable
+        assert gopen.find_cameras(d / "hv4") == ds / "transforms_test.json"
+        (d / "hv4" / "cameras.json").write_text('{"frames": [{"c2w": []}]}')
+        assert gopen.find_cameras(d / "hv4") == (d / "hv4" / "cameras.json").resolve()
+        assert gopen.find_cameras(d / "st") is None
+        (d / "st" / "cameras.json").write_text('[{"c2w": []}]')
+        assert gopen.find_cameras(d / "st" / "point_cloud" / "iteration_25000" / "point_cloud.ply") == d / "st" / "cameras.json"
+        import io, contextlib
+        for extra, want in (([], True), (["--cameras", "mine.json"], False)):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                assert gopen.main([str(d / "hv4"), "--dry-run", *extra]) == 0
+            out = buf.getvalue()
+            assert (str(d / "hv4" / "cameras.json") in out) == want and ("mine.json" in out) == (not want), out
+            assert out.count("--cameras") == 1, out
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            assert gopen.main([str(d / "hv4"), "--dry-run", "--compare", "b.npz"]) == 0
+        assert "--cameras" not in buf.getvalue().split("viewer:")[1], buf.getvalue()
         # unknown things are refused, with the checks listed
         ply(d / "plain.ply", BASE)
         (d / "empty").mkdir()
@@ -96,7 +131,6 @@ def test_all():
         assert not gopen.is_fresh(cp, d / "som")
         assert gopen.main([str(d / "som"), "--dry-run", "--port", "1"]) == 0
         # --compact above 1 GB (sparse files give the sizes without writing 1 GB)
-        import io, contextlib
         big = d / "big" / "point_cloud" / "iteration_1" / "point_cloud.ply"
         ply(big, BASE)
         with open(big, "r+b") as f:

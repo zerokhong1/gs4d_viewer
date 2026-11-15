@@ -165,6 +165,35 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     print(f"ok  sc-gs ({name}): positions and covariances match the independent formulas at 3 times (max shift {moved:.2f})")
 
 
+def test_pred_color_stops():
+    """A model with a colour head (--pred_color) is refused, naming the flag that converts it anyway."""
+    import torch
+    rng = np.random.default_rng(5)
+    N, M = 20, 8
+    attrs = (["x", "y", "z"] + [f"f_dc_{i}" for i in range(3)] + ["opacity"] + [f"scale_{i}" for i in range(3)]
+             + [f"rot_{i}" for i in range(4)] + [f"fea_{i}" for i in range(2)])
+    c = {n: rng.normal(0, 0.5, N).astype(np.float32) for n in attrs}
+    net = build_network(torch, True, False, False)
+    sd = {f"network.{k}": v for k, v in net.state_dict().items()}
+    sd["network.gaussian_color.weight"] = torch.zeros(3, 4)
+    sd["nodes"] = torch.nn.Parameter(torch.from_numpy(rng.normal(0, 0.5, (M, 5)).astype(np.float32)))
+    sd["_node_radius"] = torch.nn.Parameter(torch.zeros(M))
+    sd["_node_weight"] = torch.nn.Parameter(torch.zeros(M, 1))
+    with tempfile.TemporaryDirectory() as tmp:
+        for sub in ("point_cloud", "deform"):
+            os.makedirs(os.path.join(tmp, sub, "iteration_1"))
+        write_ply(os.path.join(tmp, "point_cloud", "iteration_1", "point_cloud.ply"), c, attrs)
+        torch.save(sd, os.path.join(tmp, "deform", "iteration_1", "deform.pth"))
+        out = os.path.join(tmp, "s.npz")
+        cmd = [sys.executable, os.path.join(ROOT, "convert_scgs.py"), tmp, "-o", out, "--frames", "2"]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        assert r.returncode != 0 and "--pred_color" in r.stderr and "--ignore-pred-color" in r.stderr, r.stderr
+        assert not os.path.exists(out)
+        subprocess.run(cmd + ["--ignore-pred-color"], check=True, capture_output=True)
+        assert Sequence4D.load(out).num_frames == 2
+    print("ok  sc-gs --pred_color stops, --ignore-pred-color converts")
+
+
 def test_scgs():
     try:
         import torch
@@ -173,6 +202,7 @@ def test_scgs():
         return
     run_variant(torch, blender=True, local_frame=True, H=8, motion_mask=False, pred_opacity=False, K=3, max_d_scale=-1)
     run_variant(torch, blender=False, local_frame=False, H=0, motion_mask=True, pred_opacity=True, K=4, max_d_scale=2.0)
+    test_pred_color_stops()
 
 
 if __name__ == "__main__":

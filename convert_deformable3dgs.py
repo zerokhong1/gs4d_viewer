@@ -35,7 +35,7 @@ import re
 
 import numpy as np
 
-from gs4d import Sequence4D, pack_cov
+from gs4d import Sequence4D, Sequence4DWriter, pack_cov
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 XYZ_FREQS = 10  # `multires` of the position embedding; fixed in the repo
@@ -142,30 +142,34 @@ def cov_unnormalised(q: np.ndarray, s: np.ndarray) -> np.ndarray:
     return pack_cov(Mx @ np.swapaxes(Mx, -1, -2))
 
 
-def deform_sequence(xyz, scales, quats, mlp: DeformMLP, times, batch: int = 65536, progress: bool = False):
-    """Canonical xyz [N,3], activated scales [N,3], unit quaternions [N,4] -> means [K,N,3], covs [K,N,6]."""
+def deform_frames(xyz, scales, quats, mlp: DeformMLP, times, batch: int = 65536, progress: bool = False):
+    """Canonical xyz [N,3], activated scales [N,3], unit quaternions [N,4] -> one (means [N,3], covs [N,6]) per time."""
     import torch
 
     K, N = len(times), len(xyz)
-    means = np.empty((K, N, 3), np.float32)
-    covs = np.empty((K, N, 6), np.float32)
     with torch.no_grad():
         for k, t in enumerate(times):
+            means = np.empty((N, 3), np.float32)
+            covs = np.empty((N, 6), np.float32)
             for a in range(0, N, batch):
                 sl = slice(a, min(a + batch, N))
                 x = torch.from_numpy(xyz[sl])
                 d_xyz, T, d_rot, d_scale = mlp(x, float(t))
                 if T is None:
-                    means[k, sl] = (x + d_xyz).numpy()
+                    means[sl] = (x + d_xyz).numpy()
                 else:
                     hom = T @ torch.cat([x, torch.ones(len(x), 1)], -1)[:, :, None]
-                    means[k, sl] = (hom[:, :3, 0] / hom[:, 3:, 0]).numpy()
-                covs[k, sl] = cov_unnormalised(quats[sl] + d_rot.numpy(), scales[sl] + d_scale.numpy())
+                    means[sl] = (hom[:, :3, 0] / hom[:, 3:, 0]).numpy()
+                covs[sl] = cov_unnormalised(quats[sl] + d_rot.numpy(), scales[sl] + d_scale.numpy())
             if progress:
-                print(f"\r  time {k + 1}/{K}", end="", flush=True)
-    if progress:
-        print()
-    return means, covs
+                print(f"\r  time {k + 1}/{K}", end="\n" if k + 1 == K else "", flush=True)
+            yield means, covs
+
+
+def deform_sequence(xyz, scales, quats, mlp: DeformMLP, times, batch: int = 65536, progress: bool = False):
+    """Same as deform_frames, the whole sequence in memory: means [K,N,3], covs [K,N,6]."""
+    frames = list(deform_frames(xyz, scales, quats, mlp, times, batch, progress))
+    return np.stack([f[0] for f in frames]), np.stack([f[1] for f in frames])
 
 
 def main():
@@ -202,11 +206,12 @@ def main():
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
 
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
-    means, covs = deform_sequence(xyz, scales, quats, mlp, times, a.batch, progress=True)
-    seq = Sequence4D(times, means, covs, opac[keep], colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None,
-                     source=f"Deformable 3D Gaussians: {ply}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
+    # one keyframe at a time to disk, so memory does not grow with --frames
+    with Sequence4DWriter(a.output, compact=a.compact, source=f"Deformable 3D Gaussians: {ply}", opacities=opac[keep],
+                          colors=colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None) as w:
+        for t, (means, covs) in zip(times, deform_frames(xyz, scales, quats, mlp, times, a.batch, progress=True)):
+            w.add_keyframe(t, means=means, covs=covs)
+    print(f"Wrote {w.path}: {Sequence4D.load(w.path, lazy=True).summary()}")
 
 
 if __name__ == "__main__":

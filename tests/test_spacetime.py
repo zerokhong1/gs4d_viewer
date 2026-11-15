@@ -11,19 +11,22 @@ sys.path.insert(0, ROOT)
 from gs4d import Sequence4D  # noqa: E402
 from gs4d.format import unpack_cov  # noqa: E402
 
+# real lite layout (as in the two public lite models); the full model adds f_dc_3..8 and f_t_*
 ATTRS = (["x", "y", "z", "trbf_center", "trbf_scale", "nx", "ny", "nz"] + [f"motion_{i}" for i in range(9)]
-         + [f"f_dc_{i}" for i in range(9)] + ["opacity"] + [f"scale_{i}" for i in range(3)]
-         + [f"rot_{i}" for i in range(4)] + [f"omega_{i}" for i in range(4)] + [f"f_t_{i}" for i in range(3)])
+         + [f"f_dc_{i}" for i in range(3)] + ["opacity"] + [f"scale_{i}" for i in range(3)]
+         + [f"rot_{i}" for i in range(4)] + [f"omega_{i}" for i in range(4)])
+FULL_EXTRA = [f"f_dc_{i}" for i in range(3, 9)] + [f"f_t_{i}" for i in range(3)]
 
 
-def write_ply(path, cols):
+def write_ply(path, cols, full=False):
+    attrs = ATTRS + FULL_EXTRA if full else ATTRS
     N = len(cols["x"])
-    arr = np.zeros(N, dtype=[(n, "<f4") for n in ATTRS])
+    arr = np.zeros(N, dtype=[(n, "<f4") for n in attrs])
     for n, c in cols.items():
         arr[n] = c
     with open(path, "wb") as f:
         f.write(("ply\nformat binary_little_endian 1.0\nelement vertex %d\n" % N
-                 + "".join(f"property float {n}\n" for n in ATTRS) + "end_header\n").encode())
+                 + "".join(f"property float {n}\n" for n in attrs) + "end_header\n").encode())
         f.write(arr.tobytes())
 
 
@@ -76,6 +79,28 @@ def test_spacetime():
             assert abs(seq.opacities[k][i] - o) < 1e-5, (k, i)
     assert np.allclose(seq.colors[0], [0.25, 0.5, 1.0])
     print("ok  spacetime ply -> common format matches independent formulas at 3 times")
+    test_full_model_stops(c)
+
+
+def test_full_model_stops(c):
+    """The full model (f_dc_3.. in the ply, or an rgbdecoder file beside it) is refused unless --base-color-only."""
+    script = os.path.join(ROOT, "convert_spacetime.py")
+    for how in ("f_dc_3", "rgbdecoder"):
+        with tempfile.TemporaryDirectory() as tmp:
+            ply, out = os.path.join(tmp, "point_cloud.ply"), os.path.join(tmp, "st.npz")
+            cc = dict(c)
+            if how == "f_dc_3":
+                write_ply(ply, cc, full=True)
+            else:
+                write_ply(ply, cc)
+                open(os.path.join(tmp, "rgbdecoder.pt"), "wb").write(b"x")
+            cmd = [sys.executable, script, ply, "-o", out, "--frames", "2"]
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            assert r.returncode != 0 and "full model (rgbdecoder)" in r.stderr and "--base-color-only" in r.stderr, (how, r.stderr)
+            assert not os.path.exists(out)
+            subprocess.run(cmd + ["--base-color-only"], check=True, capture_output=True)
+            assert Sequence4D.load(out).num_frames == 2
+    print("ok  spacetime full model stops, --base-color-only converts")
 
 
 if __name__ == "__main__":

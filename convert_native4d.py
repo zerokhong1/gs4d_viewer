@@ -26,7 +26,7 @@ import argparse
 
 import numpy as np
 
-from gs4d import SH_C0, Sequence4D, cov_from_quat_scale, pack_cov
+from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale, pack_cov
 
 
 def rotation_4d(l: np.ndarray, r: np.ndarray) -> np.ndarray:
@@ -46,47 +46,69 @@ def rotation_4d(l: np.ndarray, r: np.ndarray) -> np.ndarray:
     return (Ml @ Mr)[:, ::-1, ::-1]
 
 
+class Native4D:
+    """4D Gaussians conditioned on time, one keyframe at a time. All inputs are activated (linear scales, opacity
+    in [0,1]). `cov3` [N,6] is constant in t; `means(t)` [N,3] and `opacities(t)` [N] take an optional row selection."""
+
+    def __init__(self, xyz, t, scaling_xyz, scaling_t, rot_l, rot_r, opacity, rot_4d=True, prefilter_var=-1.0):
+        self.xyz, self.t = xyz.astype(np.float64), t.astype(np.float64).reshape(-1)
+        if rot_4d:
+            s4 = np.concatenate([scaling_xyz, scaling_t.reshape(-1, 1)], 1).astype(np.float64)
+            L = rotation_4d(rot_l.astype(np.float64), rot_r.astype(np.float64)) * s4[:, None, :]
+            S = L @ L.transpose(0, 2, 1)
+            cov_xt, var_t = S[:, :3, 3], S[:, 3, 3]
+            cov3 = pack_cov(S[:, :3, :3] - cov_xt[:, :, None] * cov_xt[:, None, :] / var_t[:, None, None])
+            self.vel = cov_xt / var_t[:, None]
+        else:  # axis-aligned in time: no motion, scaling_t is used directly as the temporal variance
+            cov3 = cov_from_quat_scale(rot_l, scaling_xyz).astype(np.float64)
+            var_t = scaling_t.astype(np.float64).reshape(-1)
+            self.vel = np.zeros_like(self.xyz)
+        self.cov3 = cov3.astype(np.float32)
+        self.sigma = var_t + (prefilter_var if prefilter_var > 0 else 0.0)
+        self.opacity = opacity.astype(np.float64).reshape(-1)
+
+    def means(self, time, sel=slice(None)):
+        dt = np.float64(time) - self.t[sel]
+        return (self.xyz[sel] + self.vel[sel] * dt[:, None]).astype(np.float32)
+
+    def opacities(self, time, sel=slice(None)):
+        dt = np.float64(time) - self.t[sel]
+        return (self.opacity[sel] * np.exp(-0.5 * dt**2 / self.sigma[sel])).astype(np.float32)
+
+
 def slice_native4d(xyz, t, scaling_xyz, scaling_t, rot_l, rot_r, opacity, times, rot_4d=True, prefilter_var=-1.0):
     """All inputs are activated (linear scales, opacity in [0,1]).
 
-    Returns means [K,N,3], covs [N,6], opacities [K,N].
+    Returns means [K,N,3], covs [N,6], opacities [K,N] (the whole sequence in memory; main() goes keyframe by keyframe).
     """
-    times = np.asarray(times, np.float64)
-    xyz, t = xyz.astype(np.float64), t.astype(np.float64).reshape(-1)
-    if rot_4d:
-        s4 = np.concatenate([scaling_xyz, scaling_t.reshape(-1, 1)], 1).astype(np.float64)
-        L = rotation_4d(rot_l.astype(np.float64), rot_r.astype(np.float64)) * s4[:, None, :]
-        S = L @ L.transpose(0, 2, 1)
-        cov_xt, var_t = S[:, :3, 3], S[:, 3, 3]
-        cov3 = pack_cov(S[:, :3, :3] - cov_xt[:, :, None] * cov_xt[:, None, :] / var_t[:, None, None])
-        vel = cov_xt / var_t[:, None]
-    else:  # axis-aligned in time: no motion, scaling_t is used directly as the temporal variance
-        cov3 = cov_from_quat_scale(rot_l, scaling_xyz).astype(np.float64)
-        var_t = scaling_t.astype(np.float64).reshape(-1)
-        vel = np.zeros_like(xyz)
-    dt = times[:, None] - t[None, :]                                   # [K,N]
-    means = xyz[None] + vel[None] * dt[..., None]
-    sigma = var_t + (prefilter_var if prefilter_var > 0 else 0.0)
-    opac = opacity.astype(np.float64).reshape(-1)[None] * np.exp(-0.5 * dt**2 / sigma[None])
-    return means.astype(np.float32), cov3.astype(np.float32), opac.astype(np.float32)
+    g = Native4D(xyz, t, scaling_xyz, scaling_t, rot_l, rot_r, opacity, rot_4d, prefilter_var)
+    return np.stack([g.means(tk) for tk in times]), g.cov3, np.stack([g.opacities(tk) for tk in times])
 
 
-def sh_at_times(features_dc, features_rest, t, times, duration, sh_degree, sh_degree_t):
-    """Time-dependent SH folded into plain 3D SH per keyframe. features_dc [N,1,3], features_rest [N,C-1,3]
-    (C = (sh_degree+1)^2 (sh_degree_t+1) channels in total), t [N]. Returns [K,N,(sh_degree+1)^2,3] float32."""
+def sh_channels(features_dc, features_rest, sh_degree, sh_degree_t):
+    """features_dc [N,1,3] + features_rest [N,C-1,3] -> [N,C,3] float64, C = (sh_degree+1)^2 (sh_degree_t+1) checked."""
     f = np.concatenate([features_dc, features_rest], 1).astype(np.float64)
     S = (sh_degree + 1) ** 2
     if f.shape[1] < S * (sh_degree_t + 1):
         raise SystemExit(f"checkpoint has {f.shape[1]} SH channels, fewer than the {S * (sh_degree_t + 1)} "
                          f"needed for degrees ({sh_degree}, {sh_degree_t})")
+    return f
+
+
+def sh_at_time(f, t, time, duration, sh_degree, sh_degree_t):
+    """Time-dependent SH folded into plain 3D SH at one keyframe time: [N,(sh_degree+1)^2,3] float32."""
+    S = (sh_degree + 1) ** 2
+    acc = f[:, :S].copy()
+    for m in range(1, sh_degree_t + 1):
+        acc += np.cos(2 * np.pi * m * (t - time) / duration)[:, None, None] * f[:, m * S:(m + 1) * S]
+    return acc.astype(np.float32)
+
+
+def sh_at_times(features_dc, features_rest, t, times, duration, sh_degree, sh_degree_t):
+    """features_dc [N,1,3], features_rest [N,C-1,3], t [N] -> [K,N,(sh_degree+1)^2,3] float32 (whole sequence in memory)."""
+    f = sh_channels(features_dc, features_rest, sh_degree, sh_degree_t)
     t = np.asarray(t, np.float64).reshape(-1)
-    out = np.empty((len(times), len(t), S, 3), np.float32)
-    for k, tk in enumerate(times):
-        acc = f[:, :S].copy()
-        for m in range(1, sh_degree_t + 1):
-            acc += np.cos(2 * np.pi * m * (t - tk) / duration)[:, None, None] * f[:, m * S:(m + 1) * S]
-        out[k] = acc
-    return out
+    return np.stack([sh_at_time(f, t, tk, duration, sh_degree, sh_degree_t) for tk in times])
 
 
 def load_checkpoint(path: str) -> dict:
@@ -129,26 +151,32 @@ def main():
               "Pass --t0/--t1 with the training time_duration for the exact range.")
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
 
-    means, cov3, opac = slice_native4d(
-        c["xyz"], c["t"], np.exp(c["scaling"]), np.exp(c["scaling_t"]), c["rotation"], c["rotation_r"],
-        1.0 / (1.0 + np.exp(-c["opacity"])), times, rot_4d=c["rot_4d"], prefilter_var=a.prefilter_var)
-    colors = np.clip(SH_C0 * c["features_dc"].reshape(len(tt), -1)[:, :3] + 0.5, 0, 1)
-    peak = opac.max(0)
+    g = Native4D(c["xyz"], c["t"], np.exp(c["scaling"]), np.exp(c["scaling_t"]), c["rotation"], c["rotation_r"],
+                 1.0 / (1.0 + np.exp(-c["opacity"])), rot_4d=c["rot_4d"], prefilter_var=a.prefilter_var)
+    peak = np.zeros(len(tt), np.float32)  # first pass: which Gaussians are ever visible
+    for tk in times:
+        np.maximum(peak, g.opacities(tk), out=peak)
     keep = peak > a.min_peak_opacity
     if a.max_gaussians and keep.sum() > a.max_gaussians:
         thresh = np.partition(peak[keep], -a.max_gaussians)[-a.max_gaussians]
         keep &= peak >= thresh
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
-    colors, sh_all = colors[keep], None
+    const = dict(covs=g.cov3[keep])
     if a.sh:
-        sh_all = sh_at_times(c["features_dc"][keep], c["features_rest"][keep], tt[keep], times, a.t1 - a.t0,
-                             c["sh_degree"], c["sh_degree_t"])
-        colors = np.clip(SH_C0 * sh_all[:, :, 0] + 0.5, 0, 1)  # [K,N,3]: DC term changes with time too
-    seq = Sequence4D(times, means[:, keep], cov3[keep], opac[:, keep], colors,
-                     sh=sh_all,
-                     source=f"native 4DGS: {a.checkpoint}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
+        f = sh_channels(c["features_dc"][keep], c["features_rest"][keep], c["sh_degree"], c["sh_degree_t"])
+        t_keep = tt[keep].astype(np.float64)
+    else:
+        const["colors"] = np.clip(SH_C0 * c["features_dc"].reshape(len(tt), -1)[:, :3] + 0.5, 0, 1)[keep]
+    # second pass: one keyframe at a time to disk, so memory does not grow with --frames
+    with Sequence4DWriter(a.output, compact=a.compact, source=f"native 4DGS: {a.checkpoint}", **const) as w:
+        for tk in times:
+            frame = dict(means=g.means(tk, keep), opacities=g.opacities(tk, keep))
+            if a.sh:
+                frame["sh"] = sh_at_time(f, t_keep, tk, a.t1 - a.t0, c["sh_degree"], c["sh_degree_t"])
+                frame["colors"] = np.clip(SH_C0 * frame["sh"][:, 0] + 0.5, 0, 1)  # DC term changes with time too
+            w.add_keyframe(tk, **frame)
+    seq = Sequence4D.load(w.path, lazy=True)
+    print(f"Wrote {w.path}: {seq.summary()}")
 
 
 if __name__ == "__main__":

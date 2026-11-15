@@ -9,14 +9,18 @@ Recognised (checked in this order, the first match wins; nothing is guessed):
     last.ckpt, or a folder with checkpoints/last.ckpt (Shape of Motion) -> convert_shape_of_motion.py
     folder with point_cloud/ and deform/                             -> convert_scgs.py when the ply has
                                                                         fea_* columns, else convert_deformable3dgs.py
+    folder with point_cloud/iteration_*/deformation.pth (no deform/) -> convert_4dgaussians.py (hustvl 4DGaussians)
     point_cloud.ply with trbf_center (Spacetime Gaussians), or a
     folder holding point_cloud/iteration_*/point_cloud.ply of that kind -> convert_spacetime.py
+Cameras: unless --cameras is given, the viewer gets --cameras for a cameras.json in the output's folder (or up to 3
+folders above it) or, failing that, for the transforms_test.json of the dataset named by source_path in cfg_args.
 The converted file is <name>.gs4d.npz next to the output and is reused while the output is unchanged.
 D-NeRF scenes (cfg_args next to the output says dnerf / is_blender) get the time range [0, 1].
 """
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -75,6 +79,38 @@ def _is_dnerf(path: Path) -> bool:
             txt = cfg.read_text(errors="replace")
             return "dnerf" in txt.lower() or "is_blender=True" in txt
     return False
+
+
+def _readable_cameras(p: Path) -> bool:
+    """True when viewer.load_cameras can read the file: its frames carry transform_matrix or c2w. The cameras.json that
+    3DGS training writes (position + rotation per camera) does not, so it is not passed on."""
+    try:
+        meta = json.loads(p.read_text())
+        frames = meta if isinstance(meta, list) else (meta.get("frames") or meta.get("cameras") or [])
+        return bool(frames) and all(("transform_matrix" in f or "c2w" in f) for f in frames[:1])
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def find_cameras(path: Path) -> Path | None:
+    """A cameras file the viewer can read: cameras.json next to the output (or up to 3 folders above), else
+    <source_path of cfg_args>/transforms_test.json. None when there is none (not an error)."""
+    d = Path(path).resolve()
+    d = d if d.is_dir() else d.parent
+    for cur in [d, *list(d.parents)[:3]]:
+        if (cur / "cameras.json").is_file() and _readable_cameras(cur / "cameras.json"):
+            return cur / "cameras.json"
+    for cur in [d, *list(d.parents)[:4]]:
+        cfg = cur / "cfg_args"
+        if cfg.is_file():
+            m = re.search(r"source_path=(['\"])(.*?)\1", cfg.read_text(errors="replace"))
+            if m:
+                tj = Path(m.group(2))
+                tj = tj if tj.is_absolute() else cur / tj
+                if (tj / "transforms_test.json").is_file() and _readable_cameras(tj / "transforms_test.json"):
+                    return tj / "transforms_test.json"
+            return None
+    return None
 
 
 def _frame_plys(folder: Path) -> Path | None:
@@ -142,9 +178,12 @@ def detect(path: Path) -> dict:
             no(f"{path}: not both point_cloud/ and deform/ (Deformable-3DGS / SC-GS)")
         if pc.is_dir():
             ply = _last_iteration(pc, "point_cloud.ply")
+            if ply is not None and (ply.parent / "deformation.pth").is_file() and not de.is_dir():
+                return dict(kind="4dgaussians", converter="convert_4dgaussians.py", src=path,
+                            extra=dn if _is_dnerf(path) else [])
             if ply is not None and "trbf_center" in _ply_names(ply):
                 return dict(kind="spacetime", converter="convert_spacetime.py", src=ply, extra=[])
-            no(f"{pc}/iteration_*/point_cloud.ply has no trbf_center (Spacetime Gaussians)")
+            no(f"{pc}/iteration_*/ has no deformation.pth (4DGaussians) and the ply has no trbf_center (Spacetime Gaussians)")
         for name in ("params.npz",):
             if (path / name).is_file():
                 return detect(path / name)
@@ -237,6 +276,12 @@ def main(argv=None):
             if est > COMPACT_OVER:
                 print(f"gs4d.open: estimated file {est / 2**30:.1f} GB > 1 GB, converting with --compact", flush=True)
                 cmd_conv.append("--compact")
+    # the ground-truth view needs one sequence, so --compare gets no automatic --cameras (WP18)
+    given = any(x == "--cameras" or x.startswith("--cameras=") or x == "--compare" or x.startswith("--compare=")
+                for x in viewer_args)
+    cams = None if given else find_cameras(path)
+    if cams is not None:
+        viewer_args = [*viewer_args, "--cameras", str(cams)]
     cmd_view = [sys.executable, str(ROOT / "viewer.py"), str(target), *viewer_args]
 
     print(f"gs4d.open: {info['kind']} -> {info['converter'] or 'no conversion'}", flush=True)

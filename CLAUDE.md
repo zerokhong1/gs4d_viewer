@@ -9,7 +9,8 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 
 ## Layout
 - `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`;
-  compact storage and the static group (Gaussians that never change are stored once, `save(split_static=True)`)
+  compact storage and the static group (Gaussians that never change are stored once, `save(split_static=True)`);
+  `Sequence4DWriter` writes the same file one keyframe at a time (used by the SC-GS, native 4DGS and Deformable-3DGS converters)
 - `gs4d/ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
   `--compare b.npz` shows a second sequence (A, B, or side by side) on the same time slider
@@ -82,8 +83,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   selecting one moves the client camera and the slider to the image time; gsplat renderer: "Ground truth beside render" shows
   render | image with PSNR (`Viewer.gt_compare`, ignores the opacity/size sliders, black or white background, capped by Max render
   height). `tests/check_cameras.py`: PSNR matches `check_real.psnr_item` to 0.0002 dB on the 20 test cameras (SC-GS 400 px,
-  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. NOT done: `gs4d/open.py` does
-  not pass `--cameras` yet (CC-B file); GT view needs one sequence (not with `--compare`); display FPS in a real browser.
+  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. `gs4d/open.py` passes `--cameras` since WP19a; NOT done: GT view needs one sequence (not with `--compare`); display FPS in a real browser.
 - Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
   trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
 - WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real
@@ -101,7 +101,11 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   - `convert_scgs.py --sh`: self-trained `bouncingballs` (512 nodes, `--local_frame`, hyper_dim 8, trained at 400 px), 35.4-43.0 dB
     on all 20 test frames at 400 px.
   - `convert_native4d.py`: self-trained `bouncingballs` `chkpnt_best.pth` (trained at 400 px), 26.0-31.9 dB on 20 frames, mean 29.0; with `--sh` (WP13) 27.3-39.6 dB, mean 32.9 (the repo's own eval:
-    33.4 dB); SH degree 0 only, so colours are mottled. The 19-field tuple above matches the real checkpoint.
+    33.4 dB); the colour is SH degree 0 only without `--sh` (then mottled). The 19-field tuple above matches the real checkpoint.
+- Tested (WP19a, 15/11/2026): `gs4d/open.py` recognises a hustvl 4DGaussians model folder (`deformation.pth` beside the ply, no `deform/`) and passes `--cameras`
+  (a readable `cameras.json` with `c2w`/`transform_matrix`, else `transforms_test.json` of `cfg_args` `source_path`; the 3DGS-style `cameras.json` with `position`/`rotation`
+  is not readable by `load_cameras` and is skipped; none with `--compare` or when the user gives `--cameras`). Unsupported variants stop and name the flag that converts anyway:
+  SC-GS `--pred_color` (`--ignore-pred-color`), Spacetime full model with `rgbdecoder` (`f_dc_3..` in the ply or an rgbdecoder file beside it; `--base-color-only`).
 - Each of those converters also has a synthetic test, `tests/test_<name>.py`.
 - Tested with real output (WP15, 14/11/2026): `convert_4dgaussians.py --sh` on self-trained hustvl 4DGaussians `bouncingballs`
   (20k iterations, white background, net_width 64, defor_depth 0): 36.7-45.9 dB, mean 40.8 on 20 test frames at 800 px (white
@@ -123,10 +127,18 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   at 268 px (lens distortion ignored, as the repo does). Time already in [0, 1] (time_id / max), no converter change. `tests/check_real.py` item `d3dgs_banana`. `tests/make_hypernerf_blender.py` writes the D-NeRF-style layout native 4DGS needs
   (it has no Nerfies reader); SC-GS reads the same split as Deformable-3DGS.
 - Tested (WP16, 15/11/2026): SC-GS on the same real HyperNeRF `slice-banana` split (512 nodes, hyper_dim 8, 20k iterations, 52 min, 603k Gaussians, no `--is_blender`; the clone needed `np.float` -> `np.float64`):
-  `convert_scgs.py --frames 110 --sh --compact` (330 keyframes would not fit in 15 GB), PSNR 20.21-30.22 dB, mean 26.69 on 33 held-out frames at 268 px; held-out times fall between keyframes. No converter change; item `scgs_banana`.
+  `convert_scgs.py --frames 110 --sh --compact` (330 keyframes did not fit in 15 GB before WP19d), PSNR 20.21-30.22 dB, mean 26.69 on 33 held-out frames at 268 px; held-out times fall between keyframes. No converter change; item `scgs_banana`.
 - Tested (WP16, 15/11/2026): native 4DGS on the same real `slice-banana` (via `tests/make_hypernerf_blender.py`; config `batch_size: 1`, `densify_until_num_points: 250_000` because a Sekiro game holds ~3 GB of the 12 GB GPU
   and the first three runs hit CUDA OOM; 20k iterations, 26 min): `convert_native4d.py --frames 110 --sh --compact`, PSNR 21.14-26.19 dB, mean 24.23 on 33 held-out frames at 268 px; the repo's own eval 26.14 dB (gap 1.9 dB not isolated).
-  330 keyframes get the process OOM-killed (15 GB RAM). No converter change; item `native4d_banana`.
+  330 keyframes got the process OOM-killed before WP19d. No converter change; item `native4d_banana`.
+- Tested (WP19d, 15/11/2026): `gs4d.Sequence4DWriter` (`add_keyframe(t, ...)`, constant fields in the constructor; raw float32 scratch files in
+  `.gs4d_writer_*` beside the output, about K x N x 40 B, removed on close; static group and compact encoding kept), `tests/test_writer.py`: arrays bit for bit
+  equal to `save` (plain, compact, with/without static group). `convert_scgs.py`, `convert_native4d.py`, `convert_deformable3dgs.py` use it; their outputs on
+  `slice-banana` are identical to the old code in every array (SC-GS 110, native 110, Deformable-3DGS 330 keyframes). Peak RAM: SC-GS 110 kf 4.5 -> 1.4 GB,
+  native 4DGS 110 kf 8.3 -> 1.3 GB, Deformable-3DGS 330 kf 7.2 -> 1.0 GB. 330 keyframes now convert: SC-GS 3.5 min, 3.7 GB file, PSNR 21.27-30.05, mean 26.87
+  (110 kf: 26.69); native 4DGS 5 min, 19.9 GB file (per-keyframe `sh` is float32), PSNR 21.22-26.12, mean 24.27 (110 kf: 24.23), so interpolation between
+  keyframes does not explain the 1.9 dB gap to the repo's eval. `check_real.py` items still use 110 keyframes; `psnr_item` loads eagerly, so the 19.9 GB
+  file needs `load(lazy=True)`. The other converters still build the whole sequence in RAM.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
   `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,

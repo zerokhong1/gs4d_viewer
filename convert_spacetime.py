@@ -20,6 +20,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import os
 
 import numpy as np
 
@@ -27,13 +28,32 @@ from gs4d import Sequence4D, cov_from_quat_scale
 from gs4d.ply import read_ply_vertices
 
 
-def load_spacetime_ply(path: str) -> dict:
+FULL_MODEL = "Spacetime Gaussians full model (rgbdecoder)"
+
+
+def full_model_reason(path: str, names) -> str | None:
+    """Why this ply belongs to the full model (colour from the `rgbdecoder` MLP), or None for a lite model."""
+    if "f_dc_3" in names:
+        return "the ply has f_dc_3.. (features the rgbdecoder MLP consumes)"
+    here = os.path.dirname(os.path.abspath(path))
+    for d in (here, os.path.dirname(here), os.path.dirname(os.path.dirname(here))):
+        if os.path.isdir(d) and any("rgbdecoder" in f.lower() for f in os.listdir(d)):
+            return f"an rgbdecoder file is next to the ply ({d})"
+    return None
+
+
+def load_spacetime_ply(path: str, base_color_only: bool = False) -> dict:
     v = read_ply_vertices(path)
     names = v.dtype.names
     for n in ("x", "trbf_center", "trbf_scale", "opacity", "scale_0", "rot_0", "f_dc_0"):
         if n not in names:
             raise SystemExit(f"{path}: no '{n}' property; not a Spacetime Gaussians ply "
                              "(a plain 3DGS ply goes through convert_per_frame.py)")
+
+    why = full_model_reason(path, names)
+    if why and not base_color_only:
+        raise SystemExit(f"{path}: {FULL_MODEL}: {why}. Its colour is view- and time-dependent and is not reproduced; "
+                         "only the base colour f_dc_0..2 would be used. Run again with --base-color-only to convert anyway.")
 
     def cols(prefix, n, default=0.0):
         if f"{prefix}0" not in names:
@@ -74,10 +94,12 @@ def main():
     ap.add_argument("--t1", type=float, default=1.0)
     ap.add_argument("--min-peak-opacity", type=float, default=0.02,
                     help="drop Gaussians whose opacity never exceeds this at the keyframes")
+    ap.add_argument("--base-color-only", action="store_true",
+                    help=f"convert a {FULL_MODEL} with its base colour f_dc_0..2 only (without this flag it stops)")
     ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
     a = ap.parse_args()
 
-    g = load_spacetime_ply(a.ply)
+    g = load_spacetime_ply(a.ply, a.base_color_only)
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float64)
     means, covs, opac = slice_spacetime(g, times)
     keep = opac.max(0) > a.min_peak_opacity
