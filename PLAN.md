@@ -1,10 +1,194 @@
-# Kế hoạch giai đoạn 2 và 3 — gs4d_viewer
+# Kế hoạch giai đoạn 2, 3 và 4 — gs4d_viewer
+
+Cập nhật 16/11/2026 (20:20): thêm giai đoạn 4 ngay dưới (WP32–WP40, chưa gói nào bắt đầu); giai đoạn 3 xong trừ việc đo FPS cần người làm.
 
 Cập nhật 16/11/2026: giai đoạn 2 đã xong (WP24 là gói cuối); giai đoạn 3 ở mục "Giai đoạn 3" ngay dưới.
 
 Cập nhật 15/11/2026 (15:15). Giai đoạn 1 (WP1–WP8) đã xong; kế hoạch gốc nằm ở phụ lục cuối file. Giai đoạn 2: WP10–WP18, WP19a,
 WP19d và WP19c phần 3 đã làm, đã commit và merge vào `main` (13:45). Giáo sư đã trả lời (bảng bên dưới): không còn gói nào phải chờ.
 Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải thích lại bối cảnh.
+
+## Giai đoạn 4 — để người khác dùng được, và quan sát được chuyển động (16/11/2026)
+
+Giai đoạn 2 và 3 đã cho ra sản phẩm đọc được mọi loại output đã biết, có số PSNR đối chiếu. Giai đoạn 4 là các tính năng và việc đóng gói
+chưa có ở đâu trong file này. Đánh số từ WP32 để không trùng với WP25–WP31 của giai đoạn 3.
+
+### Làm ngay
+
+1. **Đưa nhánh `cc-a/wp24-points` về `main`** (người làm). Hai commit ngày 16/11 (WP24 + giai đoạn 3; SC-GS `--use_hash`, `--skinning`) chưa có trong `main`.
+   ```bash
+   git status --short
+   git add -A && git commit -m "PLAN.md: giai đoạn 4"        # nếu còn thay đổi chưa commit
+   git checkout main && git merge cc-a/wp24-points
+   python tests/run_all.py && python tests/check_real.py
+   ```
+2. **Đo FPS ở chế độ điểm và ở 1920×1080** (người làm, màn hình không khoá, GPU không train; WP28 của giai đoạn 3):
+   `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, rồi thêm `--size 1920 1080`; ghi bảng vào README.
+3. **Giải phóng đĩa** (còn khoảng 15 GB): xoá `../data_real/som/paper-windmill_data/paper-windmill.zip` (6,6 GB) và `sear_steak.zip` (1,1 GB) sau khi
+   kiểm `check_real.py` vẫn qua; cả hai đã giải nén đủ.
+4. **Mở ba phiên** (sau bước 1): CC-C làm WP32, CC-B làm WP33, CC-A làm WP34. Ba gói không sửa chung file.
+5. **Demo cho giáo sư** (người làm) ngay khi WP32 xong, và điền bảng phản hồi bên dưới. Phản hồi xếp lại thứ tự WP35–WP37 và WP40.
+
+### Trạng thái giai đoạn 4
+
+| WP | Việc | Trạng thái | Phiên | Ghi chú |
+|---|---|---|---|---|
+| 32 | Bộ cảnh mẫu và kịch bản demo 10 phút (`DEMO.md`) | Chưa | CC-C | Chuẩn bị cho buổi demo với giáo sư |
+| 33 | Cài trên máy sạch bằng một lệnh (`setup.sh`) | Chưa | CC-B | Cần khoảng 8 GB đĩa trống để thử trên bản clone mới |
+| 34 | Quỹ đạo camera: đặt mốc, phát lại, xuất mp4 theo quỹ đạo | Xong 16/11/2026 (nhánh `cc-a/wp34-path`) | CC-A | Sát nhất với yêu cầu "di chuyển camera để quan sát" |
+| 35 | Vệt chuyển động và tô màu theo vận tốc | Xong 16/11/2026 (nhánh `cc-a/wp34-path`) | CC-A | Sau WP34 |
+| 36 | Chọn cảnh trong giao diện; so sánh tới bốn sequence | Chưa | CC-A | Sau WP35 |
+| 37 | Chế độ xem độ sâu và độ đục | Chưa | CC-A | Nhỏ; sau WP36, hoặc đẩy lên nếu giáo sư cần |
+| 38 | Xem từ máy khác qua SSH | Chưa | người làm | Cần một máy thứ hai |
+| 39 | Chạy test tự động khi push | Chưa | CC-B | Sau WP33; cần repo trên GitHub |
+| 40 | Danh sách phương pháp hỗ trợ + hướng dẫn và file mẫu thêm converter | Chưa | CC-C | Sau WP32; phương pháp mới nào làm tiếp: chờ phản hồi sau demo |
+
+Thứ tự: đợt 1 là WP32, WP33, WP34 song song; demo ngay khi WP32 xong; đợt 2 là WP35 (CC-A), WP39 (CC-B), WP40 (CC-C);
+đợt 3 là WP36, WP37 và WP38, xếp lại theo phản hồi sau demo.
+
+### Phản hồi của giáo sư sau demo
+
+| Câu hỏi | Trả lời | Ngày |
+|---|---|---|
+| Điều gì còn thiếu khi xem một kết quả? | | |
+| Chế độ điểm (WP24) có đúng ý "quan sát các điểm 4DGS" không? Cần thêm vệt chuyển động (WP35) không? | | |
+| Có cần quay video theo quỹ đạo camera (WP34), so nhiều phương pháp cạnh nhau (WP36) không? | | |
+| Ngoài các phương pháp đã có, lab cần phương pháp nào nữa? (ví dụ 4D-Rotor GS, E-D3DGS, MoSca) | | |
+| Ai sẽ dùng, trên máy nào? (quyết định WP33, WP38) | | |
+
+### Quy ước của giai đoạn 4
+
+Rút từ những gì đã hỏng ở giai đoạn 2 và 3:
+
+- **Mỗi phiên làm trong worktree riêng** (`git worktree add ../gs4d-wp<N> -b cc-<phiên>/wp<N>-<tên>`), không checkout nhánh trong thư mục chính.
+  Giai đoạn 2–3 dồn WP22, WP24 và cả giai đoạn 3 vào một nhánh `cc-a/wp24-points`, còn `main` đứng yên từ sáng 16/11.
+- **`PLAN.md` chỉ sửa trong thư mục chính, và phiên chỉ sửa đúng dòng của gói mình** trong bảng trạng thái (thay từng dòng, không ghi lại cả file).
+  File này đã hai lần bị một phiên ghi đè mất phần của người khác. Không đặt lại số WP đã dùng.
+- File mỗi phiên được sửa: CC-A: `viewer.py`, `gs4d/format.py`, `tests/check_*.py` mới của gói; CC-B: `gs4d/open.py`, `gs4d/doctor.py`, `setup.sh`,
+  `requirements.txt`, `tests/run_all.py`, `.github/`; CC-C: `DEMO.md`, `docs/`, `tests/make_demo_scenes.py`, `convert_template.py`. README: mỗi phiên chỉ sửa đoạn của gói mình.
+  Cần thay đổi ở file của phiên khác thì ghi vào báo cáo, không tự sửa.
+- Gói thêm tính năng giao diện phải có một script `tests/check_*.py` chụp ảnh headless làm bằng chứng, và thử trên ít nhất một cảnh thật.
+- Xong một gói thì người merge vào `main`, chạy `python tests/run_all.py`, rồi mới mở gói kế tiếp của phiên đó.
+- Chung một GPU (RTX 3060 12 GB) và 15 GB RAM: mỗi lúc chỉ một phiên được train, chạy `check_real.py` hoặc `bench_display.py`; hỏi người dùng trước.
+
+### Prompt giai đoạn 4
+
+Dán nguyên khối vào một phiên Claude Code mới mở trong `gs4d_viewer`.
+
+
+#### WP32 — bộ cảnh mẫu và kịch bản demo
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Việc 1: viết tests/make_demo_scenes.py tạo thư mục `../demo_scenes/` (ngoài repo) từ các output thật đã có: mỗi phương pháp một file
+`.npz` dạng nén trên `bouncingballs` (hoặc cảnh đang có của phương pháp đó), cộng bốn file `slice-banana` của Deformable-3DGS, SC-GS,
+native 4DGS và 4DGaussians. Mỗi file kèm file camera nếu có. In bảng: tên, phương pháp, số Gaussian, số keyframe, dung lượng.
+Không train gì mới; thiếu output nào thì bỏ qua và in lý do.
+Việc 2: viết DEMO.md, một trang, cho buổi demo 10 phút với giáo sư: 5–6 lệnh theo thứ tự, mỗi lệnh kèm một dòng "cho thấy điều gì"
+(mở một output bằng một lệnh; kéo thời gian và xoay camera; chế độ điểm; so hai phương pháp trên cùng cảnh bằng --compare; ảnh gốc cạnh
+ảnh render kèm PSNR; xuất mp4), và một dòng về giới hạn đã biết. Chạy thật từng lệnh trước khi ghi vào.
+Việc 3: ghi vào DEMO.md cảnh nào có điều kiện sử dụng riêng (dữ liệu có người, giấy phép chỉ cho nghiên cứu: xem mục "Giấy phép và nguồn
+dữ liệu" của README) để người demo biết cảnh nào không được đăng công khai. Không tải gì lên mạng.
+Chỉ thêm: tests/make_demo_scenes.py, DEMO.md, một dòng trong README trỏ tới DEMO.md.
+Xong khi: thư mục demo có đủ file, mọi lệnh trong DEMO.md đã chạy được trên máy này, tổng dung lượng thư mục được ghi lại. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP33 — cài trên máy sạch bằng một lệnh
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Việc: viết setup.sh tạo `.venv` đúng phiên bản đã kiểm (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser, và các gói trong
+requirements.txt), tự chọn nhánh không CUDA khi máy không có GPU NVIDIA (khi đó chỉ có renderer client), rồi chạy một bài thử: tạo toy.npz,
+`python tests/run_all.py`, và in rõ renderer nào dùng được. Thêm `python -m gs4d.doctor` in phiên bản các gói, CUDA, Chrome, và việc cần làm
+nếu thiếu. Viết lại mục cài đặt của README thành: clone, `./setup.sh`, `python -m gs4d.open <output>`.
+Bước 0: `df -h .`; cần khoảng 8 GB trống cho một `.venv` thứ hai (ổ đĩa hiện còn khoảng 15 GB); thiếu thì báo và dừng.
+Kiểm bằng một bản clone mới vào thư mục tạm, không dùng lại `.venv` hiện có; ghi thời gian cài và dung lượng tải.
+Chỉ thêm hoặc sửa: setup.sh, gs4d/doctor.py, requirements.txt, mục cài đặt của README.
+Xong khi: trên bản clone mới, ba lệnh trên chạy được từ đầu đến cuối và mở được toy.npz bằng renderer gsplat. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP34 — quỹ đạo camera
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Vấn đề: giáo sư muốn di chuyển camera để quan sát cảnh động; hiện camera chỉ điều khiển bằng chuột và video chỉ quay từ camera đứng yên.
+Việc: thêm mục "Camera path" vào bảng điều khiển của viewer.py: nút thêm mốc từ camera hiện tại, danh sách mốc (nhảy tới, xoá, xoá hết),
+nút phát quỹ đạo, thanh "Path duration (s)", và ô chọn thời gian của cảnh khi đi theo quỹ đạo: đứng yên tại thời điểm hiện tại, hoặc chạy
+từ đầu đến cuối sequence. Nội suy vị trí trơn qua các mốc, hướng nhìn bằng slerp, fov tuyến tính. Lưu và nạp quỹ đạo dạng JSON
+(`--camera-path file.json`), cùng quy ước camera với `--cameras`. Nút xuất mp4 có thêm lựa chọn "theo quỹ đạo". Chạy ở cả hai renderer,
+với `--compare` và chế độ điểm. Thêm một quỹ đạo dựng sẵn: quay một vòng quanh tâm cảnh.
+Chỉ sửa viewer.py, thêm tests/check_path.py, một đoạn trong README; `gs4d/open.py` truyền `--camera-path` là việc của CC-B (ghi vào báo cáo).
+Xong khi: tests/check_path.py dựng quỹ đạo 3 mốc trên toy, kiểm camera tại 5 thời điểm khớp nội suy tính độc lập, và xuất được mp4;
+chạy tay với SC-GS `bouncingballs_sh` và `paper-windmill`, hai file mp4 đặt trong shots/path/; README ghi thời gian xuất. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP35 — vệt chuyển động và tô màu theo vận tốc
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Điều kiện: WP34 đã merge.
+Vấn đề: chế độ điểm (WP24) cho thấy vị trí từng thời điểm, chưa cho thấy cảnh chuyển động thế nào.
+Việc 1: ô chọn "Colour by": `colour` (như hiện tại), `speed` (độ lớn vận tốc tại thời điểm đang xem, tính từ hai keyframe kề), `displacement`
+(độ dịch so với keyframe đầu); có thang màu và giá trị lớn nhất hiển thị trong bảng điều khiển. Dùng được ở cả chế độ splats và points.
+Việc 2: ô "Trails": vẽ đường đi của M Gaussian (thanh chọn M; chọn ngẫu nhiên có hạt giống cố định, ưu tiên Gaussian dịch nhiều và đủ đục)
+trong cửa sổ thời gian ±Δ quanh thời điểm đang xem (thanh chọn Δ), cập nhật khi play. Với renderer gsplat ảnh là nền nên vệt vẽ bằng đối tượng
+đường của viser phía trên ảnh, không có che khuất theo độ sâu: ghi rõ giới hạn này.
+Chỉ áp dụng cho sequence có `interpolate=True` (các keyframe chung danh tính Gaussian); với loại còn lại thì ẩn hai ô và ghi lý do.
+Chỉ sửa viewer.py (và gs4d/format.py nếu cần hàm lấy vận tốc), thêm tests/check_trails.py, một đoạn trong README.
+Xong khi: test kiểm vận tốc và vệt trên toy với giá trị tính độc lập; ảnh chụp ở shots/trails/ cho SC-GS `bouncingballs_sh` và 4DGaussians
+`slice-banana`; README ghi thời gian một frame khi bật vệt với M = 500. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP36 — chọn cảnh trong giao diện; so sánh nhiều hơn hai sequence
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Điều kiện: WP35 đã merge.
+Việc 1: `python viewer.py <thư mục>` (thư mục chứa nhiều file `.npz` định dạng chung, ví dụ ../demo_scenes) hiện ô chọn "Scene" để đổi cảnh
+mà không khởi động lại; nạp lười, giải phóng cảnh cũ; camera giữ nguyên nếu hai cảnh cùng hệ tọa độ (cùng tiền tố tên), ngược lại đặt lại.
+Việc 2: `--compare` nhận nhiều file (tối đa 4): renderer gsplat chia lưới 2x2 cùng camera, tên file ở góc mỗi ô; renderer client đặt cạnh nhau.
+Ảnh gốc (`--cameras`) là một ô trong lưới khi được bật. Xuất mp4 và quỹ đạo camera (WP34) hoạt động với lưới.
+Chỉ sửa viewer.py, tests/check_compare.py, một đoạn trong README; `gs4d/open.py` nhận một thư mục chứa nhiều output thô là việc của CC-B.
+Xong khi: tests/check_compare.py qua với 3 và 4 sequence; ảnh chụp lưới bốn phương pháp trên `slice-banana` ở shots/compare/; README ghi
+thời gian một frame của lưới 2x2 ở 1280x720 và RAM / bộ nhớ GPU dùng. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP37 — chế độ xem độ sâu và độ đục
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Việc: ô chọn "Render" cho renderer gsplat: `colour`, `depth` (độ sâu kỳ vọng, thang màu, gần/xa tự lấy theo phân vị 2–98% của frame và hiện
+trong bảng điều khiển), `alpha` (độ đục tích luỹ). Đọc tài liệu gsplat 1.5.3 đang cài để dùng đúng `render_mode`; không tự tính lại độ sâu.
+Hoạt động khi play, với `--compare`, quỹ đạo camera và xuất mp4. Renderer client: ẩn ô này.
+Chỉ sửa viewer.py, thêm tests/check_depth.py, một đoạn trong README.
+Xong khi: test so độ sâu tại tâm ảnh của toy với khoảng cách tính độc lập; ảnh chụp ở shots/depth/ cho `paper-windmill` và một cảnh
+`slice-banana`. Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP38 — xem từ máy khác qua SSH (người làm)
+
+Trên máy thứ hai: `ssh -L 8080:localhost:8080 <máy này>`, mở `http://localhost:8080` bằng Chrome, chạy lại các bước đo của WP19b ở 1280×720.
+Xong khi README có số frame/giây hiển thị qua SSH cạnh số đo cùng máy, kèm loại mạng (LAN, Wi-Fi, VPN) và bitrate nếu đọc được.
+Nếu chậm rõ rệt, mở gói mới cho CC-A: giảm chất lượng JPEG hoặc độ phân giải khi camera đang di chuyển.
+
+#### WP39 — chạy test tự động khi push
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Điều kiện: WP33 đã merge. Việc: thêm .github/workflows/test.yml chạy trên mỗi push và pull request: cài bản không CUDA bằng setup.sh
+(hoặc phần tương ứng của nó), chạy `python tests/run_all.py` (các mục cần CUDA, Chrome có GPU hoặc ../data_real tự bỏ qua có lý do),
+Python 3.10. Thêm huy hiệu trạng thái vào README. Không push, không tạo repo, không đổi cài đặt GitHub: chỉ thêm file; việc push là của người dùng.
+Xong khi: lệnh tương đương chạy được trong một bản clone mới không có CUDA trên máy này, và danh sách mục bị bỏ qua được ghi trong báo cáo.
+Báo cáo 5 dòng rồi dừng.
+```
+
+#### WP40 — danh sách phương pháp hỗ trợ và hướng dẫn thêm converter
+```
+Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
+Việc 1: viết docs/SUPPORTED.md: bảng mọi phương pháp và biến thể đã hỗ trợ (đã kiểm với output thật nào, PSNR, giới hạn), và những biến thể
+converter dừng có thông báo. Lấy số từ README và mục Status của CLAUDE.md, không đo lại.
+Việc 2: viết docs/ADD_A_CONVERTER.md (các bước, quy ước đã ghi trong CLAUDE.md, bài học: kiểm camera của repo gốc trước khi tin số eval của nó,
+đo ở độ phân giải train) và convert_template.py + tests/test_template.py chạy được trên dữ liệu giả, dùng `Sequence4DWriter`.
+Việc 3: với các phương pháp giáo sư nêu trong bảng "Phản hồi của giáo sư sau demo" (nếu bảng trống thì dừng ở việc 2 và báo): mỗi phương pháp
+một đoạn ngắn: repo chính thức, định dạng output, thuộc dạng A/B/C/D nào, ước lượng công viết converter, có train được trên máy 12 GB GPU /
+15 GB RAM không. Tra repo thật, không viết từ trí nhớ; không viết converter trong gói này.
+Chỉ thêm: docs/, convert_template.py, tests/test_template.py, một dòng trong README.
+Xong khi: test của template qua và nằm trong `python tests/run_all.py`. Báo cáo 5 dòng rồi dừng.
+```
+
 
 ## Giai đoạn 3 — trả các việc còn nợ (16/11/2026)
 

@@ -209,6 +209,25 @@ Kiểm: `python tests/check_path.py` (nội suy khớp phép tính độc lập 
 Đo trên máy này (RTX 3060, gsplat, 1280×720, 300 frame): SC-GS `bouncingballs_sh` 5,2 s, `paper-windmill` 10,0 s; renderer client trên toy 480×300, 20 frame: 8 s.
 `gs4d/open.py` chưa truyền `--camera-path` (việc của CC-B).
 
+## Vận tốc và vệt chuyển động (WP35)
+
+Mục **Motion** trong bảng điều khiển (chỉ khi các keyframe chung danh tính Gaussian, `interpolate=True`; file khác thì mục này ghi lý do):
+
+- **Colour by** `colour` (màu của Gaussian, như trước) / `speed` (độ lớn vận tốc tại thời điểm đang xem, tính từ hai keyframe kề: |x(i+1) − x(i)| / (t(i+1) − t(i)),
+  không đổi giữa hai keyframe) / `displacement` (khoảng cách tới vị trí ở keyframe đầu). Thang màu xanh → lục → vàng → đỏ, giá trị lớn nhất hiện trong bảng
+  (phân vị 99 của các giá trị dương trên cả sequence, nhân với "Scale maximum (%)"). Dùng được ở cả hai renderer, chế độ splats, points và `--compare`;
+  màu SH bị thay bằng màu của thang (so sánh với ảnh gốc `--cameras` vẫn dùng mô hình nguyên bản).
+- **Trails**: đường đi của "Number of trails" Gaussian trong cửa sổ ± "Window" quanh thời điểm đang xem (24 mẫu, xanh = quá khứ, đỏ = tương lai), cập nhật khi
+  play. Chọn bằng bốc ngẫu nhiên có trọng số (hạt giống cố định) trong các Gaussian đủ đục (độ đục ≥ 0,3 ở một keyframe nào đó) và có dịch chuyển; đường đi
+  dài thì dễ được chọn hơn; kéo thanh số lượng chỉ thêm / bớt từ cuối danh sách. Lần bật đầu đọc mọi keyframe hai lượt (windmill 277 keyframe vài giây).
+  **Giới hạn**: vệt là đường của viser vẽ trên ảnh; với renderer gsplat ảnh chỉ là ảnh nền nên vệt không bị che theo độ sâu; với hai file cạnh nhau (`--compare`, "A | B")
+  gsplat chia đôi màn hình nên vệt chỉ vẽ khi một file được hiện, renderer client vẽ cả hai.
+
+Kiểm: `python tests/check_trails.py` (vận tốc, độ dịch và vệt so với số tính tay / `np.interp`, qua file nén có nhóm tĩnh; màu đưa cho renderer; ảnh ở `shots/trails/`);
+`--file f.npz --cameras c.json --name n` chụp ảnh một file thật. Đo trên máy này (gsplat, 500 vệt): cập nhật vệt 0,5 ms mỗi frame (không tính gửi qua mạng);
+decode + render 1280×720 + vệt 17 ms (SC-GS `bouncingballs_sh`), 7 ms (4DGaussians `slice-banana`, 52.741 Gaussian); client trên toy 0,5 ms cho vệt.
+Chưa đo: số frame hiển thị mỗi giây trong Chrome có GPU khi bật vệt.
+
 ## Định dạng chung (`gs4d/format.py`)
 
 | Khóa | Kích thước | Ý nghĩa |

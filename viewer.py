@@ -57,9 +57,10 @@ def camera_matrices(wxyz, position, fov_y: float, width: int, height: int):
     return np.linalg.inv(c2w).astype(np.float32), K
 
 
-def frame_cpu(seq: Sequence4D, t: float, min_opacity: float, scale: float, device):
+def frame_cpu(seq: Sequence4D, t: float, min_opacity: float, scale: float, device, shade=None):
     """gsplat inputs at time t, decoded and interpolated with numpy, then uploaded: (means, full covs [M,3,3], opacities,
-    colours or SH [M,S,3]) for the Gaussians whose opacity is at least min_opacity. The reference path."""
+    colours or SH [M,S,3]) for the Gaussians whose opacity is at least min_opacity. The reference path.
+    shade(means [N,3]) -> RGB [N,3], when given, replaces the colours (and the SH): "Colour by" speed / displacement."""
     import torch
 
     means, covs, opac, cols = seq.at(t)
@@ -67,14 +68,17 @@ def frame_cpu(seq: Sequence4D, t: float, min_opacity: float, scale: float, devic
     opac = np.where(opac >= min_opacity, opac, 0.0).astype(np.float32)
     covs = (unpack_cov(covs) * np.float32(scale ** 2)).astype(np.float32)
     keep = opac > 0
+    cols = shade(means) if shade is not None else cols if sh is None else sh
     return tuple(torch.from_numpy(np.ascontiguousarray(a[keep], np.float32)).to(device)
-                 for a in (means, covs, opac, cols if sh is None else sh))
+                 for a in (means, covs, opac, cols))
 
 
-def frame_gpu(gpu: GpuFrames, t: float, min_opacity: float, scale: float):
-    """Same result as frame_cpu, with decoding, interpolation, unpacking and thresholding done on the GPU."""
+def frame_gpu(gpu: GpuFrames, t: float, min_opacity: float, scale: float, shade=None):
+    """Same result as frame_cpu, with decoding, interpolation, unpacking and thresholding done on the GPU (shade gets torch tensors)."""
     torch = gpu.torch
     means, covs, opac, cols = gpu.at(t)
+    if shade is not None:
+        cols = shade(means)
     opac = torch.where(opac >= min_opacity, opac, torch.zeros_like(opac))
     keep = opac > 0
     c = covs[keep] * (scale ** 2)
@@ -263,6 +267,64 @@ def save_path(path: str, keys: list[dict], duration: float, closed: bool, run: b
                    "time": "run" if run else "hold", "frames": frames}, f, indent=1)
 
 
+# ---------------------------------------------------------------- motion: colour by speed / displacement, trails (WP35)
+COLOUR, SPEED, DISPLACEMENT = "colour", "speed", "displacement"
+_TURBO = [(0.0, (48, 18, 59)), (0.15, (70, 100, 230)), (0.3, (30, 190, 235)), (0.45, (40, 230, 150)), (0.6, (160, 250, 60)),
+          (0.75, (250, 200, 40)), (0.9, (240, 90, 20)), (1.0, (130, 5, 5))]
+
+
+def colour_lut(n: int = 256) -> np.ndarray:
+    """Blue (0) -> green -> yellow -> red (1) colour scale, float32 [n,3] in 0..1."""
+    x = np.linspace(0.0, 1.0, n)
+    return (np.stack([np.interp(x, [a for a, _ in _TURBO], [c[j] for _, c in _TURBO]) for j in range(3)], 1) / 255.0).astype(np.float32)
+
+
+class TrailData:
+    """Paths of the Gaussians shown as trails: `idx` ranks up to max_m Gaussians, most worth drawing first, and `traj` [K,M,3] holds
+    their centres at every keyframe.
+
+    A Gaussian is a candidate when its opacity reaches min_peak at some keyframe and it moves; it is ranked by a weighted random
+    draw (fixed seed, weight = path length over up to `sample` keyframes), so a longer path is likelier to come first, and asking
+    for fewer trails keeps the first ones. Two passes over the keyframes: path length and peak opacity on a sample of them,
+    then the centres of the chosen Gaussians at every keyframe."""
+
+    def __init__(self, seq: Sequence4D, max_m: int = 5000, seed: int = 0, min_peak: float = 0.3, sample: int = 48):
+        K, N = seq.num_frames, seq.num_gaussians
+        ks = np.unique(np.linspace(0, K - 1, min(K, sample)).round().astype(int))
+        length, peak, prev = np.zeros(N), np.zeros(N), None
+        for k in ks:
+            m = seq.keyframe_means(k).astype(np.float64)
+            if prev is not None:
+                length += np.linalg.norm(m - prev, axis=1)
+            prev = m
+            o = seq.opacities if seq.opacities.ndim == 1 else seq.opacities[int(k)]
+            peak = np.maximum(peak, np.asarray(o, np.float64))
+        cand = np.flatnonzero((peak >= min_peak) & (length > 0))
+        if len(cand) == 0:  # nothing moves: any opaque Gaussian
+            cand = np.flatnonzero(peak >= min_peak)
+            w = np.ones(len(cand))
+        else:
+            w = length[cand] / length[cand].max()
+        rng = np.random.default_rng(seed)
+        order = np.argsort(-(rng.random(len(cand)) ** (1.0 / np.maximum(w, 1e-12))))  # weighted sampling without replacement
+        self.idx = cand[order[:max_m]]
+        self.times = np.asarray(seq.times, np.float64)
+        self.traj = np.empty((K, len(self.idx), 3), np.float32)
+        for k in range(K):
+            self.traj[k] = seq.keyframe_means(k)[self.idx]
+
+    def at(self, t: float, delta: float, m: int, samples: int = 24):
+        """Positions [samples, m, 3] of the first m trails at `samples` times spread over [t - delta, t + delta] (clipped to the
+        sequence), by linear interpolation between keyframes, and the fraction 0..1 of each sample in the window."""
+        ts = np.clip(t + np.linspace(-delta, delta, samples), self.times[0], self.times[-1])
+        i1 = np.clip(np.searchsorted(self.times, ts, side="left"), 0, len(self.times) - 1)
+        i0 = np.where(self.times[i1] == ts, i1, np.maximum(i1 - 1, 0))
+        w = np.where(i0 == i1, 0.0, (ts - self.times[i0]) / np.maximum(self.times[i1] - self.times[i0], 1e-12))
+        m = min(int(m), len(self.idx))
+        pos = (1 - w)[:, None, None] * self.traj[i0, :m] + w[:, None, None] * self.traj[i1, :m]
+        return pos.astype(np.float32), np.linspace(0.0, 1.0, samples)
+
+
 SIDE_BY_SIDE = "A | B"
 SPLATS, POINTS = "splats", "points"  # "Draw as": the Gaussians themselves, or one dot at each Gaussian's centre
 # initial camera direction (scene centre -> camera) for each world up axis
@@ -310,6 +372,16 @@ class Viewer:
                       "(raise --max-splats or use --renderer gsplat)")
 
         self.centre, self.radius = _bounds(seq)
+        self.motion_ok = all(q.interpolate for q in self.seqs)  # speed, displacement and trails need identities shared by keyframes
+        self.lut = colour_lut()
+        self.vmax_cache: dict = {}
+        self.first_np: dict = {}
+        self.speed_np: dict = {}
+        self.speed_gpu: dict = {}
+        self.ref0_gpu: dict = {}
+        self.trail_data: dict = {}
+        self.trail_h: dict = {}
+        self.trail_n: dict = {}
         self.path_keys: list[dict] = []  # camera path (WP34)
         self.path_u, self.path_playing, self.path_shape = 0.0, False, None
         # client renderer, side by side: B is drawn this far to the right of A (as seen from the initial camera)
@@ -359,6 +431,7 @@ class Viewer:
         if self.cameras:
             self._build_camera_gui()
         self._build_path_gui()
+        self._build_motion_gui()
         with g.add_folder("Display", expand_by_default=False):
             self.min_opacity = g.add_slider("Hide opacity below", min=0.0, max=0.5, step=0.005, initial_value=0.02)
             self.scale = g.add_slider("Gaussian size (x)", min=0.1, max=2.0, step=0.05, initial_value=1.0)
@@ -421,6 +494,127 @@ class Viewer:
 
         for h in (self.min_opacity, self.scale, self.draw_as, self.point_size):
             h.on_update(lambda _e: setattr(self, "dirty", True))
+
+    # ---------------------------------------------------------------- motion (WP35)
+    def _build_motion_gui(self):
+        g = self.server.gui
+        with g.add_folder("Motion", expand_by_default=False):
+            if not self.motion_ok:
+                g.add_markdown("_Colour by speed / displacement and trails need keyframes that share Gaussian identities "
+                               "(`interpolate=True`); this file has per-keyframe Gaussians._")
+                self.colour_by = self.trails_on = None
+                return
+            self.colour_by = g.add_dropdown("Colour by", options=(COLOUR, SPEED, DISPLACEMENT), initial_value=COLOUR)
+            self.scale_pct = g.add_slider("Scale maximum (%)", min=10, max=200, step=5, initial_value=100)
+            g.add_image((np.tile(self.lut[None], (12, 1, 1)) * 255).astype(np.uint8), label="Scale")
+            self.scale_info = g.add_markdown("")
+            self.trails_on = g.add_checkbox("Trails", initial_value=False)
+            self.trail_m = g.add_slider("Number of trails", min=10, max=5000, step=10, initial_value=500)
+            self.trail_dt = g.add_slider("Window ± (time units)", min=self.duration / 200, max=self.duration / 2, step=self.duration / 200,
+                                         initial_value=self.duration / 10)
+            self.trail_info = g.add_markdown("_Trails follow the most moving, opaque Gaussians over the window, blue = past, red = future. "
+                                             "They are lines drawn on top of the picture: no hiding by depth with the gsplat renderer, "
+                                             "and with two files side by side there only for the client renderer._")
+        for h in (self.colour_by, self.scale_pct, self.trails_on, self.trail_m, self.trail_dt):
+            h.on_update(lambda _e: setattr(self, "dirty", True))
+        self.colour_by.on_update(lambda _e: self._update_scale_info())
+        self.scale_pct.on_update(lambda _e: self._update_scale_info())
+        self._update_scale_info()
+
+    def _colour_on(self) -> bool:
+        return self.motion_ok and self.colour_by is not None and self.colour_by.value != COLOUR
+
+    def _update_scale_info(self):
+        if self._colour_on():
+            kind = self.colour_by.value
+            self.scale_info.content = (f"0 = blue, {self._vmax_eff():.3g} = red · {'scene units per time unit' if kind == SPEED else 'scene units'}"
+                                       " (99th percentile over the sequence × the percentage above)")
+        else:
+            self.scale_info.content = "_Gaussians keep their own colour._"
+
+    def _vmax(self, kind: str) -> float:
+        """99th percentile of the positive values of speed / displacement over the whole sequence (pooled over all shown files)."""
+        if kind not in self.vmax_cache:
+            vals = []
+            for q in self.seqs:
+                for t in np.linspace(q.times[0], q.times[-1], min(40, 2 * q.num_frames)):
+                    v = q.speed_at(t) if kind == SPEED else q.displacement_at(t)
+                    v = v[v > 0]
+                    vals.append(v[:: max(len(v) // 20000, 1)])
+            v = np.concatenate(vals) if vals else np.zeros(0)
+            self.vmax_cache[kind] = float(np.percentile(v, 99)) if len(v) else 1.0
+            self.vmax_cache[kind] = self.vmax_cache[kind] or 1.0
+        return self.vmax_cache[kind]
+
+    def _vmax_eff(self) -> float:
+        return self._vmax(self.colour_by.value) * self.scale_pct.value / 100.0
+
+    def _shade_np(self, i: int, t: float, means: np.ndarray) -> np.ndarray:
+        """RGB [N,3] of the Gaussians of sequence i at time t for the chosen "Colour by"."""
+        q, kind = self.seqs[i], self.colour_by.value
+        if kind == SPEED:
+            seg = q.speed_segment(t)
+            if self.speed_np.get(i, (None,))[0] != seg:
+                self.speed_np[i] = (seg, q.segment_speed(seg))
+            v = self.speed_np[i][1]
+        else:
+            v = q.displacement_at(t, means)
+        return self.lut[(np.clip(v / self._vmax_eff(), 0.0, 1.0) * (len(self.lut) - 1) + 0.5).astype(np.int64)]
+
+    def _shade_gpu(self, i: int, t: float, means):
+        """Same on the GPU: `means` is the torch tensor of the Gaussian centres at time t."""
+        torch, q, kind = self.torch, self.seqs[i], self.colour_by.value
+        if kind == SPEED:
+            seg = q.speed_segment(t)
+            if self.speed_gpu.get(i, (None,))[0] != seg:  # piecewise constant: one upload per keyframe interval
+                self.speed_gpu[i] = (seg, torch.from_numpy(q.segment_speed(seg)).to(self.device))
+            v = self.speed_gpu[i][1]
+        else:
+            if i not in self.ref0_gpu:
+                self.ref0_gpu[i] = torch.from_numpy(q.keyframe_means(0)).to(self.device)
+            v = (means - self.ref0_gpu[i]).norm(dim=1)
+        if not hasattr(self, "lut_t"):
+            self.lut_t = torch.from_numpy(self.lut).to(self.device)
+        n = len(self.lut) - 1
+        return self.lut_t[((v / self._vmax_eff()).clamp(0.0, 1.0) * n + 0.5).long()]
+
+    def _draw_trails(self):
+        """Lines along the paths of the most moving Gaussians in the window around the current time (both renderers)."""
+        if not self.motion_ok or self.trails_on is None:
+            return
+        shown = self._shown()
+        for i in range(len(self.seqs)):
+            want = self.trails_on.value and i in shown and (self.renderer == "client" or len(shown) == 1)
+            h = self.trail_h.get(i)
+            if not want:
+                if h is not None:
+                    h.visible = False
+                continue
+            if i not in self.trail_data:
+                self.trail_info.content = "_Preparing trails (reading every keyframe once) ..._"
+                self.trail_data[i] = TrailData(self.seqs[i])
+                self.trail_info.content = self._trail_note()
+            td = self.trail_data[i]
+            m = min(int(self.trail_m.value), len(td.idx))
+            pos, frac = td.at(self.time.value, float(self.trail_dt.value), m)
+            segs = np.stack([pos[:-1], pos[1:]], 2).transpose(1, 0, 2, 3).reshape(-1, 2, 3)  # [m*(S-1), 2, 3]
+            col = np.tile((self.lut[(np.stack([frac[:-1], frac[1:]], 1) * (len(self.lut) - 1)).round().astype(int)] * 255).astype(np.uint8)[None],
+                          (m, 1, 1, 1)).reshape(-1, 2, 3)
+            if h is None or self.trail_n.get(i) != m:
+                if h is not None:
+                    h.remove()
+                h = self.trail_h[i] = self.server.scene.add_line_segments(
+                    f"/trails/{'ab'[i]}", points=segs, colors=col, thickness=1.5, thickness_units="screen")
+                self.trail_n[i] = m
+            else:
+                h.points, h.visible = segs, True
+            h.position = tuple(self.offset) if (self.renderer == "client" and len(shown) == 2 and i == 1) else (0.0, 0.0, 0.0)
+            h.visible = True
+
+    def _trail_note(self) -> str:
+        n = len(next(iter(self.trail_data.values())).idx)
+        return (f"_{n:,} trails prepared. Blue = past, red = future. Lines are drawn on top of the picture: no hiding by depth with the "
+                "gsplat renderer, and with two files side by side only for the client renderer._")
 
     # ---------------------------------------------------------------- camera path (WP34)
     def _build_path_gui(self):
@@ -636,6 +830,8 @@ class Viewer:
     # ---------------------------------------------------------------- drawing
     def _current(self, i: int = 0, full_cov: bool = True):
         means, covs, opac, cols = self.seqs[i].at(self.time.value)
+        if self._colour_on():
+            cols = self._shade_np(i, self.time.value, means)
         sub = self.subsets[i]
         if sub is not None:
             means, covs, opac, cols = means[sub], covs[sub], opac[sub], cols[sub]
@@ -696,12 +892,15 @@ class Viewer:
         when the sequence has them. Decoding and interpolation run on the GPU (GpuFrames) unless --cpu-decode."""
         self.cur = {i: self._frame(i, self.min_opacity.value, self.scale.value) for i in self._shown()}
 
-    def _frame(self, i: int, min_opacity: float, scale: float):
+    def _frame(self, i: int, min_opacity: float, scale: float, plain: bool = False):
+        """gsplat tensors of sequence i at the current time; with "Colour by" on, the colours are RGB from the speed / displacement
+        (unless plain: the model as it is, for the ground-truth comparison)."""
+        t, on = self.time.value, self._colour_on() and not plain
         if getattr(self.args, "cpu_decode", False):
-            return frame_cpu(self.seqs[i], self.time.value, min_opacity, scale, self.device)
+            return frame_cpu(self.seqs[i], t, min_opacity, scale, self.device, (lambda m: self._shade_np(i, t, m)) if on else None)
         if self.gpu[i] is None:
             self.gpu[i] = GpuFrames(self.seqs[i], self.device)
-        return frame_gpu(self.gpu[i], self.time.value, min_opacity, scale)
+        return frame_gpu(self.gpu[i], t, min_opacity, scale, (lambda m: self._shade_gpu(i, t, m)) if on else None)
 
     def render_gsplat(self, wxyz, position, fov_y: float, W: int, H: int) -> np.ndarray:
         """Current time step seen from a viser camera, as uint8 [H,W,3] on a white background.
@@ -741,6 +940,7 @@ class Viewer:
         from gsplat import rasterization
 
         means, covs, opac, cols = self.cur[i] if frame is None else frame
+        sh_degree = None if (frame is None and self._colour_on()) else self.seqs[i].sh_degree  # shaded colours are plain RGB
         if len(means) == 0:  # everything hidden by the opacity threshold
             return torch.full((H, W, 3), 1.0 if white else 0.0, device=self.device)
         K = torch.from_numpy(K_np).to(self.device)
@@ -753,10 +953,10 @@ class Viewer:
                 sigma = depth * (float(self.point_size.value) / 2.355 / float(K_np[0, 0]))
                 quats = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).expand(len(means), 4)
                 img, alpha, _ = rasterization(means, quats, sigma[:, None].expand(-1, 3), torch.ones_like(opac), cols,
-                                              viewmat[None], K[None], W, H, sh_degree=self.seqs[i].sh_degree)
+                                              viewmat[None], K[None], W, H, sh_degree=sh_degree)
             else:
                 img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
-                                              sh_degree=self.seqs[i].sh_degree)
+                                              sh_degree=sh_degree)
             if white:  # composite over white, the browser renderer's background
                 img = img[0] + (1.0 - alpha[0])  # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
             else:
@@ -784,7 +984,7 @@ class Viewer:
         f = c["fx"] * W / c["w"]
         K = np.array([[f, 0, W / 2], [0, f, H / 2], [0, 0, 1]], np.float32)
         # the model as it is: the Display sliders (opacity threshold, size) do not apply, so the PSNR is the model's
-        pred = self._raster(i, np.linalg.inv(c["c2w"]).astype(np.float32), K, W, H, white, self._frame(i, 0.0, 1.0)).cpu().numpy()
+        pred = self._raster(i, np.linalg.inv(c["c2w"]).astype(np.float32), K, W, H, white, self._frame(i, 0.0, 1.0, plain=True)).cpu().numpy()
         mse = float(np.mean((pred - gt) ** 2))
         return pred, gt, 10 * np.log10(1.0 / max(mse, 1e-12))
 
@@ -948,6 +1148,8 @@ class Viewer:
                     self._draw_client()
             else:
                 self._draw_gsplat(time_changed)
+            if time_changed:
+                self._draw_trails()
             time.sleep(max(1.0 / self.target_fps.value - (time.time() - now), 0.001))
 
 

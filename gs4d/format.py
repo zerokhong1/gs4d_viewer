@@ -506,6 +506,36 @@ class Sequence4D:
             self._field(self.colors, 2, i0, i1, w),
         )
 
+    # ---- motion (WP35): speed and displacement of Gaussians that keep their identity between keyframes (interpolate=True)
+    def keyframe_means(self, k: int) -> np.ndarray:
+        """Centres of every Gaussian at keyframe k, float32 [N,3]."""
+        a = self.means
+        return np.asarray(a if a.ndim == 2 else a[int(k)], np.float32)
+
+    def speed_segment(self, t: float) -> int:
+        """Index i of the keyframe pair (i, i + 1) whose velocity is the velocity at time t: the pair t lies in; at a keyframe
+        the pair that starts there, at the last keyframe the pair that ends there."""
+        i0, i1, _ = self._bracket(t)
+        return min(i0, self.num_frames - 2) if self.num_frames > 1 else 0
+
+    def segment_speed(self, i: int) -> np.ndarray:
+        """Speed |x(i + 1) - x(i)| / (t(i + 1) - t(i)) of every Gaussian in scene units per time unit, float32 [N]. Zeros for one keyframe."""
+        if not self.interpolate:
+            raise ValueError("speed is only defined when the keyframes share Gaussian identities (interpolate=True)")
+        if self.num_frames < 2:
+            return np.zeros(self.num_gaussians, np.float32)
+        d = self.keyframe_means(i + 1).astype(np.float64) - self.keyframe_means(i)
+        return (np.linalg.norm(d, axis=1) / float(self.times[i + 1] - self.times[i])).astype(np.float32)
+
+    def speed_at(self, t: float) -> np.ndarray:
+        """Speed of every Gaussian at time t, from the two keyframes around it (piecewise constant between keyframes)."""
+        return self.segment_speed(self.speed_segment(t))
+
+    def displacement_at(self, t: float, means: Optional[np.ndarray] = None) -> np.ndarray:
+        """Distance of every Gaussian's centre at time t from its position at the first keyframe, float32 [N]."""
+        m = self.at(t)[0] if means is None else means
+        return np.linalg.norm(np.asarray(m, np.float64) - self.keyframe_means(0), axis=1).astype(np.float32)
+
     def sh_at(self, t: float) -> Optional[np.ndarray]:
         """SH coefficients at time t, [N,S,3], or None when the sequence has none."""
         if self.sh is None:
