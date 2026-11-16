@@ -62,7 +62,7 @@ def test_spacetime():
         c[f"rot_{k}"] = rng.normal(size=N).astype(np.float32)
     c["f_dc_0"] = np.full(N, 0.25, np.float32)
     c["f_dc_1"] = np.full(N, 0.5, np.float32)
-    c["f_dc_2"] = np.full(N, 1.5, np.float32)  # out of range -> clipped to 1
+    c["f_dc_2"] = np.full(N, 1.5, np.float32)  # out of range: kept, the repo blends raw colours and clamps the pixel
     with tempfile.TemporaryDirectory() as tmp:
         ply, out = os.path.join(tmp, "point_cloud.ply"), os.path.join(tmp, "st.npz")
         write_ply(ply, c)
@@ -77,7 +77,7 @@ def test_spacetime():
             assert np.allclose(seq.means[k][i], p, atol=1e-4), (k, i)
             assert np.allclose(unpack_cov(seq.covs[k][i]), cov, atol=1e-4), (k, i)
             assert abs(seq.opacities[k][i] - o) < 1e-5, (k, i)
-    assert np.allclose(seq.colors[0], [0.25, 0.5, 1.0])
+    assert np.allclose(seq.colors[0], [0.25, 0.5, 1.5])
     print("ok  spacetime ply -> common format matches independent formulas at 3 times")
     test_full_model_stops(c)
 

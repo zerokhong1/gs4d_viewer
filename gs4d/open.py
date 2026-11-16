@@ -14,7 +14,9 @@ Recognised (checked in this order, the first match wins; nothing is guessed):
     folder holding point_cloud/iteration_*/point_cloud.ply of that kind -> convert_spacetime.py
 Cameras: unless --cameras is given, the viewer gets --cameras for a cameras.json in the output's folder (or up to 3
 folders above it) or, failing that, for the transforms_test.json of the dataset named by source_path in cfg_args.
-The converted file is <name>.gs4d.npz next to the output and is reused while the output is unchanged.
+When that dataset has the Nerfies / HyperNeRF layout (camera/, metadata.json, rgb/<N>x/) and the output is a 4DGaussians,
+Deformable-3DGS or SC-GS folder, the held-out cameras are written to <name>.gs4d.cameras.json next to the output.
+The converted file is <name>.gs4d.npz next to the output and is reused while it is newer than the output and the converter script.
 D-NeRF scenes (cfg_args next to the output says dnerf / is_blender) get the time range [0, 1].
 """
 from __future__ import annotations
@@ -111,6 +113,65 @@ def find_cameras(path: Path) -> Path | None:
                     return tj / "transforms_test.json"
             return None
     return None
+
+
+def nerfies_scene(path: Path) -> Path | None:
+    """The dataset folder named by source_path in cfg_args when it has the Nerfies / HyperNeRF layout
+    (camera/<id>.json, metadata.json, rgb/<N>x/), else None."""
+    d = Path(path).resolve()
+    d = d if d.is_dir() else d.parent
+    for cur in [d, *list(d.parents)[:4]]:
+        cfg = cur / "cfg_args"
+        if cfg.is_file():
+            m = re.search(r"source_path=(['\"])(.*?)\1", cfg.read_text(errors="replace"))
+            if not m:
+                return None
+            src = Path(m.group(2))
+            src = src if src.is_absolute() else cur / src
+            ok = (src / "camera").is_dir() and (src / "metadata.json").is_file() and (src / "rgb").is_dir()
+            return src if ok else None
+    return None
+
+
+def write_nerfies_cameras(scene: Path, out: Path, raw: bool) -> int:
+    """Writes the cameras of a Nerfies / HyperNeRF dataset as a cameras.json viewer.load_cameras reads; returns how many.
+
+    Held-out frames (dataset.json val_ids) when there are any, else every frame. Camera maths as in the methods' loaders
+    (and tests/check_real.py::load_nerfies_val_set): w2c rotation = orientation, focal = focal_length / N for the rgb/<N>x
+    images (the smallest ones present), principal point at the image centre, no lens distortion.
+    raw=False (Deformable-3DGS, SC-GS): position = (position - center) * scale of scene.json, time = time_id / max.
+    raw=True (hustvl 4DGaussians): positions as stored, time = warp_id / max."""
+    meta = json.loads((scene / "metadata.json").read_text())
+    ids = []
+    if (scene / "dataset.json").is_file():
+        ds = json.loads((scene / "dataset.json").read_text())
+        ids = ds.get("val_ids") or ds.get("ids") or []
+    ids = [i for i in (ids or sorted(meta)) if (scene / "camera" / f"{i}.json").is_file() and i in meta]
+    factors = sorted(int(f.name[:-1]) for f in (scene / "rgb").iterdir() if f.is_dir() and re.fullmatch(r"\d+x", f.name))
+    if not ids or not factors:
+        return 0
+    n = factors[-1]
+    centre, scale = np.zeros(3), 1.0
+    if not raw:
+        sc = json.loads((scene / "scene.json").read_text())
+        centre, scale = np.array(sc["center"], float), float(sc["scale"])
+    tkey = "warp_id" if raw else "time_id"
+    tmax = max(max(m[tkey] for m in meta.values()), 1)
+    frames = []
+    for i in ids:
+        cam = json.loads((scene / "camera" / f"{i}.json").read_text())
+        c2w = np.eye(4)
+        c2w[:3, :3] = np.array(cam["orientation"], float).T
+        c2w[:3, 3] = (np.array(cam["position"], float) - centre) * scale
+        img = scene / "rgb" / f"{n}x" / f"{i}.png"
+        fr = dict(name=i, c2w=c2w.tolist(), fx=float(cam["focal_length"]) / n, time=meta[i][tkey] / tmax)
+        if img.is_file():
+            fr["image"] = str(img)
+        else:
+            fr["w"], fr["h"] = (int(round(v / n)) for v in cam["image_size"])
+        frames.append(fr)
+    out.write_text(json.dumps(dict(convention="opencv", source=str(scene), frames=frames)))
+    return len(frames)
 
 
 def _frame_plys(folder: Path) -> Path | None:
@@ -217,13 +278,18 @@ def cache_path(arg: Path, info: dict) -> Path:
     return arg.parent / (arg.name + ".gs4d.npz")
 
 
-def is_fresh(cache: Path, src: Path) -> bool:
-    return cache.is_file() and cache.stat().st_mtime >= _newest_mtime(src)
+def is_fresh(cache: Path, src: Path, converter: Path | None = None) -> bool:
+    """The cache is newer than the output and, when given, than the converter script (a fixed converter converts again)."""
+    if not cache.is_file():
+        return False
+    newest = max(_newest_mtime(src), converter.stat().st_mtime if converter is not None and converter.is_file() else 0.0)
+    return cache.stat().st_mtime >= newest
 
 
 COMPACT_OVER = 1 << 30   # estimated size above which --compact is passed to the converter
 PLY_BYTES = 248          # one Gaussian in a 3DGS ply with SH degree 3 (62 float32)
 OUT_BYTES = 40           # one Gaussian at one keyframe in the plain format (see README)
+SH_BYTES = 192           # SH degree 3 of one Gaussian as float32 (16 x 3 x 4), what --sh adds
 
 
 def _size(p: Path) -> int:
@@ -238,12 +304,14 @@ def estimate_bytes(info: dict, convert_args=()) -> int:
         return _size(src) * OUT_BYTES // (PLY_BYTES if kind == "per_frame" else OUT_BYTES)
     args = list(convert_args)
     k = int(args[args.index("--frames") + 1]) if "--frames" in args and args.index("--frames") + 1 < len(args) else 60
+    sh = "--sh" in args
     if kind == "shape_of_motion":
         return _size(src) // 300 * 200 * OUT_BYTES   # ~300 B per Gaussian with optimiser state, assume ~200 frames
-    if kind == "native4d":
-        return _size(src) * k * OUT_BYTES // 400                       # checkpoint holds ~400 bytes per Gaussian
+    if kind == "native4d":   # checkpoint holds ~400 bytes per Gaussian; --sh stores SH at every keyframe
+        return _size(src) // 400 * k * (OUT_BYTES + (SH_BYTES if sh else 0))
     ply = _last_iteration(src / "point_cloud", "point_cloud.ply") if src.is_dir() else src
-    return _size(ply) // PLY_BYTES * k * OUT_BYTES
+    n = _size(ply) // PLY_BYTES
+    return n * k * OUT_BYTES + (n * SH_BYTES if sh else 0)   # the other converters store SH once per Gaussian
 
 
 def main(argv=None):
@@ -267,7 +335,7 @@ def main(argv=None):
         cmd_conv = None
     else:
         target = cache_path(path, info)
-        fresh = is_fresh(target, info["src"]) and not a.reconvert
+        fresh = is_fresh(target, info["src"], ROOT / info["converter"]) and not a.reconvert
         conv_args = a.convert_args.split()
         cmd_conv = None if fresh else [sys.executable, str(ROOT / info["converter"]), str(info["src"]),
                                        "-o", str(target), *info["extra"], *conv_args]
@@ -276,10 +344,20 @@ def main(argv=None):
             if est > COMPACT_OVER:
                 print(f"gs4d.open: estimated file {est / 2**30:.1f} GB > 1 GB, converting with --compact", flush=True)
                 cmd_conv.append("--compact")
-    # the ground-truth view needs one sequence, so --compare gets no automatic --cameras (WP18)
-    given = any(x == "--cameras" or x.startswith("--cameras=") or x == "--compare" or x.startswith("--compare=")
-                for x in viewer_args)
+    # with --compare the cameras are still passed: the viewer shows render A | image | render B (WP29)
+    given = any(x == "--cameras" or x.startswith("--cameras=") for x in viewer_args)
     cams = None if given else find_cameras(path)
+    if cams is None and not given and info["kind"] in ("4dgaussians", "deformable3dgs", "scgs"):
+        scene = nerfies_scene(path)   # HyperNeRF layout: no camera file to pass on, so one is written next to the cache
+        if scene is not None:
+            cams = target.with_name(target.name.replace(".gs4d.npz", "") + ".gs4d.cameras.json")
+            if not a.dry_run:
+                try:
+                    if not write_nerfies_cameras(scene, cams, raw=info["kind"] == "4dgaussians"):
+                        cams = None
+                except (OSError, ValueError, KeyError) as e:
+                    print(f"gs4d.open: could not read the cameras of {scene}: {e!r}", flush=True)
+                    cams = None
     if cams is not None:
         viewer_args = [*viewer_args, "--cameras", str(cams)]
     cmd_view = [sys.executable, str(ROOT / "viewer.py"), str(target), *viewer_args]

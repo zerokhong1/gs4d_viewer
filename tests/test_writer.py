@@ -180,7 +180,33 @@ def test_converters():
     print("ok  convert_native4d: per-keyframe slicing == slice_native4d / sh_at_times")
 
 
+def test_colors_out_of_range():
+    """Per-keyframe colours outside [0,1] (Spacetime Gaussians keeps raw colours) are not clipped by the compact layout:
+    they stay float32, in `save` and in the writer alike; colours inside [0,1] are still packed as uint8."""
+    rng = np.random.default_rng(4)
+    K, N = 4, 50
+    times = np.arange(K, dtype=np.float32)
+    means = rng.normal(size=(K, N, 3)).astype(np.float32)
+    covs = np.tile(np.array([1, 0, 0, 1, 0, 1], np.float32) * 0.01, (K, N, 1))
+    opac = rng.uniform(0.1, 1, (K, N)).astype(np.float32)
+    wild = rng.uniform(-2, 3, (K, N, 3)).astype(np.float32)
+    with tempfile.TemporaryDirectory() as tmp:
+        a, b = os.path.join(tmp, "a.npz"), os.path.join(tmp, "b.npz")
+        for cols, packed in ((wild, False), (np.clip(wild, 0, 1), True)):
+            Sequence4D(times, means, covs, opac, cols).save(a, compact=True)
+            with Sequence4DWriter(b, compact=True) as w:
+                for k in range(K):
+                    w.add_keyframe(times[k], means=means[k], covs=covs[k], opacities=opac[k], colors=cols[k])
+            za, zb = np.load(a), np.load(b)
+            assert sorted(za.files) == sorted(zb.files) and all(np.array_equal(za[f], zb[f]) for f in za.files)
+            assert ("colors_u8" in za.files) == packed and ("colors" in za.files) == (not packed), za.files
+            if not packed:
+                assert np.array_equal(Sequence4D.load(a, lazy=True).at(1.0)[3], cols[1])
+    print("ok  compact: colours outside [0,1] stay float32 (save == writer), colours inside are uint8")
+
+
 test_bit_identical()
+test_colors_out_of_range()
 test_load_and_errors()
 test_memory()
 test_converters()

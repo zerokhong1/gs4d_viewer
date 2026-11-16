@@ -31,7 +31,7 @@ def write_ply(path, cols, attrs):
         f.write(arr.tobytes())
 
 
-def build_network(torch, blender, local_frame, pred_opacity, D=8, W=256):
+def build_network(torch, blender, local_frame, pred_opacity, D=8, W=256, pred_color=None):
     nn = torch.nn
 
     def posenc(x, n):
@@ -54,6 +54,10 @@ def build_network(torch, blender, local_frame, pred_opacity, D=8, W=256):
                 self.local_rotation = nn.Linear(W, 4)
             if pred_opacity:
                 self.gaussian_opacity = nn.Linear(W, 1)
+            if pred_color == "resnet":  # the repo's default colour head: on [position emb, time emb, hidden]
+                self.gaussian_color = nn.Sequential(nn.Linear(inch + W, W), nn.ReLU(), nn.Linear(W, W), nn.ReLU(), nn.Linear(W, 3))
+            elif pred_color == "linear":
+                self.gaussian_color = nn.Linear(W, 3)
 
         def forward(self, x, t):
             te = posenc(t, self.tm)
@@ -70,6 +74,10 @@ def build_network(torch, blender, local_frame, pred_opacity, D=8, W=256):
                 out["local_rot"] = self.local_rotation(h)
             if pred_opacity:
                 out["d_opacity"] = self.gaussian_opacity(h)
+            if pred_color == "resnet":
+                out["d_color"] = self.gaussian_color(torch.cat([xe, te, h], -1))
+            elif pred_color == "linear":
+                out["d_color"] = self.gaussian_color(h)
             return out
 
     torch.manual_seed(3 + blender)
@@ -78,6 +86,8 @@ def build_network(torch, blender, local_frame, pred_opacity, D=8, W=256):
         for name, p in net.named_parameters():
             if name.split(".")[0] in ("gaussian_warp", "gaussian_rotation", "gaussian_scaling", "local_rotation", "gaussian_opacity"):
                 p.mul_(4.0)
+            if name == ("gaussian_color.4.weight" if pred_color == "resnet" else "gaussian_color.weight"):
+                p.mul_(6.0)
     return net
 
 
@@ -88,7 +98,7 @@ def rot_from_quat(q):
                      [2 * (x*z - w*y), 2 * (y*z + w*x), 1 - 2 * (x*x + y*y)]])
 
 
-def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, max_d_scale):
+def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, max_d_scale, pred_color=None, sh=False):
     rng = np.random.default_rng(11 + H)
     N, M, F = 60, 20, 4
     n_fea = H + (1 if motion_mask else 0)
@@ -97,7 +107,7 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     c = {n: rng.normal(0, 0.5, N).astype(np.float32) for n in attrs}
     for i in range(3):
         c[f"scale_{i}"] = rng.normal(-2.5, 0.4, N).astype(np.float32)
-    net = build_network(torch, blender, local_frame, pred_opacity)
+    net = build_network(torch, blender, local_frame, pred_opacity, pred_color=pred_color)
     sd = {f"network.{k}": v for k, v in net.state_dict().items()}
     sd["nodes"] = torch.nn.Parameter(torch.from_numpy(rng.normal(0, 0.5, (M, 3 + H)).astype(np.float32)))
     sd["_node_radius"] = torch.nn.Parameter(torch.from_numpy(rng.normal(-0.5, 0.3, M).astype(np.float32)))
@@ -113,8 +123,14 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
         cmd = [sys.executable, os.path.join(ROOT, "convert_scgs.py"), tmp, "-o", out, "--frames", str(F), "--knn", str(K)]
         if max_d_scale > 0:
             cmd += ["--max-d-scale", str(max_d_scale)]
+        if sh:
+            cmd += ["--sh"]
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)
+        if pred_color:  # --ignore-pred-color: the same file with the ply's colours, constant in time
+            subprocess.run(cmd + ["--ignore-pred-color"], check=True, stdout=subprocess.DEVNULL)
+            flat = Sequence4D.load(out)
+            assert flat.colors.ndim == 2 and np.allclose(flat.means[1], seq.means[1])
     assert seq.num_frames == F and seq.num_gaussians == N
 
     nodes = sd["nodes"].detach().numpy().astype(np.float64)
@@ -125,7 +141,12 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     quat = np.stack([c[f"rot_{i}"] for i in range(4)], -1).astype(np.float64)
     scale = np.exp(np.stack([c[f"scale_{i}"] for i in range(3)], -1).astype(np.float64))
     opac0 = 1 / (1 + np.exp(-c["opacity"].astype(np.float64)))
-    moved = 0.0
+    dc0 = np.stack([c[f"f_dc_{i}"] for i in range(3)], -1).astype(np.float64)
+    rest0 = np.stack([c[f"f_rest_{i}"] for i in range(9)], -1).astype(np.float64).reshape(N, 3, 3).transpose(0, 2, 1)  # [N, 3 coeffs, rgb]
+    moved = recoloured = 0.0
+    if pred_color:
+        assert seq.colors.ndim == 3, "colours must be stored per keyframe"
+        assert (seq.sh is not None and seq.sh.ndim == 4) if sh else seq.sh is None
     for k in (0, 1, 3):
         t = float(seq.times[k])
         with torch.no_grad():
@@ -156,17 +177,25 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
             if pred_opacity:
                 o = np.clip(opac0[i] + m * sum(wj * v["d_opacity"][j, 0] for j, wj in zip(nn_, wk)), 0, 1)
                 assert abs(seq.opacities[k][i] - o) < 1e-4, (k, i)
+            if pred_color:  # the head's output, blended and masked, is added to the SH DC coefficient
+                dc = dc0[i] + m * sum(wj * v["d_color"][j] for j, wj in zip(nn_, wk))
+                assert np.allclose(seq.colors[k][i], np.clip(0.5 + 0.28209479177387814 * dc, 0, 1), atol=1e-4), (k, i)
+                recoloured = max(recoloured, float(np.abs(dc - dc0[i]).max()))
+                if sh:
+                    assert np.allclose(seq.sh[k][i, 0], dc, atol=2e-4) and np.allclose(seq.sh[k][i, 1:], rest0[i], atol=1e-6), (k, i)
             moved = max(moved, float(np.abs(pos - xyz[i]).max()))
     if not pred_opacity:
         assert seq.opacities.ndim == 1 and np.allclose(seq.opacities, opac0, atol=1e-6)
     assert moved > 0.01, "reference deformation is ~0, the test would not see a missing MLP"
+    assert not pred_color or recoloured > 0.05, "reference colour change is ~0, the test would not see a missing colour head"
     name = ", ".join(n for n, on in (("D-NeRF time net", blender), ("local frame", local_frame), (f"{H} hyper coordinates", H),
-                                     ("motion mask", motion_mask), ("opacity head", pred_opacity), (f"K={K}", True)) if on)
+                                     ("motion mask", motion_mask), ("opacity head", pred_opacity),
+                                     (f"colour head ({pred_color})" + (" with --sh" if sh else ""), pred_color), (f"K={K}", True)) if on)
     print(f"ok  sc-gs ({name}): positions and covariances match the independent formulas at 3 times (max shift {moved:.2f})")
 
 
 def test_pred_color_stops():
-    """A model with a colour head (--pred_color) is refused, naming the flag that converts it anyway."""
+    """A colour head of a kind the converter does not know is refused, naming the flag that converts it anyway."""
     import torch
     rng = np.random.default_rng(5)
     N, M = 20, 8
@@ -187,11 +216,11 @@ def test_pred_color_stops():
         out = os.path.join(tmp, "s.npz")
         cmd = [sys.executable, os.path.join(ROOT, "convert_scgs.py"), tmp, "-o", out, "--frames", "2"]
         r = subprocess.run(cmd, capture_output=True, text=True)
-        assert r.returncode != 0 and "--pred_color" in r.stderr and "--ignore-pred-color" in r.stderr, r.stderr
+        assert r.returncode != 0 and "not supported" in r.stderr and "--pred_color" in r.stderr and "--ignore-pred-color" in r.stderr, r.stderr
         assert not os.path.exists(out)
         subprocess.run(cmd + ["--ignore-pred-color"], check=True, capture_output=True)
         assert Sequence4D.load(out).num_frames == 2
-    print("ok  sc-gs --pred_color stops, --ignore-pred-color converts")
+    print("ok  sc-gs unknown colour head stops, --ignore-pred-color converts")
 
 
 def test_scgs():
@@ -202,6 +231,10 @@ def test_scgs():
         return
     run_variant(torch, blender=True, local_frame=True, H=8, motion_mask=False, pred_opacity=False, K=3, max_d_scale=-1)
     run_variant(torch, blender=False, local_frame=False, H=0, motion_mask=True, pred_opacity=True, K=4, max_d_scale=2.0)
+    run_variant(torch, blender=True, local_frame=True, H=8, motion_mask=False, pred_opacity=False, K=3, max_d_scale=-1,
+                pred_color="resnet", sh=True)
+    run_variant(torch, blender=False, local_frame=False, H=2, motion_mask=True, pred_opacity=False, K=3, max_d_scale=-1,
+                pred_color="linear")
     test_pred_color_stops()
 
 

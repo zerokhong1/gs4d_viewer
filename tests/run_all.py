@@ -24,6 +24,7 @@ NEEDS = {
     "check_gsplat.py": ("cuda", "chrome"),
     "check_camera.py": ("chrome",),
     "check_compare.py": ("chrome",),
+    "check_points.py": ("chrome",),
     "check_real.py": ("cuda", "data"),
     "test_deformable3dgs.py": ("torch",),
     "test_scgs.py": ("torch",),

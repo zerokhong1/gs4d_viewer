@@ -44,6 +44,7 @@ work = tempfile.mkdtemp(prefix="check_cameras_")
 models = {"scgs": ("convert_scgs.py", os.path.join(opt.train, "out", "scgs_bouncingballs_node"), 400),
           "deformable3dgs": ("convert_deformable3dgs.py", os.path.join(opt.train, "out", "d3dgs_bouncingballs"), 800)}
 npz = {}
+psnr_single = {}
 port = 8161
 for name, (script, model, size) in models.items():
     out = os.path.join(work, f"{name}.npz")
@@ -60,10 +61,36 @@ for name, (script, model, size) in models.items():
         vw._load_gsplat()
         shown.append(vw.gt_compare(0, k, False, size)[2])
     shown = np.array(shown)
+    psnr_single[name] = shown
     d = np.abs(shown - ref).max()
     check(d <= 0.1, f"{name} at {size}px: viewer PSNR vs check_real, max |diff| {d:.4f} dB (mean {shown.mean():.2f} vs {ref.mean():.2f})")
     vw.server.stop()
     port += 1
+
+# WP29: with --compare the ground-truth view shows render A | image | render B, each with its own PSNR
+cmp_args = argparse.Namespace(renderer="gsplat", host="127.0.0.1", port=8169, up="+z", max_splats=1, max_res=400, file=npz["scgs"],
+                              compare=npz["deformable3dgs"], cameras=os.path.join(scene, "transforms_test.json"), gt_background="black")
+vw = V.Viewer(Sequence4D.load(npz["scgs"], lazy=True), cmp_args, Sequence4D.load(npz["deformable3dgs"], lazy=True))
+both = []
+for k, c in enumerate(te):
+    vw._set_time(c["time"])
+    both.append([vw.gt_compare(0, k, False, 400)[2], vw.gt_compare(1, k, False, 800)[2]])
+both = np.array(both)
+d = max(np.abs(both[:, 0] - psnr_single["scgs"]).max(), np.abs(both[:, 1] - psnr_single["deformable3dgs"]).max())
+check(d <= 1e-3, f"--compare: PSNR of A and B equals the single-sequence viewers (max |diff| {d:.1e} dB)")
+vw.cam_idx = 7
+vw._set_time(te[7]["time"])
+vw.gt_on.value = True
+for mode, n in ((V.SIDE_BY_SIDE, 3), ("A", 2), ("B", 2)):
+    vw.mode.value = mode
+    img = vw._gt_view(1200, 400)
+    lines = np.nonzero((img[5] == 255).all(-1))[0]  # white dividers on the top rows
+    check(img.shape == (400, 1200, 3) and len(lines) == 2 * (n - 1), f"--compare, Show {mode}: {n} panels ({vw.gt_info.content.splitlines()[0]})")
+txt = vw.gt_info.content
+vw.mode.value = V.SIDE_BY_SIDE
+vw._gt_view(1200, 400)
+check("A:" in vw.gt_info.content and "B:" in vw.gt_info.content, f"panel text with both: {vw.gt_info.content!r}")
+vw.server.stop()
 
 if not opt.no_browser:
     from PIL import Image
@@ -95,6 +122,25 @@ if not opt.no_browser:
         vw._select_camera(13, client)
         time.sleep(3)
         pg.screenshot(path=os.path.join(opt.out, "ground_truth_13.png"))
+        b.close()
+    vw.server.stop()
+    vw = V.Viewer(Sequence4D.load(npz["scgs"], lazy=True), argparse.Namespace(**{**vars(cmp_args), "port": 8171}),
+                  Sequence4D.load(npz["deformable3dgs"], lazy=True))
+    threading.Thread(target=vw.run, daemon=True).start()
+    with sync_playwright() as p:
+        b = p.chromium.launch(executable_path=opt.chrome, args=FLAGS)
+        pg = b.new_page(viewport={"width": 1700, "height": 700})
+        pg.goto("http://localhost:8171")
+        time.sleep(6)
+        vw._select_camera(7, next(iter(vw.server.get_clients().values())))
+        vw.gt_on.value = True
+        time.sleep(3)
+        f = os.path.join(opt.out, "ground_truth_compare.png")
+        pg.screenshot(path=f)
+        shot = np.asarray(Image.open(f).convert("RGB")).astype(np.float32)
+        third = shot.shape[1] // 3
+        check(all((np.abs(shot[:, k * third:(k + 1) * third] - 128).max(-1) > 40).mean() > 0.02 for k in range(3)),
+              "--compare screenshot: all three panels have a picture")
         b.close()
     vw.server.stop()
 print("PASS" if ok else "FAIL")

@@ -152,6 +152,7 @@ def load_gt_image(path: str, W: int, H: int, white: bool) -> np.ndarray:
 
 
 SIDE_BY_SIDE = "A | B"
+SPLATS, POINTS = "splats", "points"  # "Draw as": the Gaussians themselves, or one dot at each Gaussian's centre
 # initial camera direction (scene centre -> camera) for each world up axis
 VIEW_DIR = {"+z": (1.0, -1.0, 0.6), "-z": (1.0, -1.0, -0.6), "+y": (1.0, 0.6, 1.0),
             "-y": (1.0, -0.6, 1.0), "+x": (0.6, 1.0, -1.0), "-x": (-0.6, 1.0, -1.0)}
@@ -209,6 +210,8 @@ class Viewer:
         self._build_gui()
         self.server.on_client_connect(self._on_connect)
         self.splats = [None] * len(self.seqs)
+        self.clouds = [None] * len(self.seqs)  # client renderer, "Draw as: points": viser point clouds
+        self.cloud_n = [0] * len(self.seqs)
         self.labels = None
         self.gpu: list = [None] * len(self.seqs)  # GpuFrames per sequence, built on first use (gsplat renderer)
         self.cur: dict[int, tuple] = {}  # sequence index -> tensors of the current time step (gsplat renderer)
@@ -242,6 +245,11 @@ class Viewer:
         with g.add_folder("Display", expand_by_default=False):
             self.min_opacity = g.add_slider("Hide opacity below", min=0.0, max=0.5, step=0.005, initial_value=0.02)
             self.scale = g.add_slider("Gaussian size (x)", min=0.1, max=2.0, step=0.05, initial_value=1.0)
+            self.draw_as = g.add_dropdown("Draw as", options=(SPLATS, POINTS), initial_value=getattr(self.args, "draw_as", SPLATS))
+            # gsplat: diameter in screen pixels at any depth; client: viser sizes points in scene units, so the
+            # slider is in thousandths of the scene radius (points shrink with distance)
+            self.point_size = g.add_slider("Point size (px)" if self.renderer == "gsplat" else "Point size (radius / 1000)",
+                                           min=1.0, max=20.0, step=0.5, initial_value=3.0 if self.renderer == "gsplat" else 6.0)
             self.target_fps = g.add_slider("Update rate (Hz)", min=2, max=60, step=1, initial_value=20)
             if self.renderer == "gsplat":
                 self.max_res = g.add_slider("Max render height", min=240, max=2160, step=60,
@@ -292,7 +300,7 @@ class Viewer:
             i = int(np.searchsorted(s.times, self.time.value + 1e-6, side="right"))
             self._set_time(float(s.times[min(i, s.num_frames - 1)]))
 
-        for h in (self.min_opacity, self.scale):
+        for h in (self.min_opacity, self.scale, self.draw_as, self.point_size):
             h.on_update(lambda _e: setattr(self, "dirty", True))
 
     def _build_camera_gui(self):
@@ -367,30 +375,55 @@ class Viewer:
         return {"A": [0], "B": [1]}.get(self.mode.value, [0, 1])
 
     # ---------------------------------------------------------------- drawing
-    def _current(self, i: int = 0):
+    def _current(self, i: int = 0, full_cov: bool = True):
         means, covs, opac, cols = self.seqs[i].at(self.time.value)
         sub = self.subsets[i]
         if sub is not None:
             means, covs, opac, cols = means[sub], covs[sub], opac[sub], cols[sub]
         opac = np.where(opac >= self.min_opacity.value, opac, 0.0).astype(np.float32)
-        covs = unpack_cov(covs) * np.float32(self.scale.value ** 2)
-        return np.ascontiguousarray(means, np.float32), covs.astype(np.float32), opac, np.ascontiguousarray(cols, np.float32)
+        covs = (unpack_cov(covs) * np.float32(self.scale.value ** 2)).astype(np.float32) if full_cov else None
+        return np.ascontiguousarray(means, np.float32), covs, opac, np.ascontiguousarray(cols, np.float32)
+
+    def _points_on(self) -> bool:
+        return self.draw_as.value == POINTS
 
     def _draw_client(self):
         shown = self._shown()
         side = len(shown) == 2
+        pts = self._points_on()
         for i in range(len(self.seqs)):
-            h = self.splats[i]
-            if i in shown:
+            h, pc = self.splats[i], self.clouds[i]
+            pos = tuple(self.offset) if (side and i == 1) else (0.0, 0.0, 0.0)
+            if i in shown and pts:
+                # one dot per Gaussian that passes the opacity threshold, in the Gaussian's base colour
+                means, _, opac, cols = self._current(i, full_cov=False)
+                keep = opac > 0
+                xyz = means[keep]
+                rgb = (np.clip(cols[keep], 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+                size = float(self.point_size.value) * self.radius / 1000.0
+                if pc is None or self.cloud_n[i] != len(xyz):  # the count changed: send a new cloud under the same name
+                    pc = self.clouds[i] = self.server.scene.add_point_cloud(
+                        f"/points/{'ab'[i]}", points=xyz, colors=rgb, point_size=size, point_shape="circle",
+                        point_shading="flat", precision="float32")
+                    self.cloud_n[i] = len(xyz)
+                else:
+                    pc.points, pc.colors = xyz, rgb
+                    if pc.point_size != size:
+                        pc.point_size = size
+                pc.position = pos
+            elif i in shown:
                 means, covs, opac, cols = self._current(i)
+                cols = np.clip(cols, 0.0, 1.0)  # a file may hold colours outside [0,1] (Spacetime Gaussians); the browser needs RGB
                 if h is None:
                     h = self.splats[i] = self.server.scene.add_gaussian_splats(
                         f"/gaussians/{'ab'[i]}", centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
                 else:
                     h.set_gaussians(centers=means, covariances=covs, rgbs=cols, opacities=opac[:, None])
-                h.position = tuple(self.offset) if (side and i == 1) else (0.0, 0.0, 0.0)
+                h.position = pos
             if h is not None:
-                h.visible = i in shown
+                h.visible = i in shown and not pts
+            if pc is not None:
+                pc.visible = i in shown and pts
         if len(self.seqs) == 2:
             if self.labels is None:
                 top = self.centre + 1.3 * self.radius * self.up_vec
@@ -454,8 +487,17 @@ class Viewer:
         K = torch.from_numpy(K_np).to(self.device)
         viewmat = torch.from_numpy(viewmat_np).to(self.device)
         with torch.no_grad():
-            img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
-                                          sh_degree=self.seqs[i].sh_degree)
+            if frame is None and self._points_on():
+                # one opaque isotropic Gaussian per centre whose size on screen is the same at every depth:
+                # sigma (world) = sigma (px) * depth / focal, with "Point size" as the full width at half maximum
+                depth = (means @ viewmat[2, :3] + viewmat[2, 3]).clamp_min(1e-6)
+                sigma = depth * (float(self.point_size.value) / 2.355 / float(K_np[0, 0]))
+                quats = torch.tensor([1.0, 0.0, 0.0, 0.0], device=self.device).expand(len(means), 4)
+                img, alpha, _ = rasterization(means, quats, sigma[:, None].expand(-1, 3), torch.ones_like(opac), cols,
+                                              viewmat[None], K[None], W, H, sh_degree=self.seqs[i].sh_degree)
+            else:
+                img, alpha, _ = rasterization(means, None, None, opac, cols, viewmat[None], K[None], W, H, covars=covs,
+                                              sh_degree=self.seqs[i].sh_degree)
             if white:  # composite over white, the browser renderer's background
                 img = img[0] + (1.0 - alpha[0])  # (gsplat 1.5.3 rejects `backgrounds` of shape [C,3] when `covars` is given)
             else:
@@ -489,26 +531,36 @@ class Viewer:
 
     def _gt_view(self, W: int, H: int):
         """Picture for a client window of W x H showing render | ground truth of the selected camera, or None when the
-        comparison is off. Also writes the PSNR to the panel."""
-        if self.gt_on is None or not self.gt_on.value or len(self._shown()) != 1:
+        comparison is off. With two sequences shown: render A | ground truth | render B. Also writes the PSNR to the panel."""
+        if self.gt_on is None or not self.gt_on.value:
             return None
         c = self.cameras[self.cam_idx] if self.cam_idx >= 0 else None
         if c is None or c["image"] is None or not c["w"]:
             self.gt_info.content = "Pick a camera that has an image."
             return None
-        key = (self.cam_idx, self.time.value, self.max_res.value, self.gt_bg.value)
+        shown = self._shown()
+        key = (self.cam_idx, self.time.value, self.max_res.value, self.gt_bg.value, tuple(shown))
         if self.gt_key != key or self.gt_last is None:
-            pred, gt, psnr = self.gt_compare(self._shown()[0], self.cam_idx, self.gt_bg.value == "white", int(self.max_res.value))
-            self.gt_last, self.gt_key = (pred, gt, psnr), key
+            res = [self.gt_compare(i, self.cam_idx, self.gt_bg.value == "white", int(self.max_res.value)) for i in shown]
+            self.gt_last, self.gt_key = res, key
             off = c["time"] is not None and abs(c["time"] - self.time.value) > 1e-6 * max(self.duration, 1.0)
-            self.gt_info.content = (f"**PSNR {psnr:.2f} dB** · {pred.shape[1]}x{pred.shape[0]}"
+            pred = res[0][0]
+            text = (f"**PSNR {res[0][2]:.2f} dB**" if len(self.seqs) == 1 else
+                    " · ".join(f"**{'AB'[i]}: {r[2]:.2f} dB**" for i, r in zip(shown, res)))
+            self.gt_info.content = (f"{text} · {pred.shape[1]}x{pred.shape[0]}"
                                     + (f"\n\n_Slider is at t={self.time.value:.3g}, the image is at t={c['time']:.3g}: "
                                        "the two differ in time._" if off else ""))
-        pred, gt, psnr = self.gt_last
+        res = self.gt_last
+        label = (lambda i: "render") if len(self.seqs) == 1 else (lambda i: self.names[i])
+        items = [(res[0][0], f"{label(shown[0])} · PSNR {res[0][2]:.2f} dB"), (res[0][1], f"ground truth · {c['name']}")]
+        if len(res) == 2:  # the image in the middle, one model on each side
+            items.append((res[1][0], f"{label(shown[1])} · PSNR {res[1][2]:.2f} dB"))
         from PIL import Image
-        wl = W // 2
-        panels = []
-        for im, w in ((pred, wl), (gt, W - wl)):
+        n = len(items)
+        edges = [W * k // n for k in range(n + 1)]
+        panels, captions = [], []
+        for k, (im, text) in enumerate(items):
+            w = edges[k + 1] - edges[k]
             pil = Image.fromarray((im * 255).round().astype(np.uint8))
             s = min(w / pil.size[0], H / pil.size[1])
             pil = pil.resize((max(int(pil.size[0] * s), 1), max(int(pil.size[1] * s), 1)), Image.BILINEAR)
@@ -516,9 +568,11 @@ class Viewer:
             y0, x0 = (H - pil.size[1]) // 2, (w - pil.size[0]) // 2
             canvas[y0:y0 + pil.size[1], x0:x0 + pil.size[0]] = np.asarray(pil)
             panels.append(canvas)
+            captions.append((edges[k] + w // 2, text))
         img = np.concatenate(panels, axis=1)
-        img[:, wl - 1: wl + 1] = 255
-        return self._caption(img, [(wl // 2, f"render · PSNR {psnr:.2f} dB"), (wl + (W - wl) // 2, f"ground truth · {c['name']}")])
+        for e in edges[1:-1]:
+            img[:, e - 1: e + 1] = 255
+        return self._caption(img, captions)
 
     def _draw_gsplat(self, time_changed: bool):
         if time_changed or sorted(self.cur) != self._shown():
@@ -633,6 +687,8 @@ def main():
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--up", choices=["+x", "-x", "+y", "-y", "+z", "-z"], default="+z",
                     help="world up axis; COLMAP-style scenes are usually -y, Blender/D-NeRF scenes +z")
+    ap.add_argument("--draw-as", choices=[SPLATS, POINTS], default=SPLATS,
+                    help="initial value of 'Draw as' in the Display folder: the Gaussians, or one dot at each Gaussian's centre")
     ap.add_argument("--max-splats", type=int, default=300_000, help="client renderer: cap on Gaussians sent to the browser")
     ap.add_argument("--max-res", type=int, default=1080, help="gsplat renderer: initial cap on the render height")
     ap.add_argument("--cpu-decode", action="store_true",

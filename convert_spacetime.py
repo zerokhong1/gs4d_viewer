@@ -8,7 +8,9 @@ scene/oursfull.py (save_ply), at time t (the repo's camera timestamp, normally f
     opacity   = sigmoid(opacity) * exp(-(dt / exp(trbf_scale))^2)
     rotation  = normalize(rot + dt * omega)                 (rot_0..3 and omega_0..3, wxyz, before normalising)
     scale     = exp(scale_0..2)                             (constant in time)
-    colour    = f_dc_0..2 used directly as RGB (NOT SH0); clipped to [0,1]
+    colour    = f_dc_0..2 used directly as RGB (NOT SH0) and NOT clipped: the repo blends the raw values (in a real
+                model 30 % of the Gaussians lie outside [0,1], from -5 to 7) and clamps only the final pixel.
+                Clipping per Gaussian costs 2.9 dB on n3d_sear_steak (tests/repo_psnr.py).
 
 Known limit: the real renderer feeds the rasterised features (f_dc_3..8, f_t_* * dt) through a small MLP
 (`rgbdecoder`, the .pt next to the ply) that adds view- and time-dependent colour. That is not reproduced:
@@ -118,7 +120,7 @@ def main():
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float64)
     keep = peak_opacity(g, times) > a.min_peak_opacity
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
-    colors = np.clip(g["rgb"], 0, 1).astype(np.float32)
+    colors = g["rgb"].astype(np.float32)   # not clipped, see the docstring
     # one keyframe at a time to disk, so memory does not grow with --frames
     with Sequence4DWriter(a.output, compact=a.compact, colors=colors[keep],
                           source=f"Spacetime Gaussians (base colour only): {a.ply}") as wr:

@@ -23,9 +23,15 @@ and gives per node d_xyz, d_rotation, d_scaling (and local_rotation, d_opacity w
     opacity  = sigmoid(opacity) [+ mask * sum_k w_k d_opacity_k]
 mask = sigmoid(last fea column) when the model was trained with --gs_with_motion_mask (the ply then has H+1
 fea columns), otherwise 1. Colour is SH degree 0; --sh keeps all SH coefficients (constant in time).
+Trained with --pred_color, the MLP also gives per node d_color [3] (a 3-layer colour head on [input, hidden], or one
+linear layer on the hidden state), added to the Gaussian's SH DC coefficient:
+    f_dc(t) = f_dc + mask * sum_k w_k d_color_k
+so colours (and, with --sh, the DC coefficient) are stored per keyframe.
 
 Not supported (the script stops and says so): hash-grid networks (--use_hash), --skinning, and models
-trained with d_rot_as_res off. A colour head (--pred_color) stops the converter unless --ignore-pred-color is given (colour then stays constant). --max_d_scale must be repeated here.
+trained with d_rot_as_res off, colour heads other than the default (hash colour, colour by view direction).
+--ignore-pred-color keeps the colour of a --pred_color model constant in time (smaller file, wrong colours).
+--max_d_scale must be repeated here.
 
 Example:
     python convert_scgs.py outputs/jumpingjacks_node -o scene.npz --frames 60
@@ -39,6 +45,7 @@ import re
 import numpy as np
 
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
+from gs4d.format import SH_C0
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 XYZ_FREQS = 10  # `multires` of the position embedding; fixed in the repo
@@ -91,6 +98,16 @@ class NodeMLP:
         self.local_frame = "local_rotation.weight" in self.sd
         self.pred_opacity = "gaussian_opacity.weight" in self.sd
         self.pred_color = any(k.startswith("gaussian_color") for k in self.sd)
+        # colour head: "resnet" = Linear, ReLU, Linear, ReLU, Linear on [position emb, time emb, hidden] (the repo's default),
+        # "linear" = one Linear on the hidden state; anything else (hash colour, colour by view direction) is not supported
+        self.color_kind = None
+        if self.pred_color:
+            w0 = self.sd.get("gaussian_color.0.weight")
+            hidden = self.sd["gaussian_warp.weight"].shape[1]
+            if w0 is not None and "gaussian_color.4.weight" in self.sd and w0.shape[1] == self.sd["linear.0.weight"].shape[1] + hidden:
+                self.color_kind = "resnet"
+            elif "gaussian_color.weight" in self.sd and self.sd["gaussian_color.weight"].shape[1] == hidden:
+                self.color_kind = "linear"
         self.max_d_scale = max_d_scale
         xyz_ch = 3 + 6 * XYZ_FREQS
         t_ch = self.sd["timenet.0.weight"].shape[1] if self.blender else self.sd["linear.0.weight"].shape[1] - xyz_ch
@@ -124,6 +141,11 @@ class NodeMLP:
             out["local_rot"] = self._lin("local_rotation", h)
         if self.pred_opacity:
             out["d_opacity"] = self._lin("gaussian_opacity", h)
+        if self.color_kind == "resnet":
+            c = torch.relu(self._lin("gaussian_color.0", torch.cat([inp, h], -1)))
+            out["d_color"] = self._lin("gaussian_color.4", torch.relu(self._lin("gaussian_color.2", c)))
+        elif self.color_kind == "linear":
+            out["d_color"] = self._lin("gaussian_color", h)
         return {k: v.numpy().astype(np.float64) for k, v in out.items()}
 
 
@@ -160,9 +182,11 @@ def quat_matrix(q: np.ndarray) -> np.ndarray:
                      s * (i * k - j * r), s * (j * k + i * r), 1 - s * (i * i + j * j)], -1).reshape(q.shape[:-1] + (3, 3))
 
 
-def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False):
+def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False,
+                  with_color: bool = False):
     """Canonical xyz [N,3], activated scales [N,3], raw quaternions [N,4], opacities [N], motion mask [N,1]
-    -> per time one (means [N,3], covs [N,6], opacities [N] or None when the model has no opacity head)."""
+    -> per time one (means [N,3], covs [N,6], opacities [N] or None when the model has no opacity head).
+    with_color: a fourth item, the offset [N,3] of the SH DC coefficient (None when the model has no colour head)."""
     import torch
 
     K = len(times)
@@ -189,7 +213,10 @@ def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP
                 opacs = np.clip(opac + (blend(v["d_opacity"]) * mask)[:, 0], 0.0, 1.0).astype(np.float32)
             if progress:
                 print(f"\r  time {k + 1}/{K}", end="\n" if k + 1 == K else "", flush=True)
-            yield means, covs, opacs
+            if with_color:
+                yield means, covs, opacs, (blend(v["d_color"]) * mask).astype(np.float32) if "d_color" in v else None
+            else:
+                yield means, covs, opacs
 
 
 def deform_sequence(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False):
@@ -205,8 +232,7 @@ def main():
     ap.add_argument("-o", "--output", required=True)
     ap.add_argument("--deform", default=None, help="deform.pth, when it is not at its usual place in the model folder")
     ap.add_argument("--ignore-pred-color", action="store_true",
-                    help="convert a model trained with --pred_color although its time-dependent colour is not reproduced "
-                         "(without this flag the converter stops)")
+                    help="model trained with --pred_color: keep its colour constant in time (smaller file, colours are then wrong)")
     ap.add_argument("--iteration", type=int, default=-1, help="model folder: iteration to use (default: the last)")
     ap.add_argument("--frames", type=int, default=60, help="number of keyframes K")
     ap.add_argument("--t0", type=float, default=0.0, help="start time (the repo's times are in [0,1])")
@@ -248,24 +274,40 @@ def main():
     print(f"{ply}\n{pth}: {len(node_sd['nodes']):,} control nodes, {H} hyper coordinates"
           + (", D-NeRF time net" if mlp.blender else "") + (", local frame" if mlp.local_frame else "")
           + (", motion mask" if n_fea == H + 1 else "") + (", opacity head" if mlp.pred_opacity else ""))
+    time_color = mlp.pred_color and not a.ignore_pred_color
+    if time_color and mlp.color_kind is None:
+        raise SystemExit(f"{a.model}: SC-GS colour head (--pred_color) of a kind that is not supported (hash colour or colour by "
+                         "view direction). Run again with --ignore-pred-color to convert anyway (colours then stay constant in time).")
     if mlp.pred_color:
-        if not a.ignore_pred_color:
-            raise SystemExit(f"{a.model}: SC-GS trained with --pred_color (colour head gaussian_color*): its colour changes "
-                             "in time and is not reproduced. Run again with --ignore-pred-color to convert anyway "
-                             "(colours then stay constant in time).")
-        print("warning: the model has a colour head (--pred_color); it is ignored, colours stay constant in time")
+        print("colour head (--pred_color): " + ("colours are written per keyframe" if time_color else
+                                                 "ignored (--ignore-pred-color), colours stay constant in time"))
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
 
     idx, w = knn_weights(np.concatenate([xyz, fea[:, :H]], 1), node_sd, a.knn)
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
-    const = dict(colors=colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None)
+    sh_keep = sh[keep] if (a.sh and sh is not None) else None
+    const = dict(sh=sh_keep) if time_color else dict(colors=colors[keep], sh=sh_keep)
+    if time_color:
+        if sh is None:
+            raise SystemExit(f"{ply}: no f_dc_* columns, the colour head cannot be applied")
+        dc = sh[keep][:, 0].astype(np.float32)   # SH DC coefficient [N,3]; colour = 0.5 + SH_C0 * dc
+        if sh_keep is not None:
+            del const["sh"]                      # the DC coefficient changes: sh goes into every keyframe
     if not mlp.pred_opacity:
         const["opacities"] = opac[keep]
-    frames = deform_frames(xyz, scales, rots, opac[keep], mask, idx, w, node_sd["nodes"][:, :3], mlp, times, progress=True)
+    frames = deform_frames(xyz, scales, rots, opac[keep], mask, idx, w, node_sd["nodes"][:, :3], mlp, times, progress=True,
+                           with_color=True)
     # one keyframe at a time to disk, so memory does not grow with --frames
     with Sequence4DWriter(a.output, compact=a.compact, source=f"SC-GS: {ply}", **const) as wr:
-        for t, (means, covs, opacs) in zip(times, frames):
-            wr.add_keyframe(t, means=means, covs=covs, opacities=opacs)
+        for t, (means, covs, opacs, d_color) in zip(times, frames):
+            extra = {}
+            if time_color:
+                extra["colors"] = np.clip(0.5 + SH_C0 * (dc + d_color), 0.0, 1.0).astype(np.float32)
+                if sh_keep is not None:
+                    sh_t = sh_keep.copy()
+                    sh_t[:, 0] = dc + d_color
+                    extra["sh"] = sh_t
+            wr.add_keyframe(t, means=means, covs=covs, opacities=opacs, **extra)
     print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
 
 

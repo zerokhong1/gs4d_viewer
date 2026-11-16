@@ -107,7 +107,47 @@ def test_all():
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             assert gopen.main([str(d / "hv4"), "--dry-run", "--compare", "b.npz"]) == 0
-        assert "--cameras" not in buf.getvalue().split("viewer:")[1], buf.getvalue()
+        assert buf.getvalue().split("viewer:")[1].count("--cameras") == 1, buf.getvalue()  # also with --compare (WP29)
+        # Nerfies / HyperNeRF dataset behind cfg_args: the held-out cameras are written next to the cache (WP27)
+        import json
+        hy = d / "hyper"
+        (hy / "camera").mkdir(parents=True)
+        (hy / "rgb" / "2x").mkdir(parents=True)
+        (hy / "rgb" / "4x").mkdir()
+        rot = np.array([[0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])   # world-to-camera
+        for k, name in enumerate(("a", "b", "c")):
+            (hy / "camera" / f"{name}.json").write_text(json.dumps(dict(
+                orientation=rot.tolist(), position=[1.0 + k, 2.0, 3.0], focal_length=800.0, image_size=[400, 720])))
+        (hy / "metadata.json").write_text(json.dumps({n: dict(time_id=2 * k, warp_id=k) for k, n in enumerate("abc")}))
+        (hy / "dataset.json").write_text(json.dumps(dict(ids=["a", "b", "c"], train_ids=["a", "c"], val_ids=["b"])))
+        (hy / "scene.json").write_text(json.dumps(dict(center=[1.0, 1.0, 1.0], scale=0.5)))
+        (d / "sc" / "cfg_args").write_text(f"Namespace(source_path='{hy}')")
+        assert gopen.nerfies_scene(d / "sc") == hy and gopen.nerfies_scene(d / "st") is None
+        for raw, pos, t in ((False, [0.5, 0.5, 1.0], 0.5), (True, [2.0, 2.0, 3.0], 0.5)):
+            assert gopen.write_nerfies_cameras(hy, d / "cams.json", raw=raw) == 1      # val_ids only
+            cj = json.loads((d / "cams.json").read_text())
+            fr = cj["frames"][0]
+            c2w = np.array(fr["c2w"])
+            assert cj["convention"] == "opencv" and fr["name"] == "b" and fr["fx"] == 200.0 and abs(fr["time"] - t) < 1e-12
+            assert np.allclose(c2w[:3, 3], pos) and np.allclose(c2w[:3, :3], rot.T) and (fr["w"], fr["h"]) == (100, 180)
+        (hy / "dataset.json").unlink()
+        assert gopen.write_nerfies_cameras(hy, d / "cams.json", raw=True) == 3          # no split: every camera
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            assert gopen.main([str(d / "sc"), "--dry-run"]) == 0
+        assert f"--cameras {(d / 'sc.gs4d.cameras.json').resolve()}" in buf.getvalue(), buf.getvalue()
+        assert not (d / "sc.gs4d.cameras.json").exists()                              # a dry run writes nothing
+        # size estimate: --sh adds SH once per Gaussian, for native 4DGS at every keyframe (WP26)
+        big = d / "big" / "point_cloud" / "iteration_1" / "point_cloud.ply"
+        big.parent.mkdir(parents=True)
+        big.write_bytes(b"0" * (248 * 1000))
+        info = dict(kind="deformable3dgs", src=d / "big")
+        assert gopen.estimate_bytes(info, ["--frames", "10"]) == 1000 * 10 * 40
+        assert gopen.estimate_bytes(info, ["--frames", "10", "--sh"]) == 1000 * 10 * 40 + 1000 * 192
+        (d / "big.pth").write_bytes(b"0" * (400 * 1000))
+        info = dict(kind="native4d", src=d / "big.pth")
+        assert gopen.estimate_bytes(info, ["--frames", "10"]) == 1000 * 10 * 40
+        assert gopen.estimate_bytes(info, ["--frames", "10", "--sh"]) == 1000 * 10 * (40 + 192)
         # unknown things are refused, with the checks listed
         ply(d / "plain.ply", BASE)
         (d / "empty").mkdir()

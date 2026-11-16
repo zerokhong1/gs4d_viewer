@@ -28,7 +28,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `make_toy.py`     synthetic scene (`--sh` adds fake SH); `tests/test_all.py` self-checks (CPU only)
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_cameras.py` (needs CUDA, data, Chrome), `check_gsplat.py`
-  (needs CUDA), `check_compare.py` (needs Chrome), `test_open.py`,
+  (needs CUDA), `check_compare.py` (needs Chrome), `check_points.py` (needs Chrome; WP24), `test_open.py`,
   `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; `bench_display.py` (WP19b: opens a GPU Chrome window, prints sent / shown / browser frames per second; needs an unlocked screen and a free GPU); screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
@@ -83,7 +83,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   selecting one moves the client camera and the slider to the image time; gsplat renderer: "Ground truth beside render" shows
   render | image with PSNR (`Viewer.gt_compare`, ignores the opacity/size sliders, black or white background, capped by Max render
   height). `tests/check_cameras.py`: PSNR matches `check_real.psnr_item` to 0.0002 dB on the 20 test cameras (SC-GS 400 px,
-  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. `gs4d/open.py` passes `--cameras` since WP19a; NOT done: GT view needs one sequence (not with `--compare`).
+  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. `gs4d/open.py` passes `--cameras` since WP19a; With `--compare` since WP29.
 - Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
   trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
 - WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real
@@ -160,17 +160,58 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `points.npy`; clone patched `Load_hyper_data(datadir, 0.5 -> 0.25)` to read the 4x images). `convert_4dgaussians.py --frames 330 --sh --compact`: 325 MB, 35 s, peak RAM 1.5 GB;
   PSNR 22.05-30.39 dB, mean 27.13 on the 33 held-out frames at 268 px; the repo's own renders of the same frames 27.13 (per image within 0.003 dB). No converter change;
   `check_real.py` item `4dgaussians_banana` (threshold min 21.55). This repo keeps HyperNeRF cameras and points in RAW coordinates (no centre/scale, unlike Deformable-3DGS / SC-GS)
-  and time = warp_id / max; its FovX/FovY come from the focal length and are correct. `gs4d.open` opens the folder but finds no camera list for this layout.
+  and time = warp_id / max; its FovX/FovY come from the focal length and are correct. `gs4d.open` writes the camera list for this layout since WP27.
 - Tested (WP19b, 15/11/2026): display speed in a real GPU Chrome (157, headed, ANGLE on the RTX 3060, 120 Hz screen), `tests/bench_display.py`, `paper-windmill` compact,
   1280x720, playing: update rate 20 / 30 / 40 / 50 / 60 Hz -> server sends 20.0 / 29.9 / 39.9 / 49.5 / 54.3 frames/s, browser shows 20.0 / 30.0 / 39.9 / 49.3 / 52.9 new frames/s
   (counted as full-size WebGL texture uploads), requestAnimationFrame 117-120/s. The browser shows every frame; the server is the limit. A locked screen or a training job on
   the GPU invalidates the run (rAF drops to 1/s; sent rate to ~31). Copying the canvas per frame to compare pixels halves the browser rate: do not measure that way.
   NOT measured: 1920x1080, a browser on another machine over SSH.
+- Tested (WP24, 16/11/2026): Display folder has "Draw as" `splats` / `points` (`--draw-as`) and "Point size"; one dot per Gaussian centre in the Gaussian's
+  colour, "Hide opacity below" applies, works while playing, with `--compare` and mp4 export. gsplat: `_raster` rasterises opaque isotropic Gaussians with
+  sigma = size_px / 2.355 * depth / focal (constant size on screen, SH colour kept); client: `scene.add_point_cloud` (size in scene radius / 1000, base colour,
+  re-added when the count changes). The ground-truth view always draws splats. `tests/check_points.py [--file f.npz --name n --up=-y --moving]`: toy, SC-GS
+  `bouncingballs_sh`, `paper-windmill` pass in headless Chrome; server time per played frame at 1280x720: SC-GS 10-11 ms (splats 12-15), windmill 24-27 ms
+  (splats 27-40). NOT measured: shown frames per second in a GPU Chrome in points mode; client point cloud on a real GPU. `tests/run_all.py` has no `NEEDS`
+  entry for `check_points.py` (needs Chrome; CC-B's file, not changed).
+- viser 1.1.1 camera controls (tried in Chrome): left drag orbits, right drag pans, wheel / middle drag zooms, W/S forward/back (horizontal), A/D left/right,
+  Q/E down/up along the up axis, arrow keys orbit.
+- Phase 3 (16/11/2026, PLAN.md "Giai đoạn 3"), all done on branch `cc-a/wp24-points`, one session:
+  - WP25: `tests/run_all.py` `NEEDS["check_points.py"] = ("chrome",)`.
+  - WP26: `gs4d/open.py::estimate_bytes` counts `--sh` (native 4DGS: 192 B per Gaussian per keyframe; others: 192 B per Gaussian once), `tests/test_open.py`.
+  - WP27: `gs4d/open.py::nerfies_scene` / `write_nerfies_cameras`: for a 4DGaussians, Deformable-3DGS or SC-GS folder whose `cfg_args` `source_path` has the
+    Nerfies / HyperNeRF layout, the held-out cameras (`val_ids`, else all) are written to `<name>.gs4d.cameras.json` beside the output and passed as `--cameras`
+    (4DGaussians: raw positions, time = warp_id / max; the other two: `(position - center) * scale`, time_id / max; smallest `rgb/<N>x`, no lens distortion).
+    Real check on `slice-banana`: `Viewer.gt_compare` over the generated list for 4DGaussians gives 22.05-30.39, mean 27.13 dB (= `check_real.py`); cameras of
+    all three models equal `check_real.load_nerfies_val_set` to 3e-7. `tests/test_open.py` has a synthetic layout test.
+  - WP19c part 2: Spacetime lite `n3d_sear_steak` against the Neural 3D Video `sear_steak` videos (`../data_real/spacetime/n3d_sear_steak_video/sear_steak/camNN.mp4`,
+    1.11 GB from the GitHub release): 21 cameras x frames 0, 12, 25, 37, 49 at 1352x1014, time = frame / 50: 26.18-33.53 dB, mean 31.43; `check_real.py` item
+    `spacetime_psnr` (these numbers are from before the colour fix of WP31, see below). The model's `cameras.json` is the 3DGS layout (position, camera-to-world rotation, fx at full width; one entry per camera and frame).
+  - WP19c part 1: Shape of Motion `paper-windmill` against DyCheck iPhone 1x images (720x960; `../data_real/som/paper-windmill_data/paper-windmill/rgb/1x/0_*.png`
+    + `splits/train.json`, extracted from a 6.61 GB zip of the HF mirror `sibicatleychandar/iphonedataset-shapeofmotion`; the zip is kept beside it), training
+    cameras from the checkpoint, every 4th frame: at keyframes mean 25.86 dB (min 24.28), half way between `--stride 8` keyframes 24.67 (min 21.61); with
+    `--stride 1` 25.85 everywhere, so the drop is the linear interpolation. Item `som_psnr` (threshold 21.11). No number from the repos' own renderers for either.
+  - WP29 (16/11/2026): ground-truth view works with `--compare`: `_gt_view` shows render A | image | render B in mode `A | B` (two panels in mode A or B),
+    PSNR of both in the panel; `gs4d/open.py` passes `--cameras` also with `--compare`. `tests/check_cameras.py` checks it (PSNR equal to the single-file viewer).
+  - WP30 (16/11/2026): `convert_scgs.py` reproduces the SC-GS colour head (`--pred_color`): d_color per node (default head: Linear-ReLU-Linear-ReLU-Linear on
+    [position emb, time emb, hidden]; or one Linear on hidden), blended with the node weights, times the motion mask, ADDED TO THE SH DC coefficient; `colors` (and `sh`
+    with `--sh`) are then per keyframe. `--ignore-pred-color` keeps them constant. Synthetic test only proves the maths: the self-trained `bouncingballs` model
+    (`/home/cont/gs4d_train/out/scgs_predcolor_bouncingballs_node`, 20k iterations) has a head still at its initialisation (|d_color| <= 2.3e-4), PSNR 35.62-43.75,
+    mean 40.70 with or without the head; item `scgs_predcolor`.
+  - WP31 (16/11/2026): `tests/repo_psnr.py` runs the methods' OWN renderers on check_real's images (clones `/home/cont/gs4d_train/som`, `stg`; extra packages in
+    `site_som` (roma, installed with `--no-deps`: plain `pip install roma` downloads torch again, 8 GB) and `site_stg` (forward_lite built after adding
+    `#include <cstdint>` to `rasterizer_impl.h`, plus an `mmcv/ops.py` stub)). Shape of Motion: repo 25.85 dB = ours with `--stride 1` to 0.000 dB per image.
+    Spacetime lite `n3d_sear_steak`: repo 27.79-38.20, mean 34.48; ours was 31.43 because the converter clipped per-Gaussian colours to [0, 1].
+  - Spacetime Gaussians stores RAW colours: 30 % of the Gaussians of the lite model have f_dc outside [0, 1] (-5 .. 6.9); the repo blends them and clamps the pixel.
+    `convert_spacetime.py` no longer clips (now 27.76-37.81, mean 34.37; the remaining 0.11 dB is `--min-peak-opacity 0.02`, with 0 the match is 0.01 dB).
+    `colors` in the format may therefore lie outside [0, 1]: the gsplat path passes them on, the client renderer clips, compact keeps per-keyframe colours
+    float32 when any is out of range. `gs4d.open` reconverts when the converter script is newer than the cache. `spacetime_psnr` threshold is now 27.26.
+  - WP28 NOT done: display FPS in points mode and at 1920x1080 needs an unlocked screen (`tests/bench_display.py --draw-as points [--size 1920 1080]`; the option exists).
+  - Converting Deformable-3DGS `slice-banana` with `--frames 330` takes more than 10 minutes on this machine.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
   `basketball` against the original `visualize.py`.
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
-- Not done: SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
+- Not done: SC-GS `--use_hash`, `--skinning`, hash / view-direction colour heads, `d_rot_as_res` off.
 - Tested (WP17): `--compact` in every `convert_*.py` (only `save(compact=True)`); `gs4d.open` adds it when the estimate
   (`estimate_bytes`, rough: ply size / 248 B x frames x 40 B) is over 1 GB, `tests/test_open.py`. Deformable-3DGS `bouncingballs --sh`
   153 -> 84 MB, `at(t)` differs from the plain file by <2e-4. `python tests/run_all.py` all pass on this machine (CUDA, Chrome, data present).

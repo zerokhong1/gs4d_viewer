@@ -5,7 +5,9 @@ One .npz file:
     means      [K,N,3] | [N,3]   float32
     covs       [K,N,6] | [N,6]   float32  upper triangle of the 3x3 covariance: xx xy xz yy yz zz
     opacities  [K,N]   | [N]     float32  in [0,1]
-    colors     [K,N,3] | [N,3]   float32  RGB in [0,1] (view-independent)
+    colors     [K,N,3] | [N,3]   float32  RGB (view-independent), normally in [0,1]. Values outside are kept and reach the
+                                    gsplat renderer as they are (Spacetime Gaussians blends such colours and only the
+                                    final pixel is clamped); the browser renderer clips them to [0,1].
     sh         [K,N,S,3] | [N,S,3]  float32  OPTIONAL spherical-harmonics coefficients, S = (degree+1)^2,
                                     3DGS convention: colour = max(SH(view direction) + 0.5, 0), sh[..., 0, :] is
                                     the DC term (f_dc), the rest is f_rest. Used by the gsplat renderer only;
@@ -21,7 +23,7 @@ time-varying fields by smaller ones; `load` reads both layouts:
     covs       -> covs_scale [N] float32 + covs_q [K,N,6] int16: Cholesky factor L (cov = L L^T, entries
                   l00 l10 l20 l11 l21 l22) divided by covs_scale, times 32767. Always decodes to a PSD matrix.
     opacities  -> opacities_u8 [K,N] uint8
-    colors     -> colors_u8 [K,N,3] uint8
+    colors     -> colors_u8 [K,N,3] uint8 (kept float32 when a value lies outside [0,1])
     sh         -> sh_lo [N,S,3] float32 + sh_step [N,S,3] float32 + sh_u8 [K,N,S,3] uint8: every coefficient of every
                   Gaussian is quantised over its own range in time, sh = sh_lo + sh_u8 * sh_step
                   (sh_lo = smallest value over the keyframes, sh_step = (largest - smallest) / 255)
@@ -216,6 +218,12 @@ class _PackedCovs(_Packed):
 
     def take(self, sel):
         return _PackedCovs(self.scale[sel], self.raw[:, sel])
+
+
+def _in_unit_range(a: np.ndarray) -> bool:
+    """True when every value lies in [0,1] (within rounding), i.e. uint8 storage does not clip it."""
+    a = np.asarray(a)
+    return bool(a.size == 0 or (float(a.min()) >= -1e-6 and float(a.max()) <= 1.0 + 1e-6))
 
 
 class _PackedU8(_Packed):
@@ -513,6 +521,8 @@ class Sequence4D:
             d = a.dyn if isinstance(a, _Split) else a
             if isinstance(d, _Packed) or a.ndim == static_ndim:
                 continue
+            if name == "colors" and not all(_in_unit_range(d[k]) for k in range(d.shape[0])):
+                continue  # colours outside [0,1] (Spacetime Gaussians) would be clipped by uint8: keep float32
             packed = {"means": _PackedMeans.encode, "covs": _PackedCovs.encode,
                       "sh": _PackedSH.encode}.get(name, lambda x: _PackedU8.encode(x, name))(d)
             if packed is not None:
@@ -632,6 +642,7 @@ class Sequence4DWriter:
         self._static = None                 # [N] bool: unchanged so far in every time-varying field
         self._scale = None                  # running covs_scale (float64), compact only
         self._means_ok = None               # [N] bool: float16 offsets finite so far, compact only
+        self._colors_ok = True              # every colour so far lies in [0,1] (uint8 would clip the others), compact only
         self._sh_lo = self._sh_hi = None    # running range of every sh coefficient, compact only
         self._closed = False
         self._dir = tempfile.mkdtemp(prefix=".gs4d_writer_", dir=os.path.dirname(os.path.abspath(self.path)))
@@ -689,6 +700,8 @@ class Sequence4DWriter:
                 self._means_ok &= np.isfinite(_PackedMeans.encode_frame(a, self._first[n])).all(1)
             if n == "sh" and self._sh_lo is not None:
                 _PackedSH.grow_range(self._sh_lo, self._sh_hi, a)
+            if n == "colors" and self.compact and self._colors_ok:
+                self._colors_ok = _in_unit_range(a)
             a.tofile(self._files[n])
         self.times.append(t)
 
@@ -749,7 +762,7 @@ class Sequence4DWriter:
                         scale = np.where(self._scale[sel] > 0, self._scale[sel], 1.0)
                         put("covs_scale", scale.astype(np.float32))
                         put_frames("covs_q", n, np.int16, lambda a: _PackedCovs.encode_frame(a, scale))
-                    elif self.compact and n in ("opacities", "colors"):
+                    elif self.compact and (n == "opacities" or (n == "colors" and self._colors_ok)):
                         put_frames(n + "_u8", n, np.uint8, _PackedU8.encode_frame)
                     elif self.compact and n == "sh" and _PackedSH.step_of(self._sh_lo[sel], self._sh_hi[sel]) is not None:
                         lo = np.array(self._sh_lo[sel], np.float32)

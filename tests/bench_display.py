@@ -12,7 +12,7 @@ presses play and counts, per "Update rate":
 The first pass runs without the wrapper and reports `sent` and `browser` only, as a control.
 (Copying the canvas in every frame to compare pixels was tried first: it halves the browser rate, so it is not used.)
 
-    python tests/bench_display.py [file.npz] [--seconds 10] [--rates 20 60] [--size 1280 720]
+    python tests/bench_display.py [file.npz] [--seconds 10] [--rates 20 60] [--size 1280 720] [--draw-as points]
 
 Needs CUDA, gsplat, an X display and Chrome. Not part of tests/run_all.py (opens a window, takes about a minute).
 """
@@ -28,6 +28,7 @@ ap.add_argument("file", nargs="?", default=os.path.join(ROOT, "..", "data_real",
 ap.add_argument("--seconds", type=float, default=10.0)
 ap.add_argument("--rates", type=int, nargs="+", default=[20, 60], help='values of the "Update rate (Hz)" slider')
 ap.add_argument("--size", type=int, nargs=2, default=[1280, 720], metavar=("W", "H"))
+ap.add_argument("--draw-as", choices=[V.SPLATS, V.POINTS], default=V.SPLATS, help='"Draw as" in the Display folder (WP24)')
 ap.add_argument("--up", default="+z")
 ap.add_argument("--port", type=int, default=8161)
 ap.add_argument("--chrome", default="/usr/bin/google-chrome")
@@ -72,7 +73,7 @@ COUNT = """async (ms) => {
 }"""
 
 args = argparse.Namespace(renderer="gsplat", host="127.0.0.1", port=opt.port, up=opt.up, max_splats=300_000, max_res=H,
-                          file=opt.file, compare=None, cameras=None, gt_background="black", cpu_decode=False, video_dir=".")
+                          file=opt.file, compare=None, cameras=None, draw_as=opt.draw_as, gt_background="black", cpu_decode=False, video_dir=".")
 seq = Sequence4D.load(opt.file, lazy=True)
 vw = V.Viewer(seq, args, None)
 sent = {"n": 0, "size": None}
@@ -117,7 +118,7 @@ with sync_playwright() as p:
 vw.server.stop()
 
 print(f"\n{os.path.basename(opt.file)}: {seq.num_gaussians:,} Gaussians x {seq.num_frames} keyframes")
-print(f"Chrome {version}, WebGL renderer: {gpu}")
+print(f"Chrome {version}, WebGL renderer: {gpu}, draw as {opt.draw_as}")
 print(f"render size {sent['size'][0]}x{sent['size'][1]}, browser canvas {rows[-1][2]['canvas'][0]}x{rows[-1][2]['canvas'][1]}, {opt.seconds:g} s per row")
 print(f"{'update rate':>12} {'sent/s':>8} {'shown/s':>8} {'uploads/s':>10} {'browser/s':>10}  upload sizes")
 for copy, rate, r in rows:
