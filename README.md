@@ -74,7 +74,7 @@ torch 2.4.1+cu124, gsplat 1.5.3, đang play, trình duyệt cùng máy:
 | 1920×1080 | 23 ms | 42 |
 
 "Update rate" mặc định là 20 Hz nên mặc định viewer gửi 20 frame/giây ở cả hai độ phân giải. Con số trên
-đo ở phía server; tốc độ hiển thị trong trình duyệt thật chưa đo.
+đo ở phía server; tốc độ hiển thị trong Chrome có GPU xem bảng ở mục "Giải mã và nội suy trên GPU khi play" bên dưới (WP19b).
 
 Xem từ máy khác qua SSH: `ssh -L 8080:localhost:8080 <server>` rồi mở `http://localhost:8080`.
 Scene từ COLMAP thường cần `--up -y`.
@@ -253,8 +253,22 @@ Mục tiêu "lấy frame ≤ 20 ms ở dạng nén" đạt (2–3 ms). Ảnh ren
 `paper-windmill` nén; 1/255 ở scene ngẫu nhiên do làm tròn float32). `tests/check_real.py` chạy lại và chạy thêm với
 `Sequence4D.at` thay bằng `GpuFrames`: cả hai cho PSNR y hệt (Deformable-3DGS 37,20–43,56 dB, SC-GS 35,35–42,99, native 4DGS 26,04–31,94).
 
-Chưa đo: tốc độ hiển thị trong Chrome có GPU ở 1280×720. Trình duyệt trong app không có WebGL và tiện ích Chrome
-không nối được trong phiên này; số trên là phía server (một frame lấy dữ liệu, chưa kể rasterize và mã hóa JPEG).
+Số trên là phía server (một frame lấy dữ liệu, chưa kể rasterize và mã hóa JPEG).
+
+Tốc độ hiển thị trong Chrome có GPU (WP19b, 15/11/2026): `paper-windmill` nén + tách tĩnh (995.942 Gaussian × 35 keyframe),
+render 1280×720, đang play, Chrome 157.0.8103.50 trên cùng máy (RTX 3060, WebGL qua ANGLE/OpenGL), màn hình 120 Hz, đo 10 giây
+mỗi dòng bằng `python tests/bench_display.py --rates 20 30 40 50 60`:
+
+| "Update rate" | Server gửi (frame/giây) | Trình duyệt hiện frame mới (frame/giây) | Trình duyệt vẽ lại (frame/giây) |
+|---|---|---|---|
+| 20 Hz (mặc định) | 20,0 | 20,0 | 120 |
+| 30 Hz | 29,9 | 30,0 | 120 |
+| 40 Hz | 39,9 | 39,9 | 119 |
+| 50 Hz | 49,5 | 49,3 | 119 |
+| 60 Hz | 54,3 | 52,9 | 117 |
+
+Trình duyệt hiện mọi frame server gửi; giới hạn là phía server (khoảng 54 frame/giây ở 1280×720 với scene này). "Frame mới" đếm số
+lần trang nạp một ảnh 1280×720 vào texture WebGL; cột cuối là tốc độ `requestAnimationFrame`. Chưa đo ở 1920×1080 và trên máy khác qua SSH.
 
 ### Gaussian tĩnh chỉ lưu một lần
 

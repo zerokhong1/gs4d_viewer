@@ -8,12 +8,8 @@ Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải 
 
 1. ~~**WP20**~~ (xong 15/11/2026) (một phiên, cần GPU trống khoảng 30 phút): train lại native 4DGS `slice-banana` với camera đúng. Con số 24,23 dB
    hiện tại đo trên một model train với camera sai. Đây là gói duy nhất còn chặn dòng native 4DGS của WP9.
-2. **WP19b: đo tốc độ hiển thị trong Chrome trên máy này** (người làm, 5 phút; phiên Claude Code không nối được Chrome thật).
-   Chạy `python -m gs4d.open ../data_real/som/paper-windmill.npz --renderer gsplat`, mở `http://localhost:8080` bằng Chrome,
-   bấm play ở 1280×720, đọc FPS (DevTools → Rendering → Frame Rendering Stats) và ghi cạnh số phía server trong README.
-   Hoặc tự động (15/11/2026): `python tests/bench_display.py --rates 20 30 40 50 60` mở một cửa sổ Chrome có GPU và in bảng
-   gửi / hiển thị / trình duyệt. Chỉ hợp lệ khi màn hình đang mở (không khoá) và không có job train nào trên GPU; lần thử 15/11
-   bị hỏng vì cả hai (màn hình khoá → Chrome chỉ chạy 1 frame/giây; WP23 đang train), nên README chưa có số.
+2. **WP19b: xong 15/11/2026.** `python tests/bench_display.py --rates 20 30 40 50 60` (cửa sổ Chrome có GPU; cần màn hình không khoá và GPU không train).
+   `paper-windmill` 1280×720: trình duyệt hiện đủ mọi frame server gửi, 20,0 ở 20 Hz đến 52,9 frame/giây ở 60 Hz (server gửi 54,3). Bảng trong README.
 3. **Mở song song với WP20** (không dùng GPU lúc đang train): WP22 (CC-B, bốn converter). WP21 (CC-A) đã xong 15/11/2026, chờ merge nhánh `cc-a/wp21-compact-sh`.
 4. **Sau WP20, từng gói một vì chung GPU:** ~~WP23~~ (xong 15/11/2026) → WP19c phần 1 → WP19c phần 2.
 5. **Dọn worktree** (người làm). Git còn đăng ký 10 worktree, kể cả `gs4d-wp19c` (đã merge) và `gs4d-wp2` từ giai đoạn 1.
@@ -82,13 +78,13 @@ và bảng "Dùng với output thật" trong README.
 | 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
 | 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
 | 13 | Native 4DGS: màu SH theo keyframe | Xong (đã merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
-| 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU chưa đo (không có Chrome nối được, trình duyệt trong app không có WebGL) |
+| 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU: đo ở WP19b |
 | 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Xong (đã merge) | `cc-c/wp15-4dgaussians` | `bouncingballs` tự train: 36,7–45,9 dB (trung bình 40,8), khớp `export_perframe_3DGS.py` đến 1e-6. `gs4d/open.py` nhận dạng thư mục 4DGaussians từ WP19a |
 | 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Xong, trừ Spacetime đầy đủ (đã merge) | `claude/wp16-variants-8fe2f3`, `claude/wp16-real-scene-5cd4d8` | `bouncingballs`: Deformable-3DGS mặc định 35,35–43,14 dB, 6-DoF 36,99–43,75, SC-GS có motion mask 35,48–43,14. Cảnh thật HyperNeRF `slice-banana` (15/11/2026, 33 ảnh giữ lại, 268 px): Deformable-3DGS trung bình 24,72 dB, SC-GS 26,69, native 4DGS 24,23 (model train với camera sai, xem WP20). Spacetime: thêm model lite `Birthday`, chưa có ảnh gốc; bản đầy đủ (`rgbdecoder`) không làm được trên máy này |
 | 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
 | 18 | Camera huấn luyện và ảnh gốc trong viewer | Xong 14/11/2026 (đã merge) | `claude/wp18-cameras-398403` | `--cameras`, danh sách camera, ảnh gốc + PSNR (gsplat); PSNR khớp check_real 0,0002 dB; không dùng được cùng `--compare`; `gs4d/open.py` tự truyền `--cameras` từ WP19a |
 | 19a | `open.py` nhận 4DGaussians và `--cameras`; converter dừng ở biến thể chưa hỗ trợ | Xong 15/11/2026 (đã commit) | làm thẳng trên `main` | `gs4d.open` nhận 4DGaussians và truyền `--cameras` (bỏ qua `cameras.json` kiểu 3DGS vì `load_cameras` không đọc được); SC-GS `--pred_color` và Spacetime đầy đủ dừng, có cờ chuyển tiếp |
-| 19b | Đo FPS hiển thị trong Chrome có GPU | Chưa | — | Người làm, trên Chrome của máy này; còn nợ từ WP14 |
+| 19b | Đo FPS hiển thị trong Chrome có GPU | Xong 15/11/2026 (chưa commit) | làm thẳng trên `main` | `tests/bench_display.py`; `paper-windmill` 1280×720, Chrome 157, RTX 3060: hiện 20,0 / 30,0 / 39,9 / 49,3 / 52,9 frame/giây ở 20 / 30 / 40 / 50 / 60 Hz, bằng số server gửi; chưa đo 1920×1080 |
 | 19c | PSNR cho Spacetime và Shape of Motion; nguyên nhân lệch 1,9 dB của native 4DGS trên cảnh thật | Phần 3 xong 15/11/2026 (đã merge); phần 1, 2 chưa, đã mở | `cc-c/wp19c-psnr` (`../gs4d-wp19c`) | Phần 3: lệch do model train với `FovX = FovY = -1` (layout của `make_hypernerf_blender.py`), không phải converter; giả lập trong gsplat cho 26,13 dB (repo 26,14); `tests/diag_native4d_banana.py`. Phần 1, 2: làm sau WP23 vì chung GPU |
 | 19d | Converter ghi từng keyframe ra đĩa để không giữ cả sequence trong RAM | Xong 15/11/2026 (đã commit) | làm thẳng trên `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bằng `save` từng bit); SC-GS, native 4DGS, Deformable-3DGS dùng nó. RAM đỉnh: SC-GS 4,5 → 1,4 GB, native 4DGS 8,3 → 1,3 GB, Deformable-3DGS 7,2 → 1,0 GB; 330 keyframe của `slice-banana` chuyển được. `check_real.py` vẫn đo ở 110 keyframe |
 | 20 | Train lại native 4DGS `slice-banana` với camera đúng, đo lại | Xong 15/11/2026 (chưa merge) | `cc-c/wp20-native4d-banana` | Train lại với `camera_angle_x` (không `fl_x` từng frame), 20.000 vòng, 20 phút: repo tự đo 26,30 dB; converter + gsplat 21,41–29,17, trung bình **26,31 dB** (trước 24,23): gap 1,9 dB hết. `make_hypernerf_blender.py` đã sửa; `check_real.py` trỏ `output/banana_fov`, ngưỡng min 20,91 |
@@ -121,7 +117,7 @@ Quy ước chung (giữ từ giai đoạn 1, sửa chỗ đã lệch):
 - **Đợt 2 (WP9, không chờ giáo sư):** CC-A làm WP14; CC-B đã xong WP17; CC-C làm WP15 → WP13 → WP16, từng gói một.
   WP15 đi trước vì 4DGaussians là phương pháp duy nhất chưa đọc trực tiếp được; câu trả lời của giáo sư có thể đổi thứ tự này.
 - **Đợt 3 (khi được yêu cầu):** WP18 (đã làm 14/11/2026).
-- **Đợt 4 (15/11/2026):** WP19a, WP19d và WP19c phần 3 đã làm. WP19b còn chờ người làm.
+- **Đợt 4 (15/11/2026):** WP19a, WP19d và WP19c phần 3 đã làm. WP19b xong 15/11/2026 (`tests/bench_display.py`).
 - **Đợt 5 (15/11/2026, sau câu trả lời của giáo sư):** WP20 trước. Song song với nó, không dùng GPU khi đang train: WP21 (`gs4d/format.py`)
   và WP22 (bốn converter), hai gói không sửa chung file. Sau WP20, lần lượt vì chung GPU: WP23 → WP19c phần 1 → WP19c phần 2.
   WP21 và WP22 chạy `check_real.py` ở cuối, khi không gói nào đang train. WP24 chờ xác nhận.
@@ -296,7 +292,7 @@ Xong khi: `python -m gs4d.open <thư mục 4DGaussians bouncingballs trong /home
 Báo cáo 5 dòng rồi dừng.
 ```
 
-### WP19b — đo FPS hiển thị trong Chrome có GPU (người làm)
+### WP19b — đo FPS hiển thị trong Chrome có GPU (xong 15/11/2026)
 
 Các bước ở mục "Làm ngay", điểm 2. Xong khi README có số FPS trong trình duyệt ở 1280×720 cạnh số phía server, kèm tên GPU
 và phiên bản Chrome; xoá dòng "display FPS in a real browser" khỏi phần NOT tested của `CLAUDE.md`.
@@ -437,7 +433,7 @@ Còn mở, nằm ngoài điều kiện xong của các gói:
   `rgbdecoder`), Deformable-3DGS biến thể mặc định và 6-DoF, cảnh thật (không phải D-NeRF)
   cho Deformable-3DGS, SC-GS và native 4DGS.
 - Câu hỏi cho giáo sư bên dưới chưa có câu trả lời được ghi lại; WP3–5 đã được làm mà không chờ.
-- Tốc độ hiển thị trong trình duyệt thật chưa đo (số trong README là phía server).
+- Tốc độ hiển thị trong trình duyệt thật: đã đo ở WP19b (15/11/2026), bảng trong README.
 - Danh sách đầy đủ những gì đã và chưa kiểm nằm ở mục Status của `CLAUDE.md`.
 
 ### Phân công: 3 phiên Claude Code

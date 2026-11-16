@@ -29,7 +29,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `tests/`          `test_sh.py`, `test_compact.py`, `test_static.py`, `test_spacetime.py`, `test_shape_of_motion.py`,
   `test_deformable3dgs.py`, `test_scgs.py` (the last three need torch), `check_camera.py`, `check_cameras.py` (needs CUDA, data, Chrome), `check_gsplat.py`
   (needs CUDA), `check_compare.py` (needs Chrome), `test_open.py`,
-  `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; `bench_display.py` (WP19b: opens a GPU Chrome window, prints sent / shown / browser frames per second; needs an unlocked screen and a free GPU, no valid run yet); screenshots and the demo mp4 are in `shots/`
+  `check_real.py` (needs CUDA + `../data_real` + `/home/cont/gs4d_train`: PSNR on real outputs with thresholds), `bench_large.py`; `bench_display.py` (WP19b: opens a GPU Chrome window, prints sent / shown / browser frames per second; needs an unlocked screen and a free GPU); screenshots and the demo mp4 are in `shots/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
@@ -78,12 +78,12 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Tested (WP14, 14/11/2026): `gs4d.GpuFrames` (format.py) decodes/interpolates on the GPU for the gsplat renderer; `viewer.frame_gpu`
   vs `frame_cpu` (`--cpu-decode`). Play frame 100 -> 2.2 ms (500k x 100 compact), 214 -> 3.1 ms (`paper-windmill` compact); renders differ
   <= 1/255; `check_real.py` PSNR unchanged (also run with `at` patched to GpuFrames). `tests/bench_large.py [--file f.npz]` prints the table.
-  NOT measured: display FPS in a real GPU Chrome (built-in browser has no WebGL, Chrome extension not connected).
+  Display FPS in a real GPU Chrome: measured in WP19b (below).
 - Tested (WP18, 14/11/2026): `viewer.py --cameras <transforms_*.json | cameras.json>` (`load_cameras`): Cameras folder in the panel,
   selecting one moves the client camera and the slider to the image time; gsplat renderer: "Ground truth beside render" shows
   render | image with PSNR (`Viewer.gt_compare`, ignores the opacity/size sliders, black or white background, capped by Max render
   height). `tests/check_cameras.py`: PSNR matches `check_real.psnr_item` to 0.0002 dB on the 20 test cameras (SC-GS 400 px,
-  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. `gs4d/open.py` passes `--cameras` since WP19a; NOT done: GT view needs one sequence (not with `--compare`); display FPS in a real browser.
+  Deformable-3DGS 800 px); `check_real.py` unchanged (7 passed). Screenshots `shots/cameras/`. `gs4d/open.py` passes `--cameras` since WP19a; NOT done: GT view needs one sequence (not with `--compare`).
 - Tested (WP12): `tests/check_real.py`, 5 items pass on this machine. Evaluate a model at the resolution it was
   trained at (Deformable-3DGS 800 px, SC-GS and native 4DGS 400 px); away from it PSNR drops by several dB.
 - WP10 (`gs4d/open.py`, `tests/test_open.py`): synthetic recognition test passes; its session reported all 6 real
@@ -155,8 +155,13 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   PSNR 22.05-30.39 dB, mean 27.13 on the 33 held-out frames at 268 px; the repo's own renders of the same frames 27.13 (per image within 0.003 dB). No converter change;
   `check_real.py` item `4dgaussians_banana` (threshold min 21.55). This repo keeps HyperNeRF cameras and points in RAW coordinates (no centre/scale, unlike Deformable-3DGS / SC-GS)
   and time = warp_id / max; its FovX/FovY come from the focal length and are correct. `gs4d.open` opens the folder but finds no camera list for this layout.
+- Tested (WP19b, 15/11/2026): display speed in a real GPU Chrome (157, headed, ANGLE on the RTX 3060, 120 Hz screen), `tests/bench_display.py`, `paper-windmill` compact,
+  1280x720, playing: update rate 20 / 30 / 40 / 50 / 60 Hz -> server sends 20.0 / 29.9 / 39.9 / 49.5 / 54.3 frames/s, browser shows 20.0 / 30.0 / 39.9 / 49.3 / 52.9 new frames/s
+  (counted as full-size WebGL texture uploads), requestAnimationFrame 117-120/s. The browser shows every frame; the server is the limit. A locked screen or a training job on
+  the GPU invalidates the run (rAF drops to 1/s; sent rate to ~31). Copying the canvas per frame to compare pixels halves the browser rate: do not measure that way.
+  NOT measured: 1920x1080, a browser on another machine over SSH.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
-  `basketball` against the original `visualize.py`; display FPS in a real browser (README numbers are server side).
+  `basketball` against the original `visualize.py`.
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
 - Not done: SC-GS `--use_hash`, `--skinning`, `--pred_color`, `d_rot_as_res` off.
