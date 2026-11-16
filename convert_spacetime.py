@@ -24,7 +24,7 @@ import os
 
 import numpy as np
 
-from gs4d import Sequence4D, cov_from_quat_scale
+from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.ply import read_ply_vertices
 
 
@@ -67,22 +67,37 @@ def load_spacetime_ply(path: str, base_color_only: bool = False) -> dict:
                 rgb=cols("f_dc_", 3))
 
 
-def slice_spacetime(g: dict, times: np.ndarray):
-    """Gaussians at each time -> means [K,N,3], covs [K,N,6], opacities [K,N]."""
-    K, N = len(times), len(g["xyz"])
-    means = np.empty((K, N, 3), np.float32)
-    covs = np.empty((K, N, 6), np.float32)
-    opac = np.empty((K, N), np.float32)
+def _opacity_at(g: dict, t: float, base: np.ndarray) -> np.ndarray:
+    return (base * np.exp(-(((t - g["center"]) / np.exp(g["tscale"])) ** 2))).astype(np.float32)
+
+
+def peak_opacity(g: dict, times: np.ndarray) -> np.ndarray:
+    """Largest opacity of every Gaussian over the keyframe times [N] (float32), one time at a time."""
+    base = 1.0 / (1.0 + np.exp(-g["opacity"]))
+    peak = np.full(len(base), -np.inf, np.float32)
+    for t in times:
+        np.maximum(peak, _opacity_at(g, t, base), out=peak)
+    return peak
+
+
+def slice_frames(g: dict, times: np.ndarray, keep: np.ndarray | None = None):
+    """One time at a time -> (means [N,3], covs [N,6], opacities [N]) of the kept Gaussians."""
     m = g["motion"]
     scales = np.exp(g["scale"])
     base = 1.0 / (1.0 + np.exp(-g["opacity"]))
-    for k, t in enumerate(times):
+    sel = slice(None) if keep is None else keep
+    for t in times:
         dt = t - g["center"]
         d = dt[:, None]
-        means[k] = g["xyz"] + m[:, 0:3] * d + m[:, 3:6] * d**2 + m[:, 6:9] * d**3
-        covs[k] = cov_from_quat_scale((g["rot"] + d * g["omega"]).astype(np.float32), scales.astype(np.float32))
-        opac[k] = base * np.exp(-((dt / np.exp(g["tscale"])) ** 2))
-    return means, covs, opac
+        means = (g["xyz"] + m[:, 0:3] * d + m[:, 3:6] * d**2 + m[:, 6:9] * d**3).astype(np.float32)
+        covs = cov_from_quat_scale((g["rot"] + d * g["omega"]).astype(np.float32), scales.astype(np.float32))
+        yield means[sel], covs[sel], _opacity_at(g, t, base)[sel]
+
+
+def slice_spacetime(g: dict, times: np.ndarray):
+    """Same as slice_frames, the whole sequence in memory: means [K,N,3], covs [K,N,6], opacities [K,N]."""
+    fr = list(slice_frames(g, times))
+    return np.stack([f[0] for f in fr]), np.stack([f[1] for f in fr]), np.stack([f[2] for f in fr])
 
 
 def main():
@@ -101,15 +116,15 @@ def main():
 
     g = load_spacetime_ply(a.ply, a.base_color_only)
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float64)
-    means, covs, opac = slice_spacetime(g, times)
-    keep = opac.max(0) > a.min_peak_opacity
+    keep = peak_opacity(g, times) > a.min_peak_opacity
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
     colors = np.clip(g["rgb"], 0, 1).astype(np.float32)
-    seq = Sequence4D(times.astype(np.float32), means[:, keep], covs[:, keep], opac[:, keep], colors[keep],
-                     source=f"Spacetime Gaussians (base colour only): {a.ply}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
-
+    # one keyframe at a time to disk, so memory does not grow with --frames
+    with Sequence4DWriter(a.output, compact=a.compact, colors=colors[keep],
+                          source=f"Spacetime Gaussians (base colour only): {a.ply}") as wr:
+        for t, (means, covs, opac) in zip(times.astype(np.float32), slice_frames(g, times, keep)):
+            wr.add_keyframe(t, means=means, covs=covs, opacities=opac)
+    print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
 
 if __name__ == "__main__":
     main()

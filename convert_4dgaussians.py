@@ -37,7 +37,7 @@ import re
 
 import numpy as np
 
-from gs4d import Sequence4D, cov_from_quat_scale
+from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 _FLAGS = ("no_dx", "no_ds", "no_dr", "no_do", "no_dshs", "no_grid", "empty_voxel", "static_mlp", "apply_rotation")
@@ -183,24 +183,30 @@ class HexPlaneDeform:
         return x.numpy(), s.numpy(), q.numpy(), o.numpy()
 
 
-def deform_sequence(xyz, log_scale, rot, opac_logit, net, times, batch=65536, progress=False):
-    """-> means [K,N,3], covs [K,N,6], opacities [K,N] (sigmoid applied)."""
-    K, N = len(times), len(xyz)
-    means = np.empty((K, N, 3), np.float32)
-    covs = np.empty((K, N, 6), np.float32)
-    opac = np.empty((K, N), np.float32)
+def deform_frames(xyz, log_scale, rot, opac_logit, net, times, batch=65536, progress=False):
+    """One time at a time -> (means [N,3], covs [N,6], opacities [N], sigmoid applied)."""
+    N = len(xyz)
     for k, t in enumerate(times):
+        means = np.empty((N, 3), np.float32)
+        covs = np.empty((N, 6), np.float32)
+        opac = np.empty(N, np.float32)
         for i in range(0, N, batch):
             sl = slice(i, i + batch)
             x, s, q, o = net(xyz[sl], log_scale[sl], rot[sl], opac_logit[sl], float(t))
-            means[k, sl] = x
-            covs[k, sl] = cov_from_quat_scale(q, np.exp(s))
-            opac[k, sl] = 1.0 / (1.0 + np.exp(-o.reshape(-1)))
+            means[sl] = x
+            covs[sl] = cov_from_quat_scale(q, np.exp(s))
+            opac[sl] = 1.0 / (1.0 + np.exp(-o.reshape(-1)))
         if progress:
-            print(f"\r  time {k + 1}/{K}", end="", flush=True)
+            print(f"\r  time {k + 1}/{len(times)}", end="", flush=True)
+        yield means, covs, opac
     if progress:
         print()
-    return means, covs, opac
+
+
+def deform_sequence(xyz, log_scale, rot, opac_logit, net, times, batch=65536, progress=False):
+    """Same as deform_frames, the whole sequence in memory: means [K,N,3], covs [K,N,6], opacities [K,N]."""
+    fr = list(deform_frames(xyz, log_scale, rot, opac_logit, net, times, batch, progress))
+    return np.stack([f[0] for f in fr]), np.stack([f[1] for f in fr]), np.stack([f[2] for f in fr])
 
 
 def main():
@@ -245,12 +251,17 @@ def main():
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
 
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
-    means, covs, opac = deform_sequence(xyz, log_scale, rot, op, net, times, a.batch, progress=True)
-    seq = Sequence4D(times, means, covs, opac if not flags["no_do"] else opac[0], colors[keep],
-                     sh=sh[keep] if (a.sh and sh is not None) else None, source=f"4DGaussians: {ply}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
-
+    const = dict(colors=colors[keep], sh=sh[keep] if (a.sh and sh is not None) else None)
+    frames = deform_frames(xyz, log_scale, rot, op, net, times, a.batch, progress=True)
+    # one keyframe at a time to disk, so memory does not grow with --frames
+    if flags["no_do"]:
+        first = next(frames)
+        const["opacities"] = first[2]
+        frames = itertools.chain([first], frames)
+    with Sequence4DWriter(a.output, compact=a.compact, source=f"4DGaussians: {ply}", **const) as wr:
+        for t, (means, covs, opac) in zip(times, frames):
+            wr.add_keyframe(t, means=means, covs=covs, opacities=None if flags["no_do"] else opac)
+    print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
 
 if __name__ == "__main__":
     main()

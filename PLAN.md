@@ -10,7 +10,7 @@ Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải 
    hiện tại đo trên một model train với camera sai. Đây là gói duy nhất còn chặn dòng native 4DGS của WP9.
 2. **WP19b: xong 15/11/2026.** `python tests/bench_display.py --rates 20 30 40 50 60` (cửa sổ Chrome có GPU; cần màn hình không khoá và GPU không train).
    `paper-windmill` 1280×720: trình duyệt hiện đủ mọi frame server gửi, 20,0 ở 20 Hz đến 52,9 frame/giây ở 60 Hz (server gửi 54,3). Bảng trong README.
-3. **Mở song song với WP20** (không dùng GPU lúc đang train): WP22 (CC-B, bốn converter). WP21 (CC-A) đã xong 15/11/2026, chờ merge nhánh `cc-a/wp21-compact-sh`.
+3. **Mở song song với WP20** (không dùng GPU lúc đang train): ~~WP22~~ (CC-B, bốn converter, xong 15/11/2026). WP21 (CC-A) đã xong 15/11/2026, chờ merge nhánh `cc-a/wp21-compact-sh`.
 4. **Sau WP20, từng gói một vì chung GPU:** ~~WP23~~ (xong 15/11/2026) → WP19c phần 1 → WP19c phần 2.
 5. **Dọn worktree** (người làm). Git còn đăng ký 10 worktree, kể cả `gs4d-wp19c` (đã merge) và `gs4d-wp2` từ giai đoạn 1.
    ```bash
@@ -365,7 +365,11 @@ lấy frame khi play, PSNR); mục tiêu dung lượng không quá 1/3 bản flo
 Báo cáo 5 dòng rồi dừng.
 ```
 
-### WP22 — `Sequence4DWriter` cho bốn converter còn lại
+### WP22 — `Sequence4DWriter` cho bốn converter còn lại — XONG 15/11/2026
+
+Kết quả: bốn converter ghi bằng Writer, file ra giống code cũ từng bit ở mọi mảng trên output thật (số RAM trong README). `convert_per_frame.py` ở chế độ số Gaussian đổi theo frame giữ đường cũ (Writer cần N cố định). Shape of Motion cả 277 frame nay chuyển được (RAM đỉnh 0,88 GB).
+
+Prompt gốc:
 ```
 Đọc CLAUDE.md (mục WP19d) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
 Việc: chuyển convert_4dgaussians.py, convert_shape_of_motion.py, convert_spacetime.py và convert_per_frame.py sang ghi bằng

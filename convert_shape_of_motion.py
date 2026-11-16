@@ -27,7 +27,7 @@ import argparse
 
 import numpy as np
 
-from gs4d import Sequence4D, pack_cov
+from gs4d import Sequence4D, Sequence4DWriter, pack_cov
 from gs4d.format import quat_to_rotmat
 
 
@@ -73,24 +73,30 @@ def static_gaussians(sd: dict, prefix: str):
             sigmoid(sd[f"{prefix}.params.colors"]))
 
 
-def move_foreground(sd: dict, frames: np.ndarray, batch: int = 200_000):
-    """Foreground at the given frame indices -> means [K,G,3], packed covs [K,G,6]."""
+def foreground_frames(sd: dict, frames: np.ndarray, batch: int = 200_000):
+    """One frame index at a time -> foreground means [G,3], packed covs [G,6]."""
     mean, M, _, _ = static_gaussians(sd, "fg")
     logits = sd["fg.params.motion_coefs"]
     coefs = np.exp(logits - logits.max(-1, keepdims=True))
     coefs /= coefs.sum(-1, keepdims=True)
     rots, transls = sd["motion_bases.params.rots"], sd["motion_bases.params.transls"]
-    K, G = len(frames), len(mean)
-    means = np.empty((K, G, 3), np.float32)
-    covs = np.empty((K, G, 6), np.float32)
-    for k, f in enumerate(frames):
+    G = len(mean)
+    for f in frames:
+        means = np.empty((G, 3), np.float32)
+        covs = np.empty((G, 6), np.float32)
         for a in range(0, G, batch):
             sl = slice(a, min(a + batch, G))
             R = rot6d_to_matrix(coefs[sl] @ rots[:, f])            # [g,3,3]
-            means[k, sl] = np.einsum("gij,gj->gi", R, mean[sl]) + coefs[sl] @ transls[:, f]
+            means[sl] = np.einsum("gij,gj->gi", R, mean[sl]) + coefs[sl] @ transls[:, f]
             L = R @ M[sl]
-            covs[k, sl] = pack_cov(L @ np.swapaxes(L, -1, -2))
-    return means, covs
+            covs[sl] = pack_cov(L @ np.swapaxes(L, -1, -2))
+        yield means, covs
+
+
+def move_foreground(sd: dict, frames: np.ndarray, batch: int = 200_000):
+    """Same as foreground_frames, the whole sequence in memory: means [K,G,3], packed covs [K,G,6]."""
+    fr = list(foreground_frames(sd, frames, batch))
+    return np.stack([f[0] for f in fr]), np.stack([f[1] for f in fr])
 
 
 def main():
@@ -107,24 +113,26 @@ def main():
     sd = load_checkpoint(a.checkpoint)
     T = sd["motion_bases.params.rots"].shape[1]
     frames = np.arange(0, T, a.stride)
-    means, covs = move_foreground(sd, frames)
     _, _, opac, colors = static_gaussians(sd, "fg")
     n_fg, n_bg = len(opac), 0
+    b_mean = b_cov = None
     if "bg.params.means" in sd and not a.fg_only:
         b_mean, b_M, b_opac, b_col = static_gaussians(sd, "bg")
         n_bg = len(b_opac)
         b_cov = pack_cov(b_M @ np.swapaxes(b_M, -1, -2)).astype(np.float32)
-        means = np.concatenate([means, np.broadcast_to(b_mean.astype(np.float32), (len(frames), n_bg, 3))], 1)
-        covs = np.concatenate([covs, np.broadcast_to(b_cov, (len(frames), n_bg, 6))], 1)
         opac, colors = np.concatenate([opac, b_opac]), np.concatenate([colors, b_col])
     keep = opac > a.min_opacity
     print(f"{n_fg:,} foreground + {n_bg:,} background Gaussians, {sd['motion_bases.params.rots'].shape[0]} motion bases, "
           f"{T} frames; keeping {keep.sum():,}")
-    seq = Sequence4D((frames / a.fps).astype(np.float32), means[:, keep], covs[:, keep], opac[keep].astype(np.float32),
-                     colors[keep].astype(np.float32), source=f"Shape of Motion: {a.checkpoint}")
-    seq.save(a.output, compact=a.compact)
-    print(f"Wrote {a.output}: {seq.summary()}")
-
+    # one keyframe at a time to disk, so memory does not grow with the number of frames
+    with Sequence4DWriter(a.output, compact=a.compact, opacities=opac[keep].astype(np.float32),
+                          colors=colors[keep].astype(np.float32), source=f"Shape of Motion: {a.checkpoint}") as wr:
+        for f, (means, covs) in zip(frames, foreground_frames(sd, frames)):
+            if n_bg:
+                means = np.concatenate([means, b_mean.astype(np.float32)])
+                covs = np.concatenate([covs, b_cov])
+            wr.add_keyframe(np.float32(f / a.fps), means=means[keep], covs=covs[keep])
+    print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
 
 if __name__ == "__main__":
     main()

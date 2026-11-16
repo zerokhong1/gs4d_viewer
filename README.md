@@ -155,7 +155,25 @@ Thêm phương pháp mới: viết một script tạo `Sequence4D(...)` rồi `.
 (`gs4d/format.py`): trường hằng theo thời gian đưa vào lúc tạo, các trường còn lại đưa vào `add_keyframe(t, ...)` từng keyframe;
 RAM đỉnh không phụ thuộc K, file ra giống hệt `save` từng bit (cả dạng nén và nhóm tĩnh). Lúc ghi cần thêm chỗ đĩa tạm
 ≈ N × K × 40 byte cạnh file ra (thư mục `.gs4d_writer_*`, tự xoá; còn sót lại nếu tiến trình bị kill). `convert_scgs.py`,
-`convert_native4d.py` và `convert_deformable3dgs.py` dùng cách này; Deformable-3DGS `slice-banana` 330 keyframe: RAM đỉnh 7,2 → 1,0 GB.
+`convert_native4d.py`, `convert_deformable3dgs.py` và (WP22) `convert_4dgaussians.py`, `convert_shape_of_motion.py`,
+`convert_spacetime.py`, `convert_per_frame.py` dùng cách này; Deformable-3DGS `slice-banana` 330 keyframe: RAM đỉnh 7,2 → 1,0 GB.
+
+RAM đỉnh của bốn converter WP22 (`/usr/bin/time -v`, cùng input, file ra giống code cũ từng bit ở mọi mảng):
+
+| Input thật | Lệnh | RAM đỉnh trước → sau |
+|---|---|---|
+| 4DGaussians `bouncingballs` | `--frames 60 --sh --compact` | 538 → 473 MB |
+| 4DGaussians `slice-banana` | `--frames 330 --sh --compact` | 1,49 → 0,60 GB |
+| Shape of Motion `paper-windmill` | `--stride 8 --compact` (35 keyframe) | 3,2 → 0,88 GB |
+| Shape of Motion `paper-windmill` | `--compact`, cả 277 frame | không chạy được (cần > 11 GB, làm sập app) → 0,88 GB, 69 giây, file 416 MB |
+| Spacetime `n3d_sear_steak` lite | `--compact` | 590 → 102 MB |
+| Spacetime Technicolor `Birthday` lite | `--compact` | 3,28 → 0,44 GB |
+| ply theo frame (4DGaussians `gaussian_pertimestamp`) | `--sh --compact` / không cờ | 300 → 97 MB / 97 → 53 MB |
+
+Spacetime đọc opacity hai lượt (lượt đầu chỉ tính đỉnh opacity để lọc `--min-peak-opacity`, lượt hai ghi). `convert_per_frame.py`:
+folder ply có số Gaussian đổi theo frame (`interpolate=False`, đệm Gaussian ẩn) giữ đường cũ trong RAM, vì Writer cần N cố định và
+biết trước; params.npz của Dynamic 3D Gaussians vẫn nạp cả file nhưng ghi covariance từng frame (không có output thật để đo, kiểm bằng
+dữ liệu tổng hợp: 8 tổ hợp giống code cũ từng bit).
 
 ## File lớn: lưu nén và nạp lười
 

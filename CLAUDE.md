@@ -139,6 +139,12 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   (110 kf: 26.69); native 4DGS 5 min, 19.9 GB file (per-keyframe `sh` is float32), PSNR 21.22-26.12, mean 24.27 (110 kf: 24.23), so interpolation between
   keyframes does not explain the 1.9 dB gap to the repo's eval. `check_real.py` items still use 110 keyframes; `psnr_item` loads eagerly, so the 19.9 GB
   file needs `load(lazy=True)`. The other converters still build the whole sequence in RAM.
+- Tested (WP22, 15/11/2026): `convert_4dgaussians.py`, `convert_shape_of_motion.py`, `convert_spacetime.py`, `convert_per_frame.py` write through `Sequence4DWriter` (generators `deform_frames`, `foreground_frames`,
+  `slice_frames` + `peak_opacity` (Spacetime: first pass computes the peak opacity for `--min-peak-opacity`), `write_ply_folder`, `write_dynamic3dgs`; the in-memory functions stay). Output on real data is
+  identical to the old code in every array (np.load byte compare): 4DGaussians `bouncingballs` and `slice-banana` 330 kf, Shape of Motion `paper-windmill --stride 8`, Spacetime `n3d_sear_steak` and Technicolor `Birthday`,
+  per-frame ply folder (with/without `--sh --compact`); Dynamic 3D Gaussians (no real params.npz here) identical on synthetic data, 8 combinations. Peak RAM before -> after: 4DGaussians banana 1.49 -> 0.60 GB, SoM stride 8 3.2 -> 0.88 GB,
+  Birthday 3.28 -> 0.44 GB, steak 590 -> 102 MB. SoM with all 277 frames now converts (0.88 GB, 69 s, 416 MB); the old code needs > 11 GB (it OOM-killed the whole app, exit 137). per-frame ply folders whose Gaussian count changes
+  (`interpolate=False`) keep the old in-memory path (Writer needs fixed N). `tests/run_all.py`: 17 passed. Writer lacked nothing.
 - Tested (WP21, 15/11/2026): compact layout now also packs per-keyframe `sh`: `sh_lo [N,S,3]` + `sh_step [N,S,3]` float32 + `sh_u8 [K,N,S,3]`
   (`_PackedSH` in format.py; every coefficient of every Gaussian quantised over its own range in time, `sh = sh_lo + sh_u8 * sh_step`); constant `sh` stays
   float32; non-finite `sh` falls back to float32. `save`, `Sequence4DWriter` (bit for bit equal), lazy load, `GpuFrames`, static group all handle it;
