@@ -35,8 +35,8 @@ Còn lại sau giai đoạn 3 (không phải việc của Claude Code hoặc ch�
 2. **Commit**: nhánh `cc-a/wp24-points` chứa WP24 và cả giai đoạn 3, chưa commit.
 3. **Dọn worktree** (mục 5 của "Làm ngay") và dọn đĩa: `../data_real/som/paper-windmill_data/paper-windmill.zip` 6,6 GB chỉ cần 384 MB đã giải nén
    (`rgb/1x/0_*`, `splits/`); `sear_steak.zip` 1,1 GB đã giải nén đủ. Ổ đĩa còn khoảng 15 GB.
-4. **Giới hạn đã ghi nhận**: Spacetime bản đầy đủ (`rgbdecoder`); SC-GS `--use_hash`, `--skinning`, đầu màu kiểu hash / theo hướng nhìn;
-   chưa có model SC-GS thật nào mà đầu màu `--pred_color` thực sự khác 0 (cần cảnh có màu đổi theo thời gian).
+4. **Giới hạn đã ghi nhận**: Spacetime bản đầy đủ (`rgbdecoder`); SC-GS: `--use_hash` và `--skinning` đã port nhưng chỉ kiểm chứng tổng hợp (train của repo: hash không hội tụ, 6,8 dB; skinning crash sau densify do `motion_mask`), đầu màu kiểu theo hướng nhìn;
+   đầu màu `--pred_color` đã kiểm chứng trên cảnh tô màu theo thời gian (37,83 dB so với 24,48 khi bỏ qua đầu màu).
 5. Chưa đo: xem qua SSH hoặc trên máy khác; renderer client ở chế độ điểm trên GPU thật.
 
 ## Làm ngay (giai đoạn 2)

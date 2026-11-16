@@ -98,10 +98,12 @@ def rot_from_quat(q):
                      [2 * (x*z - w*y), 2 * (y*z + w*x), 1 - 2 * (x*x + y*y)]])
 
 
-def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, max_d_scale, pred_color=None, sh=False):
+def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, max_d_scale, pred_color=None, sh=False, skinning=False):
     rng = np.random.default_rng(11 + H)
     N, M, F = 60, 20, 4
-    n_fea = H + (1 if motion_mask else 0)
+    if skinning:
+        H = 0   # nodes carry no hyper coordinates; one fea column per node instead
+    n_fea = (M if skinning else H) + (1 if motion_mask else 0)
     attrs = (["x", "y", "z", "nx", "ny", "nz"] + [f"f_dc_{i}" for i in range(3)] + [f"f_rest_{i}" for i in range(9)]
              + ["opacity"] + [f"scale_{i}" for i in range(3)] + [f"rot_{i}" for i in range(4)] + [f"fea_{i}" for i in range(n_fea)])
     c = {n: rng.normal(0, 0.5, N).astype(np.float32) for n in attrs}
@@ -110,8 +112,9 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     net = build_network(torch, blender, local_frame, pred_opacity, pred_color=pred_color)
     sd = {f"network.{k}": v for k, v in net.state_dict().items()}
     sd["nodes"] = torch.nn.Parameter(torch.from_numpy(rng.normal(0, 0.5, (M, 3 + H)).astype(np.float32)))
-    sd["_node_radius"] = torch.nn.Parameter(torch.from_numpy(rng.normal(-0.5, 0.3, M).astype(np.float32)))
-    sd["_node_weight"] = torch.nn.Parameter(torch.from_numpy(rng.normal(0, 1, (M, 1)).astype(np.float32)))
+    if not skinning:
+        sd["_node_radius"] = torch.nn.Parameter(torch.from_numpy(rng.normal(-0.5, 0.3, M).astype(np.float32)))
+        sd["_node_weight"] = torch.nn.Parameter(torch.from_numpy(rng.normal(0, 1, (M, 1)).astype(np.float32)))
     sd["inited"] = torch.tensor(True)
     sd["gs__xyz"] = torch.nn.Parameter(torch.zeros(M, 3))  # the repo also stores its per-node Gaussians as gs_*
     with tempfile.TemporaryDirectory() as tmp:
@@ -134,8 +137,8 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     assert seq.num_frames == F and seq.num_gaussians == N
 
     nodes = sd["nodes"].detach().numpy().astype(np.float64)
-    radius = np.exp(sd["_node_radius"].detach().numpy().astype(np.float64))
-    nweight = 1 / (1 + np.exp(-sd["_node_weight"].detach().numpy().astype(np.float64)[:, 0]))
+    radius = np.exp(sd["_node_radius"].detach().numpy().astype(np.float64)) if not skinning else None
+    nweight = 1 / (1 + np.exp(-sd["_node_weight"].detach().numpy().astype(np.float64)[:, 0])) if not skinning else None
     xyz = np.stack([c["x"], c["y"], c["z"]], -1).astype(np.float64)
     fea = np.stack([c[f"fea_{i}"] for i in range(n_fea)], -1).astype(np.float64) if n_fea else np.zeros((N, 0))
     quat = np.stack([c[f"rot_{i}"] for i in range(4)], -1).astype(np.float64)
@@ -155,11 +158,16 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
         if max_d_scale > 0:
             v["d_scale"] = np.tanh(v["d_scale"]) * np.log(max_d_scale)
         for i in range(N):
-            p = np.concatenate([xyz[i], fea[i, :H]])
-            d2 = ((nodes - p) ** 2).sum(-1)
-            nn_ = np.argsort(d2)[:K]
-            wk = np.exp(-d2[nn_] / (2 * radius[nn_] ** 2)) * nweight[nn_] + 1e-7
-            wk /= wk.sum()
+            if skinning:   # every node, weights softmax(fea)
+                nn_ = np.arange(M)
+                wk = np.exp(fea[i, :M] - fea[i, :M].max())
+                wk /= wk.sum()
+            else:
+                p = np.concatenate([xyz[i], fea[i, :H]])
+                d2 = ((nodes - p) ** 2).sum(-1)
+                nn_ = np.argsort(d2)[:K]
+                wk = np.exp(-d2[nn_] / (2 * radius[nn_] ** 2)) * nweight[nn_] + 1e-7
+                wk /= wk.sum()
             m = 1 / (1 + np.exp(-fea[i, -1])) if motion_mask else 1.0
             if local_frame:
                 acc = np.zeros(3)
@@ -190,7 +198,7 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
     assert not pred_color or recoloured > 0.05, "reference colour change is ~0, the test would not see a missing colour head"
     name = ", ".join(n for n, on in (("D-NeRF time net", blender), ("local frame", local_frame), (f"{H} hyper coordinates", H),
                                      ("motion mask", motion_mask), ("opacity head", pred_opacity),
-                                     (f"colour head ({pred_color})" + (" with --sh" if sh else ""), pred_color), (f"K={K}", True)) if on)
+                                     (f"colour head ({pred_color})" + (" with --sh" if sh else ""), pred_color), ("skinning", skinning), (f"K={K}", True)) if on)
     print(f"ok  sc-gs ({name}): positions and covariances match the independent formulas at 3 times (max shift {moved:.2f})")
 
 
@@ -235,6 +243,8 @@ def test_scgs():
                 pred_color="resnet", sh=True)
     run_variant(torch, blender=False, local_frame=False, H=2, motion_mask=True, pred_opacity=False, K=3, max_d_scale=-1,
                 pred_color="linear")
+    run_variant(torch, blender=True, local_frame=True, H=0, motion_mask=False, pred_opacity=False, K=3, max_d_scale=-1, skinning=True)
+    run_variant(torch, blender=False, local_frame=False, H=0, motion_mask=True, pred_opacity=True, K=3, max_d_scale=-1, skinning=True)
     test_pred_color_stops()
 
 

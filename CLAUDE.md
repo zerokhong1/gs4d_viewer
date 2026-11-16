@@ -211,7 +211,8 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   `basketball` against the original `visualize.py`.
 - Local training setup for those methods (not in the repo): `/home/cont/gs4d_train` (env, CUDA toolkit, clones,
   outputs), data in `../data_real`. Build or train one job at a time: the machine has 15 GB RAM.
-- Not done: SC-GS `--use_hash`, `--skinning`, hash / view-direction colour heads, `d_rot_as_res` off.
+- Done 16/11/2026 (synthetic only): SC-GS `--use_hash` (numpy tiny-cuda-nn hash grid, matches tinycudann to 2e-4 with `PYTHONPATH=/home/cont/gs4d_train/site_tcnn LD_LIBRARY_PATH=/home/cont/gs4d_train/cuda/targets/x86_64-linux/lib`; `tests/test_scgs_hash.py`) and `--skinning` (`tests/test_scgs.py`). No real model: the repo's own hash training stays at 6.8 dB on `bouncingballs`, its skinning training crashes after densification (`motion_mask` size). `check_real.py` items `scgs_hash`, `scgs_skin` run only with `--only`. `--pred_color` verified on a time-tinted `bouncingballs` (`scgs_predcolor`: 37.83 dB with the head, 24.48 ignoring it).
+- Not done: view-direction colour heads, `d_rot_as_res` off, WP28 (locked screen), Spacetime full model.
 - Tested (WP17): `--compact` in every `convert_*.py` (only `save(compact=True)`); `gs4d.open` adds it when the estimate
   (`estimate_bytes`, rough: ply size / 248 B x frames x 40 B) is over 1 GB, `tests/test_open.py`. Deformable-3DGS `bouncingballs --sh`
   153 -> 84 MB, `at(t)` differs from the plain file by <2e-4. `python tests/run_all.py` all pass on this machine (CUDA, Chrome, data present).

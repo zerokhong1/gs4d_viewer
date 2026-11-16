@@ -28,7 +28,16 @@ linear layer on the hidden state), added to the Gaussian's SH DC coefficient:
     f_dc(t) = f_dc + mask * sum_k w_k d_color_k
 so colours (and, with --sh, the DC coefficient) are stored per keyframe.
 
-Not supported (the script stops and says so): hash-grid networks (--use_hash), --skinning, and models
+Skinning models (--skinning, no `_node_radius`, nodes without hyper coordinates): the ply has one `fea_*` column per node
+(plus the motion mask, when trained with one) and every Gaussian is blended over ALL nodes with
+    w = softmax(fea_0..M-1)
+instead of the K nearest; everything else is as above (the repo's cal_nn_weight with `skinning`).
+
+Hash-grid models (--use_hash): the hash grid (12 levels, tiny-cuda-nn layout) is re-implemented in numpy (`hash_encode`) and
+the MLP heads run in numpy; the repo's DeformNetwork output `d_rotation` already contains the (1,0,0,0) offset there.
+--hash_time (4D grid) is read too; the fully fused tiny-cuda-nn MLP (tcnn_mlp) is not.
+
+Not supported (the script stops and says so): models
 trained with d_rot_as_res off, colour heads other than the default (hash colour, colour by view direction).
 --ignore-pred-color keeps the colour of a --pred_color model constant in time (smaller file, wrong colours).
 --max_d_scale must be repeated here.
@@ -149,6 +158,131 @@ class NodeMLP:
         return {k: v.numpy().astype(np.float64) for k, v in out.items()}
 
 
+# ------------------------------------------------------------------------------------------ hash-grid network (--use_hash)
+HASH_LEVELS, HASH_FEATURES, HASH_LOG2_SIZE, HASH_BASE, HASH_SCALE = 12, 2, 19, 16, 2.0   # fixed in the repo (ProgressiveBandHashGridCosine)
+HASH_START_LEVEL, HASH_UPDATE_STEPS = 6, 1000
+HASH_PRIMES = (1, 2654435761, 805459861, 3674653429)   # tiny-cuda-nn hash factors (checked against the built library, tests/test_scgs_hash.py)
+
+
+def hash_levels(dims: int):
+    """Per level (scale, resolution, parameter offset, table size) as tiny-cuda-nn lays the grid out."""
+    table, offset, out = 1 << HASH_LOG2_SIZE, 0, []
+    for lv in range(HASH_LEVELS):
+        scale = np.float32(np.exp2(np.float32(lv) * np.float32(np.log2(HASH_SCALE))) * HASH_BASE - 1.0)
+        res = int(np.ceil(scale)) + 1
+        n = res ** dims
+        n = ((n + 7) // 8) * 8          # aligned memory accesses
+        n = min(n, table)
+        out.append((scale, res, offset, n))
+        offset += n
+    return out, offset
+
+
+def hash_encode(x: np.ndarray, params: np.ndarray, dims: int) -> np.ndarray:
+    """tiny-cuda-nn GridEncoding (type Hash, linear interpolation) of x [n, dims] in [0,1] -> [n, levels * features] float32."""
+    x = np.ascontiguousarray(x, np.float32)
+    n = len(x)
+    levels, total = hash_levels(dims)
+    if params.size != total * HASH_FEATURES:
+        raise SystemExit(f"hash grid has {params.size} parameters, expected {total * HASH_FEATURES} for {HASH_LEVELS} levels")
+    tab = params.reshape(-1, HASH_FEATURES).astype(np.float32)
+    out = np.zeros((n, HASH_LEVELS * HASH_FEATURES), np.float32)
+    for lv, (scale, res, off, size) in enumerate(levels):
+        pos = x * scale + np.float32(0.5)
+        grid = np.floor(pos)
+        frac = (pos - grid).astype(np.float32)
+        grid = grid.astype(np.int64)
+        acc = np.zeros((n, HASH_FEATURES), np.float32)
+        for corner in range(1 << dims):
+            w = np.ones(n, np.float32)
+            g = grid.copy()
+            for d in range(dims):
+                if (corner >> d) & 1:
+                    w = w * frac[:, d]
+                    g[:, d] += 1
+                else:
+                    w = w * (np.float32(1.0) - frac[:, d])
+            stride, idx = 1, np.zeros(n, np.uint64)
+            for d in range(dims):
+                if stride > size:
+                    break
+                idx += g[:, d].astype(np.uint64) * np.uint64(stride)
+                stride *= res
+            if stride > size:   # the level does not fit its table: hash the integer position
+                h = np.zeros(n, np.uint32)
+                for d in range(dims):
+                    h ^= (g[:, d].astype(np.uint32) * np.uint32(HASH_PRIMES[d]))
+                idx = h.astype(np.uint64)
+            idx = (idx % np.uint64(size)).astype(np.int64)
+            acc += w[:, None] * tab[off + idx]
+        out[:, lv * HASH_FEATURES:(lv + 1) * HASH_FEATURES] = acc
+    return out
+
+
+class HashNodeMLP:
+    """Forward pass of the repo's HashDeformNetwork (`network.hashgrid.*`, `network.mlp.*`, `network.*_layer.*`) at the control nodes."""
+
+    def __init__(self, sd: dict):
+        self.sd = {k[len("network."):]: v.detach().float().numpy() for k, v in sd.items()
+                   if k.startswith("network.") and hasattr(v, "detach")}
+        if "mlp.layers.0.weight" not in self.sd:
+            raise SystemExit("deform.pth: hash-grid network with the fully fused tiny-cuda-nn MLP (tcnn_mlp) is not supported")
+        self.params = self.sd["hashgrid.encoding.params"]
+        self.bbox = self.sd.get("bbox", np.array([-2.0, 2.0], np.float32))
+        n_in = self.sd["mlp.layers.0.weight"].shape[1]
+        out_dim = HASH_LEVELS * HASH_FEATURES
+        self.hash_time = n_in == out_dim                       # 4D grid on (x, t), no separate time embedding
+        self.t_freqs = 0 if self.hash_time else (n_in - out_dim - 1) // 2
+        self.grid_dims = 4 if self.hash_time else 3
+        self.blender = False
+        self.progressive = False
+        self.local_frame = "local_rotation_layer.layers.0.weight" in self.sd
+        self.pred_opacity = "opacity_layer.layers.0.weight" in self.sd
+        self.pred_color = "color_layer.layers.0.weight" in self.sd
+        self.color_kind = "hash" if self.pred_color else None
+        step = int(np.asarray(sd.get("network.hashgrid.current_step", 0)).reshape(-1)[0]) if "network.hashgrid.current_step" in sd else 10**9
+        ratio = step / ((HASH_LEVELS - HASH_START_LEVEL) * HASH_UPDATE_STEPS)
+        start = HASH_START_LEVEL * HASH_FEATURES
+        band = out_dim - start
+        self.mask = np.ones(out_dim, np.float32)
+        self.mask[start:] = (1.0 - np.cos(np.pi * np.clip(ratio * band - np.arange(band), 0.0, 1.0))) / 2.0
+        self.skip = 2 if not self.hash_time else None         # MLP skip=[2] re-injects the input before layer 6
+        self.log_scale_range = float(np.log(2.0))
+
+    def _mlp(self, name, x, skip_in=None):
+        idx = sorted(int(k.split(".")[2]) for k in self.sd if k.startswith(name + ".layers.") and k.endswith(".weight"))
+        h = x
+        for n, i in enumerate(idx):                           # the repo's MLP: Linear at even indices, ReLU between
+            if skip_in is not None and i == 6:                # skip=[2]: the input is concatenated before layer 6
+                h = np.concatenate([h, skip_in], -1)
+            h = h @ self.sd[f"{name}.layers.{i}.weight"].T + self.sd[f"{name}.layers.{i}.bias"]
+            if n < len(idx) - 1:
+                h = np.maximum(h, 0.0)
+        return h
+
+    def __call__(self, xyz, t: float) -> dict:
+        x = (np.asarray(xyz, np.float32) - self.bbox[0]) / (self.bbox[1] - self.bbox[0])
+        if self.hash_time:
+            embed = hash_encode(np.concatenate([x, np.full((len(x), 1), t, np.float32)], 1), self.params, 4) * self.mask
+            skip_in = None
+        else:
+            te = np.concatenate([[t]] + [[np.sin(t * 2.0 ** j), np.cos(t * 2.0 ** j)] for j in range(self.t_freqs)]).astype(np.float32)
+            te = np.tile(te / len(te) * HASH_LEVELS * HASH_FEATURES, (len(x), 1))
+            embed = np.concatenate([hash_encode(x, self.params, 3) * self.mask, te], 1)
+            skip_in = embed
+        h = self._mlp("mlp", embed, skip_in)
+        out = {"d_xyz": self._mlp("translate_layer", h),
+               "d_rot": self._mlp("rotation_layer", h) + np.array([1.0, 0, 0, 0], np.float32),
+               "d_scale": np.tanh(self._mlp("scaling_layer", h)) * self.log_scale_range}
+        if self.local_frame:
+            out["local_rot"] = self._mlp("local_rotation_layer", h)
+        if self.pred_opacity:
+            out["d_opacity"] = self._mlp("opacity_layer", h)
+        if self.pred_color:
+            out["d_color"] = self._mlp("color_layer", h)
+        return {k: v.astype(np.float64) for k, v in out.items()}
+
+
 def knn_weights(points: np.ndarray, sd: dict, K: int, batch: int = 20000):
     """Indices [N,K] and normalised weights [N,K] of each Gaussian's K nearest control nodes."""
     nodes = sd["nodes"].astype(np.float64)
@@ -182,6 +316,9 @@ def quat_matrix(q: np.ndarray) -> np.ndarray:
                      s * (i * k - j * r), s * (j * k + i * r), 1 - s * (i * i + j * j)], -1).reshape(q.shape[:-1] + (3, 3))
 
 
+SKIN_CHUNK = 20000
+
+
 def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP, times, progress: bool = False,
                   with_color: bool = False):
     """Canonical xyz [N,3], activated scales [N,3], raw quaternions [N,4], opacities [N], motion mask [N,1]
@@ -193,10 +330,23 @@ def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP
     node_t = torch.from_numpy(nodes_xyz.astype(np.float32))
     x = xyz.astype(np.float64)
     blend = lambda v: (v[idx] * w[..., None]).sum(1)  # noqa: E731  node values [M,C] -> per Gaussian [N,C]
+    skin = idx is None  # skinning: w is [N,M], softmax weights over all nodes
+    if skin:
+        def blend(v):  # noqa: F811
+            return np.concatenate([w[a:a + SKIN_CHUNK] @ v for a in range(0, len(w), SKIN_CHUNK)])
     with torch.no_grad():
         for k, t in enumerate(times):
             v = mlp(node_t, float(t))
-            if mlp.local_frame:
+            if mlp.local_frame and skin:
+                # sum_k w_k (R_k (x - n_k) + n_k + d_k) = (sum_k w_k R_k) x + sum_k w_k (n_k - R_k n_k + d_k)
+                lr = v["local_rot"].copy()
+                lr[:, 0] += 1.0
+                R = quat_matrix(lr)                                             # [M,3,3]
+                nodes64 = nodes_xyz.astype(np.float64)
+                off = nodes64 - np.einsum("kab,kb->ka", R, nodes64) + v["d_xyz"]
+                Rw = blend(R.reshape(len(R), 9)).reshape(-1, 3, 3)
+                shift = np.einsum("nab,nb->na", Rw, x) + blend(off) - x
+            elif mlp.local_frame:
                 lr = v["local_rot"].copy()
                 lr[:, 0] += 1.0
                 R = quat_matrix(lr)[idx]                                        # [N,K,3,3]
@@ -253,15 +403,19 @@ def main():
     if "nodes" not in sd:
         raise SystemExit(f"{pth}: no control nodes. An SC-GS model trained with --deform_type mlp is a Deformable-3DGS "
                          "network: use convert_deformable3dgs.py")
-    if "_node_radius" not in sd:
-        raise SystemExit(f"{pth}: no _node_radius: models trained with --skinning are not supported")
-    mlp = NodeMLP(sd, a.max_d_scale)
+    skinning = "_node_radius" not in sd
+    if skinning and sd["nodes"].shape[1] != 3:
+        raise SystemExit(f"{pth}: no _node_radius but the nodes have hyper coordinates: not an SC-GS control-node model")
+    mlp = HashNodeMLP(sd) if "network.hashgrid.encoding.params" in sd else NodeMLP(sd, a.max_d_scale)
     node_sd = {k: sd[k].detach().numpy() for k in ("nodes", "_node_radius", "_node_weight") if k in sd}
     H = node_sd["nodes"].shape[1] - 3
+    M = len(node_sd["nodes"])
 
     v = read_ply_vertices(ply)
     _, _, opac, colors, sh = gaussians_from_ply(ply, with_sh=True)
     n_fea = sum(1 for n in v.dtype.names if n.startswith("fea_"))
+    if skinning:  # one fea column per node, then the motion mask if any
+        H = M
     if n_fea not in (H, H + 1):
         raise SystemExit(f"{ply} has {n_fea} fea_* columns but the nodes have {H} hyper coordinates: ply and deform.pth do not match")
     fea = np.stack([v[f"fea_{i}"] for i in range(n_fea)], -1).astype(np.float64) if n_fea else np.zeros((len(v), 0))
@@ -273,7 +427,7 @@ def main():
     mask = 1.0 / (1.0 + np.exp(-fea[:, -1:])) if n_fea == H + 1 else np.ones((len(xyz), 1))
     print(f"{ply}\n{pth}: {len(node_sd['nodes']):,} control nodes, {H} hyper coordinates"
           + (", D-NeRF time net" if mlp.blender else "") + (", local frame" if mlp.local_frame else "")
-          + (", motion mask" if n_fea == H + 1 else "") + (", opacity head" if mlp.pred_opacity else ""))
+          + (", skinning (softmax over all nodes)" if skinning else "") + (", motion mask" if n_fea == H + 1 else "") + (", opacity head" if mlp.pred_opacity else ""))
     time_color = mlp.pred_color and not a.ignore_pred_color
     if time_color and mlp.color_kind is None:
         raise SystemExit(f"{a.model}: SC-GS colour head (--pred_color) of a kind that is not supported (hash colour or colour by "
@@ -283,7 +437,11 @@ def main():
                                                  "ignored (--ignore-pred-color), colours stay constant in time"))
     print(f"Keeping {keep.sum():,} of {len(keep):,} Gaussians")
 
-    idx, w = knn_weights(np.concatenate([xyz, fea[:, :H]], 1), node_sd, a.knn)
+    if skinning:
+        e = np.exp(fea[:, :M] - fea[:, :M].max(1, keepdims=True))
+        idx, w = None, (e / e.sum(1, keepdims=True)).astype(np.float64)
+    else:
+        idx, w = knn_weights(np.concatenate([xyz, fea[:, :H]], 1), node_sd, a.knn)
     times = np.linspace(a.t0, a.t1, a.frames, dtype=np.float32)
     sh_keep = sh[keep] if (a.sh and sh is not None) else None
     const = dict(sh=sh_keep) if time_color else dict(colors=colors[keep], sh=sh_keep)

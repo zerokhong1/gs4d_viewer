@@ -31,8 +31,8 @@ sys.path.insert(0, ROOT)
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and the README.
 MEASURED_ON = "14/11/2026"
-MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98, "scgs_predcolor": 35.12, "d3dgs_banana": 18.78, "scgs_banana": 19.71, "native4d_banana": 20.91, "4dgaussians_banana": 21.55, "spacetime_psnr": 27.26, "som_psnr": 21.11}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
-EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400, "scgs_predcolor": 400, "d3dgs_banana": 268, "scgs_banana": 268, "native4d_banana": 268, "4dgaussians_banana": 268, "spacetime_psnr": 1352}  # training resolution of each model
+MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98, "scgs_predcolor": 26.81, "scgs_skin": 0.0, "scgs_hash": 0.0, "d3dgs_banana": 18.78, "scgs_banana": 19.71, "native4d_banana": 20.91, "4dgaussians_banana": 21.55, "spacetime_psnr": 27.26, "som_psnr": 21.11}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
+EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400, "scgs_predcolor": 400, "scgs_skin": 400, "scgs_hash": 400, "d3dgs_banana": 268, "scgs_banana": 268, "native4d_banana": 268, "4dgaussians_banana": 268, "spacetime_psnr": 1352}  # training resolution of each model
 
 SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
 
@@ -119,8 +119,8 @@ def psnr_item(name, npz, test):
 
 
 # ------------------------------------------------------------------------------------------ items
-def run_psnr(name, label, script, model, extra, work, data, results):
-    test = load_test_set(os.path.join(data, "dnerf", "data", "bouncingballs"), EVAL_SIZE[name], name in WHITE_BG)
+def run_psnr(name, label, script, model, extra, work, data, results, scene="bouncingballs"):
+    test = load_test_set(os.path.join(data, "dnerf", "data", scene), EVAL_SIZE[name], name in WHITE_BG)
     need(model, f"{label} model")
     out = os.path.join(work, f"{name}.npz")
     secs = convert(script, [model] + extra, out)
@@ -317,7 +317,7 @@ def main():
     ap.add_argument("--data", default=os.environ.get("GS4D_DATA") or default_data_root())
     ap.add_argument("--train", default=os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train")
     ap.add_argument("--work", default=None)
-    ap.add_argument("--only", default="", help="comma list of: native4d_banana,d3dgs_banana,scgs_banana,4dgaussians_banana,deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,scgs_predcolor,native4d,4dgaussians,4dgaussians_export,spacetime,spacetime_psnr,spacetime_tb,som,som_psnr")
+    ap.add_argument("--only", default="", help="comma list of: native4d_banana,d3dgs_banana,scgs_banana,4dgaussians_banana,deformable3dgs,d3dgs_default,d3dgs_6dof,scgs,scgs_mask,scgs_predcolor,scgs_skin,scgs_hash,native4d,4dgaussians,4dgaussians_export,spacetime,spacetime_psnr,spacetime_tb,som,som_psnr")
     ap.add_argument("--per-image", action="store_true", help="also print the PSNR of every test image")
     ap.add_argument("--strict", action="store_true", help="a skipped item also gives exit code 1")
     opt = ap.parse_args()
@@ -331,7 +331,9 @@ def main():
         scgs_banana=E("GS4D_SCGS_BANANA") or os.path.join(opt.train, "out", "scgs_banana_node"),
         native4d_banana=E("GS4D_NATIVE4D_BANANA") or os.path.join(opt.train, "4dgs", "output", "banana_fov", "chkpnt_best.pth"),
         scgs_mask=E("GS4D_SCGS_MASK") or os.path.join(opt.train, "out", "scgs_mask_bouncingballs_node"),
-        scgs_predcolor=E("GS4D_SCGS_PREDCOLOR") or os.path.join(opt.train, "out", "scgs_predcolor_bouncingballs_node"),
+        scgs_predcolor=E("GS4D_SCGS_PREDCOLOR") or os.path.join(opt.train, "out", "scgs_tint2_bouncingballs_node"),
+        scgs_skin=E("GS4D_SCGS_SKIN") or os.path.join(opt.train, "out", "scgs_skin_bouncingballs_node"),
+        scgs_hash=E("GS4D_SCGS_HASH") or os.path.join(opt.train, "out", "scgs_hash2_bouncingballs_node"),
         scgs=E("GS4D_SCGS") or os.path.join(opt.train, "out", "scgs_bouncingballs_node"),
         fourdg_banana=E("GS4D_4DGAUSSIANS_BANANA") or os.path.join(opt.train, "4dgaussians", "output", "hypernerf", "banana"),
         fourdg=E("GS4D_4DGAUSSIANS") or os.path.join(opt.train, "4dgaussians", "output", "dnerf", "bouncingballs"),
@@ -400,8 +402,14 @@ def main():
         ("scgs_mask", "SC-GS motion mask --sh", True,
          lambda: run_psnr("scgs_mask", "SC-GS motion mask --sh", "convert_scgs.py", paths["scgs_mask"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),
-        ("scgs_predcolor", "SC-GS --pred_color --sh", True,
-         lambda: run_psnr("scgs_predcolor", "SC-GS --pred_color --sh", "convert_scgs.py", paths["scgs_predcolor"],
+        ("scgs_predcolor", "SC-GS --pred_color --sh (time-tinted scene)", True,
+         lambda: run_psnr("scgs_predcolor", "SC-GS --pred_color --sh (time-tinted scene)", "convert_scgs.py", paths["scgs_predcolor"],
+                          ["--frames", "60", "--sh"], work, opt.data, results, scene="bouncingballs_tint")),
+        ("scgs_skin", "SC-GS --skinning --sh", True,
+         lambda: run_psnr("scgs_skin", "SC-GS --skinning --sh", "convert_scgs.py", paths["scgs_skin"],
+                          ["--frames", "60", "--sh"], work, opt.data, results)),
+        ("scgs_hash", "SC-GS --use_hash --sh", True,
+         lambda: run_psnr("scgs_hash", "SC-GS --use_hash --sh", "convert_scgs.py", paths["scgs_hash"],
                           ["--frames", "60", "--sh"], work, opt.data, results)),
         ("native4d", "native 4DGS --sh", True,
          lambda: run_psnr("native4d", "native 4DGS --sh", "convert_native4d.py", paths["native4d"],
@@ -428,6 +436,8 @@ def main():
     for key, label, needs_cuda, fn in items:
         if only and key not in only:
             continue
+        if key in ("scgs_hash", "scgs_skin") and key not in only:
+            continue   # opt-in: the repo's own --use_hash training did not converge (best 6.8 dB) and --skinning training crashes after densification: no usable model
         try:
             if needs_cuda and not cuda:
                 raise Skip(cuda_why)
