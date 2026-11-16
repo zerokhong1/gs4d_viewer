@@ -176,7 +176,7 @@ Phím chỉ có tác dụng khi con trỏ nằm trên vùng cảnh (không phả
 ## Xuất video
 
 Trong bảng điều khiển mở mục **Export video**, đặt camera ở góc muốn quay, chọn "Frames per second" và
-"Video length (s)", rồi bấm **Export mp4 from this camera**. Viewer render toàn bộ khoảng thời gian của
+"Video length (s)", rồi bấm **Export mp4** (ô "Camera" = "this camera (fixed)"). Viewer render toàn bộ khoảng thời gian của
 sequence từ camera hiện tại (camera đứng yên) thành file `<tên_file>_<ngày_giờ>.mp4` trong thư mục
 `--video-dir` (mặc định là thư mục đang chạy) trên máy chạy viewer, đồng thời hiện link tải file về trong
 trình duyệt. Cần `pip install imageio imageio-ffmpeg` (đã kèm ffmpeg).
@@ -187,6 +187,27 @@ trình duyệt. Cần `pip install imageio imageio-ffmpeg` (đã kèm ffmpeg).
   với Chrome headless vẽ bằng phần mềm).
 
 Trong lúc xuất, viewer tạm dừng cập nhật cho mọi trình duyệt đang kết nối.
+
+## Quỹ đạo camera (WP34)
+
+Mục **Camera path** trong bảng điều khiển: di chuyển camera bằng chuột rồi bấm **Add key from my camera** để đặt mốc (hiện thành
+khung camera màu cam và đường đi trong cảnh); **Key** + **Go to key** / **Delete key** / **Delete all keys**; **Replace by an orbit around
+the scene** dựng sẵn một vòng 12 mốc quanh tâm cảnh (đường khép kín). Vị trí nội suy bằng spline Catmull-Rom qua các mốc, hướng nhìn
+bằng slerp giữa hai mốc kề, fov tuyến tính; các mốc cách đều nhau theo "Path position" (0..1).
+
+- **Play / stop path** chạy quỹ đạo trong "Path duration (s)" và điều khiển camera của mọi trình duyệt đang kết nối (cả hai renderer,
+  cả `--compare` và chế độ điểm); kéo "Path position" để xem từng điểm. Hết đường thì dừng, hoặc quay lại đầu nếu "Loop" bật.
+- **Scene time on the path**: `stay at the current time` (camera đi quanh cảnh đứng yên ở thời điểm đang chọn) hoặc
+  `run through the sequence` (thời gian chạy từ đầu đến cuối sequence trong lúc camera đi).
+- **Export video** → "Camera" = `camera path`: độ dài video = "Path duration" × fps (đường khép kín kết thúc một bước trước mốc đầu để video lặp được).
+- **Save path (json)** ghi ra `--camera-path` (hoặc `<video-dir>/camera_path.json`) và tải về; nạp lại bằng
+  `python viewer.py scene.npz --camera-path path.json`. Định dạng như `--cameras`: `{"convention": "opencv"|"opengl", "duration": 10, "closed": false,
+  "time": "hold"|"run", "frames": [{"c2w": [[4x4]], "fov_y": radian}, ...]}`.
+
+Kiểm: `python tests/check_path.py` (nội suy khớp phép tính độc lập ở 5 giá trị u, camera trình duyệt đi theo quỹ đạo, mp4 theo quỹ đạo, hai renderer).
+`python tests/check_path.py --orbit-mp4 file.npz --name tên [--up=-y]` quay một vòng 10 s, 30 fps vào `shots/path/`.
+Đo trên máy này (RTX 3060, gsplat, 1280×720, 300 frame): SC-GS `bouncingballs_sh` 5,2 s, `paper-windmill` 10,0 s; renderer client trên toy 480×300, 20 frame: 8 s.
+`gs4d/open.py` chưa truyền `--camera-path` (việc của CC-B).
 
 ## Định dạng chung (`gs4d/format.py`)
 

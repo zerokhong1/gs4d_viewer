@@ -151,6 +151,118 @@ def load_gt_image(path: str, W: int, H: int, white: bool) -> np.ndarray:
     return im[..., :3] * im[..., 3:4] + ((1.0 - im[..., 3:4]) if white else 0.0)
 
 
+# ---------------------------------------------------------------- camera path (WP34)
+PATH_HOLD, PATH_RUN = "stay at the current time", "run through the sequence"
+VIDEO_FIXED, VIDEO_PATH = "this camera (fixed)", "camera path"
+
+
+def slerp(q0, q1, f: float) -> np.ndarray:
+    """Spherical interpolation of two unit quaternions (wxyz), along the short arc."""
+    q0, q1 = np.asarray(q0, np.float64), np.asarray(q1, np.float64)
+    d = float(q0 @ q1)
+    if d < 0:
+        q1, d = -q1, -d
+    if d > 0.9995:  # nearly the same rotation: the straight line is accurate and avoids dividing by sin(0)
+        q = q0 + f * (q1 - q0)
+    else:
+        th = np.arccos(d)
+        q = (np.sin((1 - f) * th) * q0 + np.sin(f * th) * q1) / np.sin(th)
+    return q / np.linalg.norm(q)
+
+
+def catmull_rom(points, i: int, f: float, closed: bool) -> np.ndarray:
+    """Point at fraction f of segment i (from points[i] to points[i+1]) of the uniform Catmull-Rom spline through `points`.
+    An open spline repeats its end points, so the tangent at the ends points at the neighbour."""
+    n = len(points)
+    at = (lambda k: points[k % n]) if closed else (lambda k: points[min(max(k, 0), n - 1)])
+    p0, p1, p2, p3 = at(i - 1), at(i), at(i + 1), at(i + 2)
+    return 0.5 * (2 * p1 + (-p0 + p2) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f ** 2 + (-p0 + 3 * p1 - 3 * p2 + p3) * f ** 3)
+
+
+def path_pose(keys: list[dict], u: float, closed: bool = False):
+    """Camera on a path at u in [0, 1]: (position [3], wxyz [4], fov_y). Keys are dicts with position, wxyz, fov and are spaced
+    evenly in u: position on a Catmull-Rom spline through the key positions, orientation slerped between the neighbouring keys,
+    fov linear. A closed path returns to its first key at u = 1."""
+    n = len(keys)
+    if n == 1:
+        k = keys[0]
+        return np.array(k["position"], np.float64), np.array(k["wxyz"], np.float64), float(k["fov"])
+    nseg = n if closed else n - 1
+    s = min(max(float(u), 0.0), 1.0) * nseg
+    i = min(int(np.floor(s)), nseg - 1)
+    f = s - i
+    pos = catmull_rom(np.array([k["position"] for k in keys], np.float64), i, f, closed)
+    a, b = keys[i], keys[(i + 1) % n]
+    return pos, slerp(a["wxyz"], b["wxyz"], f), float((1 - f) * a["fov"] + f * b["fov"])
+
+
+def look_at_wxyz(position, target, up) -> np.ndarray:
+    """Orientation (viser / OpenCV camera: +z forward, +x right, +y down) at `position` looking at `target`, world `up` is up."""
+    from viser.transforms import SO3
+    z = np.asarray(target, np.float64) - np.asarray(position, np.float64)
+    z /= np.linalg.norm(z)
+    x = np.cross(z, up)
+    x /= np.linalg.norm(x)
+    y = np.cross(z, x)
+    return np.asarray(SO3.from_matrix(np.stack([x, y, z], 1)).wxyz, np.float64)
+
+
+def orbit_keys(centre, distance: float, view_dir, up_vec, fov: float, n: int = 12) -> list[dict]:
+    """n keys on a circle around `centre` (closed path: one turn), at the elevation of `view_dir` (centre -> first camera),
+    all looking at the centre."""
+    up = np.asarray(up_vec, np.float64)
+    d = np.asarray(view_dir, np.float64)
+    d /= np.linalg.norm(d)
+    vert = float(d @ up)
+    horiz = d - vert * up
+    horiz /= np.linalg.norm(horiz)
+    side = np.cross(up, horiz)
+    keys = []
+    for k in range(n):
+        a = 2 * np.pi * k / n
+        dirk = np.cos(a) * horiz + np.sin(a) * side
+        pos = np.asarray(centre, np.float64) + distance * (np.sqrt(max(1 - vert ** 2, 0.0)) * dirk + vert * up)
+        keys.append(dict(position=pos, wxyz=look_at_wxyz(pos, centre, up), fov=float(fov)))
+    return keys
+
+
+def load_path(path: str) -> dict:
+    """A camera path file: {"convention": "opencv"|"opengl", "duration": s, "closed": bool, "time": "hold"|"run",
+    "frames": [{"c2w" or "transform_matrix": 4x4, "fov_y": radians}]} (the `--cameras` convention). Returns
+    dict(keys, duration, closed, run) with keys in the viewer's convention (OpenCV)."""
+    from viser.transforms import SO3
+    meta = json.load(open(path))
+    frames = meta if isinstance(meta, list) else meta.get("frames") or []
+    top = meta if isinstance(meta, dict) else {}
+    keys = []
+    for k, fr in enumerate(frames):
+        raw = fr.get("c2w", fr.get("transform_matrix"))
+        if raw is None or fr.get("fov_y", top.get("fov_y")) is None:
+            raise ValueError(f"{path}: key {k} needs c2w (or transform_matrix) and fov_y")
+        c2w = np.array(raw, np.float64).reshape(4, 4)
+        if str(fr.get("convention", top.get("convention", "opencv"))).lower() == "opengl":
+            c2w[:3, 1:3] *= -1
+        keys.append(dict(position=c2w[:3, 3].copy(), wxyz=np.asarray(SO3.from_matrix(c2w[:3, :3]).wxyz, np.float64),
+                         fov=float(fr.get("fov_y", top.get("fov_y")))))
+    if not keys:
+        raise ValueError(f"{path}: no keys found")
+    return dict(keys=keys, duration=float(top.get("duration", 10.0)), closed=bool(top.get("closed", False)),
+                run=str(top.get("time", "hold")).lower() == "run")
+
+
+def save_path(path: str, keys: list[dict], duration: float, closed: bool, run: bool):
+    from viser.transforms import SO3
+    frames = []
+    for k in keys:
+        c2w = np.eye(4)
+        c2w[:3, :3] = SO3(np.asarray(k["wxyz"], np.float64)).as_matrix()
+        c2w[:3, 3] = k["position"]
+        frames.append({"c2w": c2w.tolist(), "fov_y": float(k["fov"])})
+    with open(path, "w") as f:
+        json.dump({"convention": "opencv", "duration": float(duration), "closed": bool(closed),
+                   "time": "run" if run else "hold", "frames": frames}, f, indent=1)
+
+
 SIDE_BY_SIDE = "A | B"
 SPLATS, POINTS = "splats", "points"  # "Draw as": the Gaussians themselves, or one dot at each Gaussian's centre
 # initial camera direction (scene centre -> camera) for each world up axis
@@ -198,6 +310,8 @@ class Viewer:
                       "(raise --max-splats or use --renderer gsplat)")
 
         self.centre, self.radius = _bounds(seq)
+        self.path_keys: list[dict] = []  # camera path (WP34)
+        self.path_u, self.path_playing, self.path_shape = 0.0, False, None
         # client renderer, side by side: B is drawn this far to the right of A (as seen from the initial camera)
         up = np.zeros(3)
         up["xyz".index(args.up[1])] = 1.0 if args.up[0] == "+" else -1.0
@@ -209,6 +323,8 @@ class Viewer:
         self.server.scene.set_up_direction(args.up)
         self._build_gui()
         self.server.on_client_connect(self._on_connect)
+        if getattr(args, "camera_path", None):
+            self._set_path(load_path(args.camera_path))
         self.splats = [None] * len(self.seqs)
         self.clouds = [None] * len(self.seqs)  # client renderer, "Draw as: points": viser point clouds
         self.cloud_n = [0] * len(self.seqs)
@@ -242,6 +358,7 @@ class Viewer:
         self.loop = g.add_checkbox("Loop", initial_value=True)
         if self.cameras:
             self._build_camera_gui()
+        self._build_path_gui()
         with g.add_folder("Display", expand_by_default=False):
             self.min_opacity = g.add_slider("Hide opacity below", min=0.0, max=0.5, step=0.005, initial_value=0.02)
             self.scale = g.add_slider("Gaussian size (x)", min=0.1, max=2.0, step=0.05, initial_value=1.0)
@@ -258,7 +375,9 @@ class Viewer:
             self.video_fps = g.add_number("Frames per second", initial_value=30, min=1, max=120, step=1)
             self.video_seconds = g.add_number("Video length (s)", initial_value=float(np.clip(round(self.duration, 1), 2.0, 20.0)),
                                               min=0.5, max=600.0, step=0.5)
-            self.video_btn = g.add_button("Export mp4 from this camera")
+            self.video_cam = g.add_dropdown("Camera", options=(VIDEO_FIXED, VIDEO_PATH), initial_value=VIDEO_FIXED)
+            g.add_markdown("_Fixed camera: the whole time range in 'Video length'. Camera path: 'Path duration' decides the length._")
+            self.video_btn = g.add_button("Export mp4")
         self.export_client = None  # set by the button, handled in the main loop
         self.playing = False
         self._setting = False
@@ -302,6 +421,148 @@ class Viewer:
 
         for h in (self.min_opacity, self.scale, self.draw_as, self.point_size):
             h.on_update(lambda _e: setattr(self, "dirty", True))
+
+    # ---------------------------------------------------------------- camera path (WP34)
+    def _build_path_gui(self):
+        g = self.server.gui
+        self._path_setting = False
+        self.path_handles: list = []
+        with g.add_folder("Camera path", expand_by_default=False):
+            self.path_info = g.add_markdown("No keys yet: move the camera, then add a key.")
+            self.path_add = g.add_button("Add key from my camera")
+            self.path_orbit = g.add_button("Replace by an orbit around the scene")
+            self.path_sel = g.add_dropdown("Key", options=("-",), initial_value="-")
+            self.path_goto = g.add_button("Go to key")
+            self.path_del = g.add_button("Delete key")
+            self.path_clear = g.add_button("Delete all keys")
+            self.path_duration = g.add_slider("Path duration (s)", min=1.0, max=120.0, step=0.5, initial_value=10.0)
+            self.path_time = g.add_dropdown("Scene time on the path", options=(PATH_HOLD, PATH_RUN), initial_value=PATH_HOLD)
+            self.path_closed = g.add_checkbox("Closed loop", initial_value=False)
+            self.path_pos = g.add_slider("Path position", min=0.0, max=1.0, step=0.001, initial_value=0.0)
+            self.path_play = g.add_button("Play / stop path")
+            self.path_save = g.add_button("Save path (json)")
+
+        @self.path_add.on_click
+        def _(e):
+            cam = e.client.camera
+            self.path_keys.append(dict(position=np.array(cam.position, np.float64), wxyz=np.array(cam.wxyz, np.float64), fov=float(cam.fov)))
+            self._refresh_path(select=len(self.path_keys) - 1)
+
+        @self.path_orbit.on_click
+        def _(e):
+            centre, dist = self._home()
+            self.path_keys = orbit_keys(centre, dist, VIEW_DIR[self.args.up], self.up_vec, float(e.client.camera.fov))
+            self.path_closed.value = True
+            self._refresh_path(select=0)
+
+        @self.path_goto.on_click
+        def _(e):
+            if self.path_keys:
+                self.path_playing = False
+                k = self.path_keys[self._path_selected()]
+                self._move_clients([e.client], k["position"], k["wxyz"], k["fov"])
+
+        @self.path_del.on_click
+        def _(_e):
+            if self.path_keys:
+                i = self._path_selected()
+                del self.path_keys[i]
+                self._refresh_path(select=min(i, len(self.path_keys) - 1))
+
+        @self.path_clear.on_click
+        def _(_e):
+            self.path_keys, self.path_playing = [], False
+            self._refresh_path()
+
+        @self.path_closed.on_update
+        def _(_e):
+            self._refresh_path(select=self._path_selected() if self.path_keys else None)
+
+        @self.path_pos.on_update
+        def _(_e):
+            if not self._path_setting and len(self.path_keys) >= 1:
+                self.path_playing = False
+                self.path_u = float(self.path_pos.value)
+                self._apply_path(self.path_u)
+
+        @self.path_play.on_click
+        def _(_e):
+            if len(self.path_keys) < 2:
+                return
+            if not self.path_playing and self.path_u >= 1.0 - 1e-6:
+                self.path_u = 0.0
+            self.path_playing = not self.path_playing
+            if self.path_playing and self.path_time.value == PATH_RUN:
+                self.playing = False
+
+        @self.path_save.on_click
+        def _(e):
+            if not self.path_keys:
+                return
+            out = getattr(self.args, "camera_path", None) or os.path.abspath(os.path.join(getattr(self.args, "video_dir", "."), "camera_path.json"))
+            os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+            save_path(out, self.path_keys, self.path_duration.value, self.path_closed.value, self.path_time.value == PATH_RUN)
+            with open(out, "rb") as f:
+                e.client.send_file_download(os.path.basename(out), f.read())
+            e.client.add_notification("Camera path", f"Saved {len(self.path_keys)} keys to {out}", auto_close_seconds=6)
+
+    def _home(self):
+        """Centre and distance of the initial camera (as in _on_connect)."""
+        centre, dist = self.centre, 2.5 * self.radius
+        if self.renderer == "client" and len(self._shown()) == 2:
+            centre, dist = centre + 0.5 * self.offset, dist + 0.9 * float(np.linalg.norm(self.offset))
+        return centre, dist
+
+    def _set_path(self, p: dict):
+        """Installs a path read by load_path (the --camera-path file)."""
+        self.path_keys = p["keys"]
+        self.path_duration.value, self.path_closed.value = p["duration"], p["closed"]
+        self.path_time.value = PATH_RUN if p["run"] else PATH_HOLD
+        self._refresh_path(select=0)
+
+    def _path_selected(self) -> int:
+        v = self.path_sel.value
+        return int(v.split(":")[0]) - 1 if v != "-" else 0
+
+    def _refresh_path(self, select=None):
+        """Updates the key list, the info text and the line and frustums drawn in the scene."""
+        n = len(self.path_keys)
+        opts = tuple(f"{i + 1}: ({', '.join(f'{x:.2f}' for x in k['position'])})" for i, k in enumerate(self.path_keys)) or ("-",)
+        self.path_sel.options = opts
+        self.path_sel.value = opts[min(select or 0, n - 1)] if n else "-"
+        self.path_info.content = ("No keys yet: move the camera, then add a key." if n == 0 else
+                                  f"{n} key{'s' if n != 1 else ''} · " + ("need at least 2 to play" if n < 2 else
+                                                                         f"{'closed' if self.path_closed.value else 'open'} path"))
+        for h in self.path_handles:
+            h.remove()
+        self.path_handles = []
+        if n >= 2:
+            closed = bool(self.path_closed.value)
+            us = np.linspace(0.0, 1.0, 40 * (n if closed else n - 1) + 1)
+            pts = np.array([path_pose(self.path_keys, u, closed)[0] for u in us], np.float32)
+            self.path_handles.append(self.server.scene.add_line_segments(
+                "/path/line", points=np.stack([pts[:-1], pts[1:]], 1), colors=(255, 120, 0), thickness=2.0, thickness_units="screen"))
+        for i, k in enumerate(self.path_keys):
+            self.path_handles.append(self.server.scene.add_camera_frustum(
+                f"/path/key{i}", fov=k["fov"], aspect=16 / 9, scale=0.06 * self.radius, color=(255, 120, 0),
+                wxyz=k["wxyz"], position=k["position"]))
+
+    @staticmethod
+    def _move_clients(clients, position, wxyz, fov):
+        for c in clients:
+            c.camera.wxyz, c.camera.position, c.camera.fov = tuple(wxyz), tuple(position), float(fov)
+
+    def _apply_path(self, u: float):
+        """Puts every client's camera at u on the path, and the slider at the matching time when the path runs through the sequence."""
+        if not self.path_keys:
+            return
+        pos, wxyz, fov = path_pose(self.path_keys, u, bool(self.path_closed.value))
+        self._move_clients(list(self.server.get_clients().values()), pos, wxyz, fov)
+        if self.path_time.value == PATH_RUN:
+            self._set_time(self.t0 + self.duration * u)
+        self._path_setting = True
+        self.path_pos.value = float(u)
+        self._path_setting = False
 
     def _build_camera_gui(self):
         g, cams = self.server.gui, self.cameras
@@ -361,9 +622,7 @@ class Viewer:
 
     def _on_connect(self, client: viser.ClientHandle):
         d = np.asarray(VIEW_DIR[self.args.up]) / np.linalg.norm(VIEW_DIR[self.args.up])
-        centre, dist = self.centre, 2.5 * self.radius
-        if self.renderer == "client" and len(self._shown()) == 2:  # frame both copies
-            centre, dist = centre + 0.5 * self.offset, dist + 0.9 * float(np.linalg.norm(self.offset))
+        centre, dist = self._home()  # with two copies side by side in the client renderer both are framed
         client.camera.position = tuple(centre + dist * d)
         client.camera.look_at = tuple(centre)
         self.dirty = True
@@ -604,6 +863,11 @@ class Viewer:
             return
         cam = client.camera
         wxyz, pos, fov = np.array(cam.wxyz), np.array(cam.position), float(cam.fov)
+        along = self.video_cam.value == VIDEO_PATH
+        if along and len(self.path_keys) < 2:
+            client.add_notification("Export video", "Camera path: add at least 2 keys first.", color="red")
+            return
+        closed, run = bool(self.path_closed.value), self.path_time.value == PATH_RUN
         H = int(cam.image_height or 720)
         if self.renderer == "gsplat":
             H = int(min(self.max_res.value, H))
@@ -611,18 +875,24 @@ class Viewer:
         W = max(int(round(H * cam.aspect)), 2)
         W -= W % 2
         fps = int(self.video_fps.value)
-        n = max(int(round(fps * self.video_seconds.value)), 2)
+        n = max(int(round(fps * (self.path_duration.value if along else self.video_seconds.value))), 2)
         stem = os.path.splitext(os.path.basename(getattr(self.args, "file", "sequence")))[0]
-        path = os.path.abspath(os.path.join(getattr(self.args, "video_dir", "."), f"{stem}_{time.strftime('%Y%m%d_%H%M%S')}.mp4"))
+        path = os.path.abspath(os.path.join(getattr(self.args, "video_dir", "."), f"{stem}{'_path' if along else ''}_{time.strftime('%Y%m%d_%H%M%S')}.mp4"))
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        t_before, self.playing = self.time.value, False
+        t_before, self.playing, self.path_playing = self.time.value, False, False
         self.video_btn.disabled = True
         note = client.add_notification("Export video", f"Rendering {n} frames at {W}x{H} ...", loading=True,
                                        with_close_button=False, auto_close_seconds=None)
         try:
             with imageio.get_writer(path, fps=fps, codec="libx264", quality=8, macro_block_size=2) as writer:
                 for i in range(n):
-                    self._set_time(self.t0 + self.duration * i / (n - 1))
+                    if along:  # a closed path ends one step before its first key, so the video loops
+                        u = i / n if closed else i / (n - 1)
+                        pos, wxyz, fov = path_pose(self.path_keys, u, closed)
+                        if run:
+                            self._set_time(self.t0 + self.duration * u)
+                    else:
+                        self._set_time(self.t0 + self.duration * i / (n - 1))
                     if self.renderer == "gsplat":
                         self._load_gsplat()
                         frame = self.render_gsplat(wxyz, pos, fov, W, H)
@@ -663,6 +933,15 @@ class Viewer:
                     else:
                         t, self.playing = self.t1, False
                 self._set_time(t)
+            if self.path_playing:
+                u = self.path_u + dt / max(float(self.path_duration.value), 1e-3)
+                if u >= 1.0:
+                    if self.loop.value:
+                        u %= 1.0
+                    else:
+                        u, self.path_playing = 1.0, False
+                self.path_u = u
+                self._apply_path(u)
             time_changed, self.dirty = self.dirty, False
             if self.renderer == "client":
                 if time_changed:
@@ -680,6 +959,9 @@ def main():
     ap.add_argument("--cameras", metavar="FILE", default=None,
                     help="training cameras: transforms_*.json (NeRF/D-NeRF) or cameras.json; adds a camera list to the panel "
                          "(jump to the camera and the image's time); gsplat renderer can show the image next to the render with PSNR")
+    ap.add_argument("--camera-path", metavar="FILE", default=None,
+                    help="camera path (json: keys with c2w + fov_y, duration, closed, time; same convention as --cameras): "
+                         "play it or export an mp4 along it from the Camera path folder; the Save button writes back to this file")
     ap.add_argument("--gt-background", choices=["black", "white"], default="black",
                     help="background used for the ground-truth comparison (RGBA images and the render); default black as in tests/check_real.py")
     ap.add_argument("--renderer", choices=["auto", "gsplat", "client"], default="auto")
