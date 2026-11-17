@@ -1,5 +1,7 @@
 # gs4d_viewer — xem 4D Gaussian Splatting theo thời gian
 
+[![tests](https://github.com/zerokhong1/gs4d_viewer/actions/workflows/test.yml/badge.svg)](https://github.com/zerokhong1/gs4d_viewer/actions/workflows/test.yml)
+
 Viewer chạy trên trình duyệt (viser), có thanh trượt thời gian, play/pause, bước từng keyframe.
 Viewer chỉ đọc **một file `.npz` theo định dạng chung** ("Gaussian theo từng keyframe"); mỗi loại
 output 4DGS có một script chuyển về định dạng đó.
