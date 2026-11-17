@@ -205,7 +205,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
     `convert_spacetime.py` no longer clips (now 27.76-37.81, mean 34.37; the remaining 0.11 dB is `--min-peak-opacity 0.02`, with 0 the match is 0.01 dB).
     `colors` in the format may therefore lie outside [0, 1]: the gsplat path passes them on, the client renderer clips, compact keeps per-keyframe colours
     float32 when any is out of range. `gs4d.open` reconverts when the converter script is newer than the cache. `spacetime_psnr` threshold is now 27.26.
-  - WP28 NOT done: display FPS in points mode and at 1920x1080 needs an unlocked screen (`tests/bench_display.py --draw-as points [--size 1920 1080]`; the option exists).
+  - WP28 done 17/11/2026 (`tests/bench_display.py`, GPU Chrome, `paper-windmill` compact, playing, points mode): 1280x720, update rate 20/30/40/50/60 Hz -> sent 20.0/29.9/39.9/48.7/52.3, shown 20.0/30.0/39.8/48.2/49.5 per s. 1920x1080: 20 Hz -> sent 20.1, shown 20.0; 60 Hz -> sent 38.8, shown 34.2 (server is the limit). Not measured: a browser on another machine, trails on.
   - Converting Deformable-3DGS `slice-banana` with `--frames 330` takes more than 10 minutes on this machine.
 - NOT tested: the full Spacetime Gaussians model (with `rgbdecoder`); the client render of
   `basketball` against the original `visualize.py`.
@@ -218,7 +218,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Tested (WP35, 16/11/2026): "Motion" folder: Colour by speed / displacement (`Sequence4D.speed_at`, `segment_speed`, `displacement_at`, `keyframe_means`; colour scale in `viewer.colour_lut`, replaces SH colours; `_frame(..., plain=True)` for ground truth) and trails (`viewer.TrailData`:
   weighted random ranking by path length among opaque moving Gaussians, positions at 24 sample times; viser line segments over the image, no depth test). Only for `interpolate=True`. `tests/check_trails.py` (hand-worked numbers, compact file with static group, both renderers,
   screenshots in `shots/trails/`). 500 trails: 0.5 ms server side per frame; shown FPS in a GPU Chrome NOT measured.
-- Not done: view-direction colour heads, `d_rot_as_res` off, WP28 (locked screen), Spacetime full model.
+- Not done: view-direction colour heads, `d_rot_as_res` off, Spacetime full model.
 - Tested (WP17): `--compact` in every `convert_*.py` (only `save(compact=True)`); `gs4d.open` adds it when the estimate
   (`estimate_bytes`, rough: ply size / 248 B x frames x 40 B) is over 1 GB, `tests/test_open.py`. Deformable-3DGS `bouncingballs --sh`
   153 -> 84 MB, `at(t)` differs from the plain file by <2e-4. `python tests/run_all.py` all pass on this machine (CUDA, Chrome, data present).
