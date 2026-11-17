@@ -29,6 +29,7 @@ NEEDS = {
     "check_trails.py": ("chrome",),
     "check_cameras.py": ("cuda", "data", "chrome"),
     "test_scgs_hash.py": ("torch",),
+    "test_4drotor.py": ("torch",),
     "check_real.py": ("cuda", "data"),
     "test_deformable3dgs.py": ("torch",),
     "test_scgs.py": ("torch",),
