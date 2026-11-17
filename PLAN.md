@@ -41,7 +41,7 @@ chưa có ở đâu trong file này. Đánh số từ WP32 để không trùng v
 | 37 | Chế độ xem độ sâu và độ đục | Chưa | CC-A | Nhỏ; sau WP36, hoặc đẩy lên nếu giáo sư cần |
 | 38 | Xem từ máy khác qua SSH | Chưa | người làm | Cần một máy thứ hai |
 | 39 | Chạy test tự động khi push | Xong 17/11/2026 (chưa chạy trên GitHub) | CC-B | Sau WP33; cần repo trên GitHub |
-| 40 | Danh sách phương pháp hỗ trợ + hướng dẫn và file mẫu thêm converter | Chưa | CC-C | Sau WP32; phương pháp mới nào làm tiếp: chờ phản hồi sau demo |
+| 40 | Danh sách phương pháp hỗ trợ + hướng dẫn và file mẫu thêm converter | Xong 17/11/2026 (việc 1-2; việc 3 chờ phản hồi giáo sư) | CC-C | Sau WP32; phương pháp mới nào làm tiếp: chờ phản hồi sau demo |
 
 Thứ tự: đợt 1 là WP32, WP33, WP34 song song; demo ngay khi WP32 xong; đợt 2 là WP35 (CC-A), WP39 (CC-B), WP40 (CC-C);
 đợt 3 là WP36, WP37 và WP38, xếp lại theo phản hồi sau demo.

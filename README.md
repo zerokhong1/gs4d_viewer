@@ -29,6 +29,8 @@ python viewer.py toy.npz             # mở http://localhost:8080
 
 ## Dùng với output thật
 
+Danh sách phương pháp và biến thể đã hỗ trợ: [docs/SUPPORTED.md](docs/SUPPORTED.md). Thêm phương pháp mới: [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md) (có `convert_template.py`).
+
 | Dạng output | Phương pháp | Lệnh |
 |---|---|---|
 | A. Gaussian theo từng frame | thư mục `.ply` mỗi frame (feed-forward, hoặc `gaussian_pertimestamp/` do `export_perframe_3DGS.py` của 4DGaussians xuất ra) | `python convert_per_frame.py <thư_mục> -o scene.npz --fps 30` |
