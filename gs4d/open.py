@@ -6,10 +6,18 @@ Recognised (checked in this order, the first match wins; nothing is guessed):
     *.npz in the common format (times/means/covs/opacities/colors)   -> opened as it is
     params.npz (Dynamic 3D Gaussians) or a folder of per-frame .ply  -> convert_per_frame.py
     chkpnt*.pth (native 4DGS)                                        -> convert_native4d.py
-    last.ckpt, or a folder with checkpoints/last.ckpt (Shape of Motion) -> convert_shape_of_motion.py
+    other *.ckpt / *.pth, by the key names in the checkpoint's pickle (read without torch):
+        gauss_params quats1, quats2, scales_t (4D-Rotor GS, Nerfstudio) -> convert_4drotor.py
+        fg.params.means, motion_bases.params (Shape of Motion)       -> convert_shape_of_motion.py
+        scf._node_xyz, attach_ind (MoSca DynSCFGaussian)             -> convert_mosca.py
+      when the keys cannot be read, by the name: step-*.ckpt -> 4D-Rotor GS, any other *.ckpt -> Shape of Motion,
+      photometric_d_model_*.pth -> MoSca (the converter checks the keys and stops when they are not there)
+    folder with checkpoints/last.ckpt (Shape of Motion), with nerfstudio_models/step-*.ckpt (4D-Rotor GS, the
+      last step), or with photometric_d_model_*.pth (a MoSca log folder, the newest file) -> as that file
     folder with point_cloud/ and deform/                             -> convert_scgs.py when the ply has
                                                                         fea_* columns, else convert_deformable3dgs.py
-    folder with point_cloud/iteration_*/deformation.pth (no deform/) -> convert_4dgaussians.py (hustvl 4DGaussians)
+    folder with point_cloud/iteration_*/deformation.pth (no deform/) -> convert_ed3dgs.py when the ply has embedding_*
+                                                                        columns (E-D3DGS), else convert_4dgaussians.py
     point_cloud.ply with trbf_center (Spacetime Gaussians), or a
     folder holding point_cloud/iteration_*/point_cloud.ply of that kind -> convert_spacetime.py
 Cameras: unless --cameras is given, the viewer gets --cameras for a cameras.json in the output's folder (or up to 3
@@ -26,6 +34,7 @@ import json
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -61,6 +70,51 @@ def _ply_names(p: Path) -> tuple[str, ...]:
             elif tok[0] == "end_header":
                 break
     return tuple(names)
+
+
+CKPT_KEYS = {   # kind -> key names that must all be in the checkpoint's pickle (state dict keys are stored as plain text)
+    "4drotor": (b"quats1", b"quats2", b"scales_t"),                  # Nerfstudio pipeline: _model.gauss_params.*
+    "shape_of_motion": (b"fg.params.means", b"motion_bases.params"),
+    "mosca": (b"scf._node_xyz", b"attach_ind"),                      # DynSCFGaussian state dict
+}
+CONVERTERS = {"4drotor": "convert_4drotor.py", "shape_of_motion": "convert_shape_of_motion.py", "mosca": "convert_mosca.py"}
+
+
+def _pickle_bytes(p: Path, limit: int = 16 << 20) -> bytes:
+    """The pickled part of a torch checkpoint, which holds the key names, read without torch: the data.pkl member of a
+    zip checkpoint (torch.save since torch 1.6), else the start of the file (legacy format: the pickle comes before the
+    tensor data). b"" when the file cannot be read."""
+    try:
+        if zipfile.is_zipfile(p):
+            with zipfile.ZipFile(p) as z:
+                pkl = next((n for n in z.namelist() if n.endswith("data.pkl")), None)
+                if pkl is None:
+                    return b""
+                with z.open(pkl) as f:
+                    return f.read(limit)
+        with open(p, "rb") as f:
+            return f.read(limit)
+    except (OSError, zipfile.BadZipFile):
+        return b""
+
+
+def _ckpt_kind(p: Path) -> str | None:
+    """'4drotor', 'shape_of_motion' or 'mosca' from the key names in the checkpoint, None when none of them match."""
+    data = _pickle_bytes(p)
+    return next((kind for kind, keys in CKPT_KEYS.items() if all(k in data for k in keys)), None)
+
+
+def _nerfstudio_ckpts(folder: Path) -> list[Path]:
+    """step-*.ckpt of a Nerfstudio run folder (in nerfstudio_models/) or of that folder itself, by step."""
+    for d in (folder / "nerfstudio_models", folder):
+        found = []
+        for f in (d.glob("step-*.ckpt") if d.is_dir() else ()):
+            m = re.fullmatch(r"step-(\d+)\.ckpt", f.name)
+            if m and f.is_file():
+                found.append((int(m.group(1)), f))
+        if found:
+            return [f for _, f in sorted(found)]
+    return []
 
 
 def _last_iteration(folder: Path, fname: str) -> Path | None:
@@ -208,22 +262,44 @@ def detect(path: Path) -> dict:
         elif suf == ".pth" and path.name.startswith("chkpnt"):
             return dict(kind="native4d", converter="convert_native4d.py", src=path,
                         extra=dn if _is_dnerf(path) else [])
-        elif path.name == "last.ckpt" or suf == ".ckpt":
-            return dict(kind="shape_of_motion", converter="convert_shape_of_motion.py", src=path, extra=[])
+        elif suf in (".ckpt", ".pth"):
+            kind = _ckpt_kind(path)
+            if kind is None:   # keys not readable or not known: the names the methods save under
+                if suf == ".ckpt":
+                    kind = "4drotor" if re.fullmatch(r"step-\d+\.ckpt", path.name) else "shape_of_motion"
+                elif path.name.startswith("photometric_d_model"):
+                    kind = "mosca"
+            if kind is not None:
+                return dict(kind=kind, converter=CONVERTERS[kind], src=path, extra=[])
+            if path.name.startswith("photometric_s_model"):
+                no(f"{path.name}: MoSca's static background (StaticGaussian), which convert_mosca.py does not read; "
+                   "give the dynamic photometric_d_model_*.pth (or the log folder)")
+            else:
+                no(f"{path.name}: .pth that is not chkpnt*.pth (native 4DGS) and has no MoSca keys (scf._node_xyz, attach_ind)")
         elif suf == ".ply":
             names = _ply_names(path)
             if "trbf_center" in names and "motion_0" in names:
                 return dict(kind="spacetime", converter="convert_spacetime.py", src=path, extra=[])
-            no(f"{path.name}: ply without trbf_center/motion_0 (not Spacetime Gaussians); a plain or "
-               "SC-GS/Deformable-3DGS ply needs its model folder (point_cloud/ + deform/)")
+            hint = ("an E-D3DGS ply (embedding_* columns) needs its model folder (point_cloud/ + cfg_args)"
+                    if any(n.startswith("embedding_") for n in names) else
+                    "a plain or SC-GS/Deformable-3DGS ply needs its model folder (point_cloud/ + deform/)")
+            no(f"{path.name}: ply without trbf_center/motion_0 (not Spacetime Gaussians); {hint}")
         else:
-            no(f"{path.name}: suffix {suf!r} is not .npz, chkpnt*.pth, *.ckpt or .ply")
+            no(f"{path.name}: suffix {suf!r} is not .npz, .pth, .ckpt or .ply")
     else:
         ck = path / "checkpoints" / "last.ckpt"
         pc, de = path / "point_cloud", path / "deform"
         if ck.is_file():
-            return dict(kind="shape_of_motion", converter="convert_shape_of_motion.py", src=ck, extra=[])
+            return detect(ck)
         no(f"{ck} missing (Shape of Motion)")
+        steps = _nerfstudio_ckpts(path)
+        if steps:
+            return detect(steps[-1])   # the last step; the .ckpt rule above decides (4D-Rotor GS by its keys or name)
+        no(f"{path}: no nerfstudio_models/step-*.ckpt (4D-Rotor GS)")
+        dyn = sorted(path.glob("photometric_d_model_*.pth"), key=lambda f: (f.stat().st_mtime, f.name))
+        if dyn:
+            return dict(kind="mosca", converter="convert_mosca.py", src=dyn[-1], extra=[])
+        no(f"{path}: no photometric_d_model_*.pth (MoSca)")
         if pc.is_dir() and de.is_dir():
             ply = _last_iteration(pc, "point_cloud.ply")
             if ply is None:
@@ -240,11 +316,13 @@ def detect(path: Path) -> dict:
         if pc.is_dir():
             ply = _last_iteration(pc, "point_cloud.ply")
             if ply is not None and (ply.parent / "deformation.pth").is_file() and not de.is_dir():
+                if any(n.startswith("embedding_") for n in _ply_names(ply)):   # per-Gaussian embeddings: E-D3DGS
+                    return dict(kind="ed3dgs", converter="convert_ed3dgs.py", src=path, extra=[])
                 return dict(kind="4dgaussians", converter="convert_4dgaussians.py", src=path,
                             extra=dn if _is_dnerf(path) else [])
             if ply is not None and "trbf_center" in _ply_names(ply):
                 return dict(kind="spacetime", converter="convert_spacetime.py", src=ply, extra=[])
-            no(f"{pc}/iteration_*/ has no deformation.pth (4DGaussians) and the ply has no trbf_center (Spacetime Gaussians)")
+            no(f"{pc}/iteration_*/ has no deformation.pth (4DGaussians, E-D3DGS) and the ply has no trbf_center (Spacetime Gaussians)")
         for name in ("params.npz",):
             if (path / name).is_file():
                 return detect(path / name)
@@ -309,6 +387,18 @@ def estimate_bytes(info: dict, convert_args=()) -> int:
         return _size(src) // 300 * 200 * OUT_BYTES   # ~300 B per Gaussian with optimiser state, assume ~200 frames
     if kind == "native4d":   # checkpoint holds ~400 bytes per Gaussian; --sh stores SH at every keyframe
         return _size(src) // 400 * k * (OUT_BYTES + (SH_BYTES if sh else 0))
+    if kind == "4drotor":    # 65 float32 per Gaussian plus Adam's two moments (~780 B); only means and opacities change
+        return _size(src) // 780 * (k * 16 + 228)   # per keyframe (16 B); covariance, colour, SH are written once (228 B)
+    if kind == "mosca":      # ~100 B per Gaussian in the state dict (scaffold included); ~200 frames assumed, as for
+        try:                 # Shape of Motion, one keyframe per --stride frames
+            stride = max(int(args[args.index("--stride") + 1]), 1)
+        except (ValueError, IndexError):
+            stride = 1
+        return _size(src) // 100 * max(200 // stride, 1) * OUT_BYTES
+    if kind == "ed3dgs":     # the deltas change every field at every keyframe, the SH too with --sh
+        ply = _last_iteration(src / "point_cloud", "point_cloud.ply")
+        n = _size(ply) // max(4 * len(_ply_names(ply)), 1) if ply is not None else 0   # float32 columns, embeddings included
+        return n * k * (OUT_BYTES + (SH_BYTES if sh else 0))
     ply = _last_iteration(src / "point_cloud", "point_cloud.ply") if src.is_dir() else src
     n = _size(ply) // PLY_BYTES
     return n * k * OUT_BYTES + (n * SH_BYTES if sh else 0)   # the other converters store SH once per Gaussian

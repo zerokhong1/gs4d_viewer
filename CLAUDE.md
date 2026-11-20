@@ -21,6 +21,10 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
 - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending)
 - `convert_4dgaussians.py`  type D: hustvl 4DGaussians model folder (HexPlane + MLP re-run on CPU); checked on a self-trained `bouncingballs`
+- `convert_4drotor.py`  type B: 4D-Rotor GS Nerfstudio `step-*.ckpt` (4D Gaussians conditioned on t); synthetic test only
+- `convert_ed3dgs.py`   type D: E-D3DGS model folder (per-Gaussian `embedding_*` + MLP re-run on CPU); synthetic test only
+- `convert_mosca.py`    type C/D: MoSca `photometric_d_model_*.pth` (scaffold nodes + dual-quaternion skinning), dynamic Gaussians only; synthetic test only
+- `convert_template.py` working template for a new converter (`docs/ADD_A_CONVERTER.md`, `tests/test_template.py`)
 - `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
 - `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
   (`<name>.gs4d.npz`, reused while the output is unchanged) and opens the viewer
@@ -214,7 +218,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Done 16/11/2026 (synthetic only): SC-GS `--use_hash` (numpy tiny-cuda-nn hash grid, matches tinycudann to 2e-4 with `PYTHONPATH=/home/cont/gs4d_train/site_tcnn LD_LIBRARY_PATH=/home/cont/gs4d_train/cuda/targets/x86_64-linux/lib`; `tests/test_scgs_hash.py`) and `--skinning` (`tests/test_scgs.py`). No real model: the repo's own hash training stays at 6.8 dB on `bouncingballs`, its skinning training crashes after densification (`motion_mask` size). `check_real.py` items `scgs_hash`, `scgs_skin` run only with `--only`. `--pred_color` verified on a time-tinted `bouncingballs` (`scgs_predcolor`: 37.83 dB with the head, 24.48 ignoring it).
 - Tested (WP34, 16/11/2026, branch `cc-a/wp34-path`): camera path in `viewer.py` ("Camera path" folder, `--camera-path`; `path_pose`, `orbit_keys`, `load_path`/`save_path`): keys from the clicking client's camera,
   Catmull-Rom positions + slerp + linear fov (closed or open), Play / scrub, "Scene time on the path" hold or run, mp4 along the path (Export video -> Camera). `tests/check_path.py`: equals an independent
-  Hermite / exp-log computation to 4e-16, browser camera follows it, mp4 frame count; `--orbit-mp4 f.npz --name n` wrote `shots/path/*.mp4` (SC-GS 300 frames in 5 s, windmill 10 s). `gs4d/open.py` does not pass `--camera-path` yet.
+  Hermite / exp-log computation to 4e-16, browser camera follows it, mp4 frame count; `--orbit-mp4 f.npz --name n` wrote `shots/path/*.mp4` (SC-GS 300 frames in 5 s, windmill 10 s). `python -m gs4d.open <output> --camera-path p.json` passes the flag on like any viewer argument; it does not look for a saved path by itself.
 - Tested (WP35, 16/11/2026): "Motion" folder: Colour by speed / displacement (`Sequence4D.speed_at`, `segment_speed`, `displacement_at`, `keyframe_means`; colour scale in `viewer.colour_lut`, replaces SH colours; `_frame(..., plain=True)` for ground truth) and trails (`viewer.TrailData`:
   weighted random ranking by path length among opaque moving Gaussians, positions at 24 sample times; viser line segments over the image, no depth test). Only for `interpolate=True`. `tests/check_trails.py` (hand-worked numbers, compact file with static group, both renderers,
   screenshots in `shots/trails/`). 500 trails: 0.5 ms server side per frame; shown FPS in a GPU Chrome NOT measured.
@@ -223,6 +227,18 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   (`estimate_bytes`, rough: ply size / 248 B x frames x 40 B) is over 1 GB, `tests/test_open.py`. Deformable-3DGS `bouncingballs --sh`
   153 -> 84 MB, `at(t)` differs from the plain file by <2e-4. `python tests/run_all.py` all pass on this machine (CUDA, Chrome, data present).
   `requirements.txt` now lists numpy<2, viser, pillow, imageio, imageio-ffmpeg, playwright (torch, gsplat as comments).
+- Tested (20/11/2026, branch `cc-b/open-new-converters`): `gs4d/open.py` recognises the outputs of the three converters of 17/11.
+  Before, an E-D3DGS folder went to `convert_4dgaussians.py` (KeyError `deformation_net.grid.aabb`), a 4D-Rotor `step-*.ckpt` to
+  `convert_shape_of_motion.py`, and MoSca was not recognised. Now a `.ckpt` / `.pth` (other than `chkpnt*.pth`) is classified by the
+  state-dict key names in its pickle, read without torch (`data.pkl` of the zip, or the start of a legacy file): `quats1` + `quats2` +
+  `scales_t` = 4D-Rotor, `fg.params.means` + `motion_bases.params` = Shape of Motion, `scf._node_xyz` + `attach_ind` = MoSca; when the keys
+  cannot be read, by the name (`step-*.ckpt` 4D-Rotor, other `*.ckpt` Shape of Motion, `photometric_d_model_*.pth` MoSca). Folders:
+  `nerfstudio_models/step-*.ckpt` (the last step), a MoSca log folder (the newest `photometric_d_model_*.pth`; the static
+  `photometric_s_model_*.pth` is refused with a hint), and a 4DGaussians layout whose ply has `embedding_*` columns = E-D3DGS (no time
+  range or cameras passed). `estimate_bytes` has rough rules for the three. `tests/test_open.py`: fake checkpoints without torch, plus
+  files written by `torch.save` (zip and legacy) when torch is installed. `run_all.py`: 15 passed / 10 skipped without torch, 22 / 3 with
+  CPU torch (no CUDA here); `python -m gs4d.open` converted and opened synthetic E-D3DGS, 4D-Rotor (Nerfstudio run folder) and MoSca
+  (log folder) outputs built with the converters' test fixtures. Still no real model of any of the three.
 
 ## Conventions
 - A converter is a new file `convert_<method>.py` + a new `tests/test_<method>.py` + one row in the README table.

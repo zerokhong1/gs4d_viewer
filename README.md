@@ -15,7 +15,11 @@ python -m gs4d.open <đường_dẫn_output> [--port 8080 --renderer gsplat ...]
 Tự nhận ra loại output, gọi đúng `convert_*.py`, rồi mở viewer. Các đối số khác được chuyển cho `viewer.py`.
 Nhận ra: `.npz` đã ở định dạng chung (mở luôn), `params.npz` hoặc thư mục ply từng frame, `chkpnt*.pth`,
 `last.ckpt` hoặc thư mục có `checkpoints/last.ckpt`, thư mục có `point_cloud/` + `deform/` (có cột `fea_*` thì SC-GS,
-không thì Deformable-3DGS), `point_cloud.ply` của Spacetime Gaussians. File chuyển đổi là `<tên>.gs4d.npz` cạnh output,
+không thì Deformable-3DGS), thư mục có `point_cloud/iteration_*/deformation.pth` (ply có cột `embedding_*` thì E-D3DGS,
+không thì 4DGaussians), `point_cloud.ply` của Spacetime Gaussians, `step-*.ckpt` hoặc thư mục run Nerfstudio có
+`nerfstudio_models/` (4D-Rotor GS, lấy step cuối), `photometric_d_model_*.pth` hoặc thư mục log của MoSca. File `.ckpt`
+và `.pth` được phân loại theo tên khoá trong checkpoint (đọc phần pickle, không cần torch), không đọc được thì theo tên file.
+File chuyển đổi là `<tên>.gs4d.npz` cạnh output,
 dùng lại nếu output chưa đổi (`--reconvert` để ép chuyển lại, `--dry-run` để chỉ xem lệnh). Scene D-NeRF
 (`cfg_args` ghi dnerf/is_blender) tự đặt thời gian [0, 1]. Không nhận ra thì in các dấu hiệu đã kiểm tra và thoát mã 2.
 
@@ -214,7 +218,7 @@ bằng slerp giữa hai mốc kề, fov tuyến tính; các mốc cách đều n
 Kiểm: `python tests/check_path.py` (nội suy khớp phép tính độc lập ở 5 giá trị u, camera trình duyệt đi theo quỹ đạo, mp4 theo quỹ đạo, hai renderer).
 `python tests/check_path.py --orbit-mp4 file.npz --name tên [--up=-y]` quay một vòng 10 s, 30 fps vào `shots/path/`.
 Đo trên máy này (RTX 3060, gsplat, 1280×720, 300 frame): SC-GS `bouncingballs_sh` 5,2 s, `paper-windmill` 10,0 s; renderer client trên toy 480×300, 20 frame: 8 s.
-`gs4d/open.py` chưa truyền `--camera-path` (việc của CC-B).
+`python -m gs4d.open <output> --camera-path path.json` chuyển cờ này cho viewer như mọi cờ khác; `gs4d.open` chưa tự tìm file quỹ đạo đã lưu.
 
 ## Vận tốc và vệt chuyển động (WP35)
 
