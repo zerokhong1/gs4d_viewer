@@ -13,7 +13,7 @@ Formulas, ported from `nerfstudio/utils/general_utils.py` and `SplatfactoModel.f
     colour     = SH degree 3 of features_dc / features_rest, constant in time: written as `sh` (and `colors` = SH0)
 So per keyframe only `means` and `opacities` change; covariance, colour and SH are written once.
 
-    python convert_4drotor.py step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1 [--compact] [--min-peak-opacity 0.02]
+    python converters/convert_4drotor.py step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1 [--compact] [--min-peak-opacity 0.02]
 
 Time is the raw `time` of the dataset's transforms json (D-NeRF: [0, 1]); pass --t0 / --t1 for other data.
 NOT checked against a real checkpoint (none trained here); only against a synthetic one, see tests/test_4drotor.py.
@@ -21,9 +21,12 @@ NOT checked against a real checkpoint (none trained here); only against a synthe
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter
 from gs4d.checkpoint import torch_load
 

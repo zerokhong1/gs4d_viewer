@@ -46,18 +46,18 @@ python -m gs4d.open <output_path> [--reconvert] [--dry-run] [--convert-args "--s
 | D | SC-GS | model folder `<name>_node` | `convert_scgs.py` | yes |
 | D | E-D3DGS (ECCV 2024) | model folder | `convert_ed3dgs.py` | no, synthetic test only |
 
-`python -m gs4d.open` runs the right converter for you. By hand: `python <converter> <input> -o scene.npz [flags]`, for example
-`python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh`; the command of every method is in
+`python -m gs4d.open` runs the right converter for you. By hand: `python converters/<converter> <input> -o scene.npz [flags]`, for example
+`python converters/convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh`; the command of every method is in
 [SUPPORTED.md](SUPPORTED.md).
 
 Types: **A** Gaussians per frame · **B** 4D Gaussians sliced in time · **C** parametric motion functions · **D** deformation networks,
 re-run on the CPU. PSNR per method, the variants that were tried, the variants a converter refuses and why:
 [SUPPORTED.md](SUPPORTED.md). Adding a method: [ADD_A_CONVERTER.md](ADD_A_CONVERTER.md) (with a working
-`convert_template.py`).
+`converters/convert_template.py`).
 
 Flags shared by the converters: `--frames` number of keyframes (types B, D); `--t0 --t1` time range in the method's unit (D-NeRF
 scenes: [0, 1]); `--fps` and `--stride` for per-frame outputs; `--sh` keeps view-dependent colour (used by the gsplat renderer only,
-bigger file); `--compact` writes the compact layout. `python <converter> --help` lists every flag.
+bigger file); `--compact` writes the compact layout. `python converters/<converter> --help` lists every flag.
 
 ## Using the viewer
 
@@ -108,7 +108,8 @@ from the earliest to the latest keyframe of both files; both files must share th
 ### Training cameras and original images: `--cameras`
 
 ```bash
-python viewer.py bouncingballs.npz --cameras ../data/dnerf/bouncingballs/transforms_test.json
+python viewer.py bouncingballs.npz \
+    --cameras ../data/dnerf/bouncingballs/transforms_test.json
 ```
 
 `--cameras` takes a `transforms_*.json` (NeRF / D-NeRF / instant-ngp, OpenGL cameras) or a `cameras.json` (`{"convention":

@@ -24,8 +24,8 @@ and no_dshs=False (SH colours that change in time).
 Colour is SH degree 0; --sh keeps all SH coefficients (constant in time) for the gsplat renderer.
 
 Example:
-    python convert_4dgaussians.py output/dnerf/bouncingballs -o balls.npz --frames 60
-    python convert_4dgaussians.py point_cloud.ply --deform deformation.pth -o balls.npz
+    python converters/convert_4dgaussians.py output/dnerf/bouncingballs -o balls.npz --frames 60
+    python converters/convert_4dgaussians.py point_cloud.ply --deform deformation.pth -o balls.npz
 """
 from __future__ import annotations
 
@@ -34,9 +34,11 @@ import glob
 import itertools
 import os
 import re
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices

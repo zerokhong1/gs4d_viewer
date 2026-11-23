@@ -18,14 +18,17 @@ Needs torch only to unpickle the checkpoint; no GPU. The checkpoint is a pickle,
 so only load files you produced yourself.
 
 Example:
-    python convert_native4d.py output/N3V/cook_spinach/chkpnt_best.pth -o spinach.npz --frames 60 --t0 0 --t1 10
+    python converters/convert_native4d.py output/N3V/cook_spinach/chkpnt_best.pth -o spinach.npz --frames 60 --t0 0 --t1 10
 """
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale, pack_cov
 from gs4d.checkpoint import torch_load
 

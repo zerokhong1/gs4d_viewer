@@ -236,3 +236,19 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - At Thai's request the README is short again, like a normal code repository: description, installation, quick start, supported
   methods (linked to their official repositories), one results table (agreement with the methods' own rendering), citation,
   license. The method, validation tables, limitations, references and the data-license notes moved unchanged to `docs/METHOD.md`.
+
+## 23/11/2026 — repository layout and contribution guide (branch `chore/repo-layout`)
+- Layout: the 12 converter scripts moved from the root to `converters/` (each now puts the repository root on `sys.path` before
+  `import gs4d`, so it runs from any folder); `make_toy.py`, `repo_psnr.py`, `make_hypernerf_*.py` and `diag_native4d_banana.py`
+  to `tools/`; `bench_large.py` and `bench_display.py` to `benchmarks/`; `PLAN.md` to `docs/`; the loose screenshots of
+  `check_gsplat.py` to `shots/renderers/` (its default output folder too); `shots/wp2/` renamed `shots/dynamic3dgs/`. `tests/`
+  now holds only tests. `gs4d.open` finds the converters in `converters/`. Paths in the entries above are those of their time.
+- Checked: `python tests/run_all.py` with CPU torch and Chrome: 24 passed, 3 skipped (CUDA or real data); a converter and
+  `tools/make_toy.py` run from another folder; every moved script answers `--help` (the two `make_hypernerf_*.py` take positional
+  arguments only, as before); `ruff check .`; no reference to an old path is left outside this log.
+- Community: `CONTRIBUTING.md` (ways to contribute, set-up, checks before a pull request, rules), `CODE_OF_CONDUCT.md` (adopts the
+  Contributor Covenant 2.1), issue templates (bug report, new method) and a pull-request checklist in `.github/`; the README has
+  short "Repository layout" and "Contributing" sections.
+- `tests/run_all.py` counted Chrome as present when only Playwright's own Chromium was installed, while the `check_*.py`
+  scripts start `/usr/bin/google-chrome`; on such a machine the browser checks failed instead of being skipped. It now checks
+  that path. Commands longer than 90 characters in the README and `docs/` are wrapped, so GitHub shows them without scrolling.

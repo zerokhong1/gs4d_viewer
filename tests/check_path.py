@@ -133,7 +133,7 @@ check(back["duration"] == 7.5 and back["closed"] and back["run"] and len(back["k
 
 # ---------------------------------------------------------------- 2. viewer in the browser
 toy = os.path.join(tmp, "toy.npz")
-subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", toy], check=True, stdout=subprocess.DEVNULL)
+subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", toy], check=True, stdout=subprocess.DEVNULL)
 FLAGS = ["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
 
 

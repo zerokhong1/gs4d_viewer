@@ -34,6 +34,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
 # minus 0.5 dB. See the table printed by this script and docs/SUPPORTED.md.
@@ -63,7 +64,7 @@ def need(path, what):
 
 def convert(script, args, out):
     t = time.time()
-    r = subprocess.run([sys.executable, os.path.join(ROOT, script)] + args + ["-o", out], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "converters", script)] + args + ["-o", out], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"{script} failed:\n{r.stdout[-800:]}\n{r.stderr[-1500:]}")
     return time.time() - t
@@ -140,7 +141,7 @@ def run_psnr(name, label, script, model, extra, work, data, results, scene="boun
 
 # ---------------------------------------------------------------- HyperNeRF scene (slice-banana, real, monocular video)
 def banana_scene(train):
-    """Folder made by tests/make_hypernerf_split.py: vrig_slice-banana/slice-banana (4x images = 268 x 480 px, portrait)."""
+    """Folder made by tools/make_hypernerf_split.py: vrig_slice-banana/slice-banana (4x images = 268 x 480 px, portrait)."""
     return os.environ.get("GS4D_BANANA") or os.path.join(train, "data", "vrig_slice-banana", "slice-banana")
 
 
@@ -175,7 +176,7 @@ def load_nerfies_val_set(scene, raw=False):
 
 
 def run_banana(name, label, script, model, extra, work, train, results, thr_key=None, raw=False):
-    test = load_nerfies_val_set(need(banana_scene(train), "HyperNeRF slice-banana split (run tests/make_hypernerf_split.py)"), raw)
+    test = load_nerfies_val_set(need(banana_scene(train), "HyperNeRF slice-banana split (run tools/make_hypernerf_split.py)"), raw)
     need(model, f"{label} model")
     out = os.path.join(work, f"{name}.npz")
     secs = convert(script, [model] + extra, out)

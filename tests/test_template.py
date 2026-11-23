@@ -27,10 +27,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         model, out = os.path.join(tmp, "m.npz"), os.path.join(tmp, "s.npz")
         np.savez(model, **m)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_template.py"), model, "-o", out, "--frames", "5",
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_template.py"), model, "-o", out, "--frames", "5",
                         "--t0", "0", "--t1", "2"], check=True, capture_output=True)
         seq = Sequence4D.load(out)
-        bad = subprocess.run([sys.executable, os.path.join(ROOT, "convert_template.py"), out, "-o", out + "x.npz"],
+        bad = subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_template.py"), out, "-o", out + "x.npz"],
                              capture_output=True, text=True)
     assert seq.num_frames == 5 and seq.num_gaussians == N and np.allclose(seq.times, np.linspace(0, 2, 5))
     for k, t in enumerate(seq.times):

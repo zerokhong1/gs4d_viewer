@@ -8,8 +8,8 @@ Accepted inputs:
   * a Dynamic 3D Gaussians (Luiten et al.) `params.npz`.
 
 Examples:
-    python convert_per_frame.py output/dnerf/bouncingballs/gaussian_pertimestamp -o balls.npz
-    python convert_per_frame.py output/exp1/basketball/params.npz -o basketball.npz --fps 30
+    python converters/convert_per_frame.py output/dnerf/bouncingballs/gaussian_pertimestamp -o balls.npz
+    python converters/convert_per_frame.py output/exp1/basketball/params.npz -o basketball.npz --fps 30
 """
 from __future__ import annotations
 
@@ -17,9 +17,11 @@ import argparse
 import glob
 import os
 import re
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.ply import gaussians_from_ply
 

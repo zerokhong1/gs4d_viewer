@@ -5,7 +5,7 @@ For each renderer: start the viewer, open it in headless Chrome, take a screensh
 the same camera. Then: (1) gsplat and client screenshots must agree, (2) the gsplat image must change
 when the time changes and when the camera moves. Screenshots are written to --out for a visual check.
 
-    python tests/check_gsplat.py [--out shots] [--chrome /usr/bin/google-chrome]
+    python tests/check_gsplat.py [--out shots/renderers] [--chrome /usr/bin/google-chrome]
 """
 import argparse
 import os
@@ -23,7 +23,7 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", default=os.path.join(ROOT, "shots"))
+ap.add_argument("--out", default=os.path.join(ROOT, "shots", "renderers"))
 ap.add_argument("--chrome", default="/usr/bin/google-chrome")
 ap.add_argument("--file", default=None, help="sequence to use instead of a fresh toy scene")
 opt = ap.parse_args()
@@ -31,7 +31,7 @@ os.makedirs(opt.out, exist_ok=True)
 path = opt.file
 if path is None:
     path = os.path.join(tempfile.mkdtemp(), "toy.npz")
-    subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", path], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", path], check=True, stdout=subprocess.DEVNULL)
 seq = Sequence4D.load(path)
 t0, t1 = float(seq.times[0]), float(seq.times[-1])
 times = [t0, t0 + 0.37 * (t1 - t0), t0 + 0.8 * (t1 - t0)]

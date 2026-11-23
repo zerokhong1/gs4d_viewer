@@ -17,6 +17,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 
 from convert_native4d import rotation_4d, slice_native4d  # noqa: E402
 from gs4d import Sequence4D, cov_from_quat_scale, unpack_cov  # noqa: E402
@@ -65,7 +66,7 @@ def test_ply_folder(tmp):
     m, c, o, _ = gaussians_from_ply(os.path.join(folder, "time_3.ply"))
     assert np.allclose(m, ref[3][0], atol=1e-5) and np.allclose(c, ref[3][1], atol=1e-5)
     out = os.path.join(tmp, "frames.npz")
-    subprocess.run([sys.executable, os.path.join(ROOT, "convert_per_frame.py"), folder, "-o", out, "--fps", "10"],
+    subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_per_frame.py"), folder, "-o", out, "--fps", "10"],
                    check=True, stdout=subprocess.DEVNULL)
     seq = Sequence4D.load(out)
     assert seq.num_frames == 12 and seq.num_gaussians == N and seq.interpolate
@@ -139,7 +140,7 @@ def test_native4d_checkpoint(tmp):
            torch.rand(N, 1, generator=g), r(N, 1) * 0.3 - 1, r(N, 4), True, None, 0)
     ck, out = os.path.join(tmp, "chkpnt_best.pth"), os.path.join(tmp, "n4d.npz")
     torch.save((cap, 30000), ck)
-    subprocess.run([sys.executable, os.path.join(ROOT, "convert_native4d.py"), ck, "-o", out, "--frames", "20",
+    subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_native4d.py"), ck, "-o", out, "--frames", "20",
                     "--t0", "0", "--t1", "1"], check=True, stdout=subprocess.DEVNULL)
     seq = Sequence4D.load(out)
     assert seq.num_frames == 20 and seq.means.ndim == 3 and seq.covs.ndim == 2 and seq.opacities.ndim == 2

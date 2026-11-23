@@ -24,17 +24,19 @@ Layer count, width, the D-NeRF ("is_blender") and 6-DoF variants are read from t
 Colour is SH degree 0; --sh keeps all SH coefficients (constant in time) for the gsplat renderer.
 
 Example:
-    python convert_deformable3dgs.py output/scene -o scene.npz --frames 60          # model folder, last iteration
-    python convert_deformable3dgs.py point_cloud.ply --deform deform.pth -o scene.npz
+    python converters/convert_deformable3dgs.py output/scene -o scene.npz --frames 60          # model folder, last iteration
+    python converters/convert_deformable3dgs.py point_cloud.ply --deform deform.pth -o scene.npz
 """
 from __future__ import annotations
 
 import argparse
 import os
 import re
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, pack_cov
 from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices

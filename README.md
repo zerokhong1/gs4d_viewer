@@ -25,9 +25,12 @@ gsplat renderer (NVIDIA GPU, Python 3.10):
 
 ```bash
 uv venv --python 3.10 --seed .venv
-uv pip install --python .venv/bin/python torch==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+uv pip install --python .venv/bin/python torch==2.4.1 \
+    --index-url https://download.pytorch.org/whl/cu124
 uv pip install --python .venv/bin/python -r requirements.txt
-uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" --find-links https://docs.gsplat.studio/whl/gsplat/ --index-strategy unsafe-best-match
+uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" \
+    --find-links https://docs.gsplat.studio/whl/gsplat/ \
+    --index-strategy unsafe-best-match
 ```
 
 Converters for methods that save PyTorch checkpoints also need PyTorch (the CPU build is enough): `pip install torch`.
@@ -35,7 +38,7 @@ Converters for methods that save PyTorch checkpoints also need PyTorch (the CPU 
 ## Quick start
 
 ```bash
-python make_toy.py -o toy.npz                   # synthetic dynamic scene
+python tools/make_toy.py -o toy.npz             # synthetic dynamic scene
 python viewer.py toy.npz                        # then open http://localhost:8080
 python -m gs4d.open output/dnerf/bouncingballs  # open the output of a method
 ```
@@ -75,6 +78,26 @@ Mean PSNR (dB) of the same model rendered by the method's own code and from the 
 
 The 0.5 dB gap on `bouncingballs` is not explained yet. Protocol, more results and limitations: [docs/METHOD.md](docs/METHOD.md);
 speed and memory: [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+## Repository layout
+
+```
+gs4d/         library: the common format, readers, python -m gs4d.open
+converters/   one converter per 4DGS method, and a template for new ones
+viewer.py     the viewer
+tools/        toy scene, data preparation, the methods' own renderers for validation
+tests/        unit tests and browser checks (python tests/run_all.py)
+benchmarks/   speed and memory measurements
+docs/         user guide, method and validation, results, file format, history
+shots/        screenshots and videos used as evidence in the docs
+```
+
+## Contributing
+
+Contributions are welcome: support for a new 4DGS method, a check of a converter on a real model (4D-Rotor GS, MoSca and E-D3DGS
+are tested on synthetic data only), viewer features, fixes and documentation. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; to
+add a method, follow [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md). Bugs and questions:
+[issues](https://github.com/zerokhong1/gs4d_viewer/issues).
 
 ## Citation
 

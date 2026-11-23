@@ -18,7 +18,7 @@ The default "Update rate" is 20 Hz, so by default the viewer sends 20 frames/s a
 ## Decoding and interpolation on the GPU while playing
 
 Before, every frame while playing: `at(t)` decoded and interpolated with numpy, the covariances were unpacked to 3×3, opacity was
-thresholded, and everything was copied to the GPU. Step 0 (`python tests/bench_large.py`, 500,000 Gaussians × 100 keyframes, compact):
+thresholded, and everything was copied to the GPU. Step 0 (`python benchmarks/bench_large.py`, 500,000 Gaussians × 100 keyframes, compact):
 copying from the disk mapping 3 ms, decoding 41, interpolation 10, copy to the GPU 4; the whole frame 100 ms. The time goes into CPU
 decoding and the numpy steps after `at(t)`, not into reading the disk.
 
@@ -42,7 +42,7 @@ float32 rounding). `tests/check_real.py` was run again, and also with `Sequence4
 PSNR. Since 23/11/2026 `tests/test_gpu_frames.py` compares `GpuFrames` with `Sequence4D.at` on the CPU for every file layout (largest
 relative difference 1.1·10⁻⁷).
 
-Per-keyframe `sh` (native 4DGS `--sh --compact`), fetching a frame while playing (`python tests/bench_large.py --file`):
+Per-keyframe `sh` (native 4DGS `--sh --compact`), fetching a frame while playing (`python benchmarks/bench_large.py --file`):
 
 | | `slice-banana` 330 keyframes, `sh` float32 | `sh` uint8 | `bouncingballs` 60 keyframes, `sh` float32 | `sh` uint8 |
 |---|---|---|---|---|
@@ -55,7 +55,7 @@ client renderer does not use `sh`.
 
 ## Display in a GPU-accelerated Chrome
 
-`python tests/bench_display.py --rates 20 30 40 50 60` (needs an unlocked screen and a GPU that is not training): `paper-windmill` compact +
+`python benchmarks/bench_display.py --rates 20 30 40 50 60` (needs an unlocked screen and a GPU that is not training): `paper-windmill` compact +
 static split (995,942 Gaussians × 35 keyframes), playing, Chrome 157 on the same machine (WebGL through ANGLE/OpenGL), 120 Hz screen,
 10 seconds per row.
 
@@ -109,7 +109,7 @@ trails. Switching trails on for the first time reads every keyframe twice (`pape
 
 ## Compact layout and lazy loading
 
-`python tests/bench_large.py`: 500,000 random Gaussians × 100 keyframes (means, covs, opacities change over time); the file was just
+`python benchmarks/bench_large.py`: 500,000 random Gaussians × 100 keyframes (means, covs, opacities change over time); the file was just
 written, so it is still in the operating system's cache:
 
 | | Float32, full load | Float32, lazy | Compact, full load | Compact, lazy |

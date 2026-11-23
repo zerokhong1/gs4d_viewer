@@ -13,6 +13,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 import convert_4drotor as C  # noqa: E402
 from gs4d import Sequence4D  # noqa: E402
 from gs4d.format import unpack_cov  # noqa: E402
@@ -60,10 +61,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         ck, out = os.path.join(tmp, "step-000000001.ckpt"), os.path.join(tmp, "s.npz")
         p = make_checkpoint(ck)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_4drotor.py"), ck, "-o", out, "--frames", "7", "--min-peak-opacity", "0"],
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_4drotor.py"), ck, "-o", out, "--frames", "7", "--min-peak-opacity", "0"],
                        check=True, capture_output=True)
         seq = Sequence4D.load(out)
-        bad = subprocess.run([sys.executable, os.path.join(ROOT, "convert_4drotor.py"), out, "-o", out + "x.npz"], capture_output=True, text=True)
+        bad = subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_4drotor.py"), out, "-o", out + "x.npz"], capture_output=True, text=True)
     n = len(p["xyz"])
     assert seq.num_frames == 7 and seq.num_gaussians == n
     s = np.exp(np.concatenate([p["scales_xyz"], p["scales_t"]], 1)).astype(np.float64)

@@ -7,7 +7,8 @@
     python tests/run_all.py --keep-shots  # let the check_*.py scripts overwrite the screenshots in shots/
 
 A file is "skipped" (not failed) when the machine lacks what it needs: CUDA, Chrome (Playwright), torch, or the
-real data (../data_real, /home/cont/gs4d_train). Exit code 1 if any file failed. Use the same Python as for the
+real data (../data_real, /home/cont/gs4d_train).
+The browser checks need Playwright and Google Chrome at /usr/bin/google-chrome. Exit code 1 if any file failed. Use the same Python as for the
 viewer (.venv); one GPU and 15 GB RAM are assumed, so files run sequentially. The screenshots the check_*.py
 scripts take go to a temporary folder unless --keep-shots is given (run a script on its own to refresh shots/).
 """
@@ -22,6 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 TIMEOUT = 1800
+CHROME = "/usr/bin/google-chrome"
 # What a file needs beyond numpy; anything not listed needs nothing.
 NEEDS = {
     "check_gsplat.py": ("cuda", "chrome"),
@@ -65,17 +67,8 @@ def probe():
         except Exception:
             pass
     ok["cuda"] = cuda
-    chrome = False
-    if has_module("playwright"):
-        try:
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                chrome = Path(p.chromium.executable_path).exists()
-        except Exception:
-            pass
-        if not chrome:
-            chrome = any(Path(x).exists() for x in ("/usr/bin/google-chrome", "/usr/bin/chromium"))
-    ok["chrome"] = chrome
+    # the check_*.py scripts start Google Chrome from CHROME (their --chrome default, as on GitHub's runners)
+    ok["chrome"] = has_module("playwright") and Path(CHROME).exists()
     root = str(ROOT).split(f"{os.sep}.claude{os.sep}worktrees{os.sep}")[0]   # same rule as check_real.py
     data = os.environ.get("GS4D_DATA") or os.path.join(os.path.dirname(root), "data_real")
     train = os.environ.get("GS4D_TRAIN") or "/home/cont/gs4d_train"
@@ -83,7 +76,7 @@ def probe():
     return ok
 
 
-REASON = {"torch": "no torch", "cuda": "no CUDA (or gsplat)", "chrome": "no Chrome/Playwright", "data": "no data (../data_real, gs4d_train)"}
+REASON = {"torch": "no torch", "cuda": "no CUDA (or gsplat)", "chrome": "no Playwright or /usr/bin/google-chrome", "data": "no data (../data_real, gs4d_train)"}
 
 
 def main(argv):

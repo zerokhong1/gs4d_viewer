@@ -68,10 +68,10 @@ def test_shape_of_motion():
         # real checkpoints carry numpy scalars in the optimizer / scheduler state
         torch.save({"model": model, "optimizers": {"lr": np.float64(1e-3)}, "schedulers": {"n": np.int64(7)},
                     "global_step": 123, "epoch": 4}, ckpt)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_shape_of_motion.py"), ckpt, "-o", out, "--fps", "10",
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_shape_of_motion.py"), ckpt, "-o", out, "--fps", "10",
                         "--stride", "2"], check=True, stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_shape_of_motion.py"), ckpt, "-o", out, "--fg-only"],
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_shape_of_motion.py"), ckpt, "-o", out, "--fg-only"],
                        check=True, stdout=subprocess.DEVNULL)
         fg = Sequence4D.load(out)
     assert fg.num_gaussians == G and fg.num_frames == T

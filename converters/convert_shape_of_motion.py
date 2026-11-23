@@ -19,14 +19,17 @@ Formulas ported from flow3d/params.py and flow3d/scene_model.py (compute_poses_f
 Background Gaussians do not move. Time is the frame index divided by --fps.
 
 Example:
-    python convert_shape_of_motion.py outputs/scene/checkpoints/last.ckpt -o scene.npz --fps 30
+    python converters/convert_shape_of_motion.py outputs/scene/checkpoints/last.ckpt -o scene.npz --fps 30
 """
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, pack_cov
 from gs4d.checkpoint import import_torch, torch_load
 from gs4d.format import quat_to_rotmat

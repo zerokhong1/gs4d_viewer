@@ -17,6 +17,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 import convert_mosca as C  # noqa: E402
 from gs4d import Sequence4D  # noqa: E402
 from gs4d.format import unpack_cov  # noqa: E402
@@ -60,7 +61,7 @@ def convert_sd(sd_t, tmp, extra=()):
     import torch
     pth, out = os.path.join(tmp, "d.pth"), os.path.join(tmp, "s.npz")
     torch.save(sd_t, pth)
-    r = subprocess.run([sys.executable, os.path.join(ROOT, "convert_mosca.py"), pth, "-o", out, "--fps", "1", *extra], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_mosca.py"), pth, "-o", out, "--fps", "1", *extra], capture_output=True, text=True)
     return r, out
 
 

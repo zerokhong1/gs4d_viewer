@@ -65,7 +65,7 @@ The compact layout only changes the time-varying fields:
 Fields without the K axis stay float32. The viewer loads lazily (`load(path, lazy=True)`, the file is memory-mapped): only the keyframes
 on screen are read from disk, so **do not overwrite a file while the viewer has it open**.
 
-Error, measured with `python tests/bench_large.py` on 500,000 random Gaussians × 100 keyframes: largest position error 0.002 for Gaussians
+Error, measured with `python benchmarks/bench_large.py` on 500,000 random Gaussians × 100 keyframes: largest position error 0.002 for Gaussians
 that move up to 5.35 units from the first keyframe (the error grows with the offset: float16 has 11 significant bits); opacity 0.002;
 covariance 7·10⁻⁵ times the Gaussian's largest variance. File size 2006 → 964 MB; lazy loading takes under 0.01 s and 94 MB of RAM instead
 of 1.04 s and 1963 MB when loading everything. In exchange, decoding a frame on the CPU is slower (77 ms instead of 14 ms); the gsplat

@@ -16,3 +16,6 @@ ignore = ["E741"]                 # l, r, O, ...: names taken from the papers' f
 # stand-alone scripts that put the repository on sys.path before importing it, and quick measurement scripts
 # (their older `# noqa: E402` comments are kept, hence RUF100)
 "tests/*" = ["E402", "E702", "E731", "SIM115", "RUF100"]
+"tools/*" = ["E402", "E702", "E731", "SIM115", "RUF100"]
+"benchmarks/*" = ["E402", "E702", "E731", "SIM115", "RUF100"]
+"converters/*" = ["E402"]

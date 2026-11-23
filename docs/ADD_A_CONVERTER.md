@@ -5,7 +5,7 @@ do not change `viewer.py`, `gs4d/format.py` or other converters.
 
 ## Steps
 
-1. `cp convert_template.py convert_<name>.py` and `cp tests/test_template.py tests/test_<name>.py`. The template is a made-up method
+1. `cp converters/convert_template.py converters/convert_<name>.py` and `cp tests/test_template.py tests/test_<name>.py`. The template is a made-up method
    (position = `xyz + vel * t`) that already runs.
 2. **Read the original repository, do not run it.** Find: the output files (checkpoint, ply, npz), how position / quaternion / scale /
    opacity / colour are computed at time `t`, the activations (`exp` for scale, `sigmoid` for opacity), and the range of time. Port the
@@ -36,7 +36,7 @@ do not change `viewer.py`, `gs4d/format.py` or other converters.
   the cause was that the cameras built from our layout left `FovX = FovY = -1`, so the CUDA rasteriser used a fake focal length and the
   model learned to compensate. The converter was not at fault. After the camera fix the two numbers agree within 0.01 dB.
 - **Measure at the training resolution.** Deformable-3DGS trained at 800 px gives 37.2–43.6 dB; rendered at 400 px only 29.3–33.2 dB.
-- **Compare with the repository's own renderer** when possible (`tests/repo_psnr.py`): Shape of Motion matches to 0.000 dB; doing this is
+- **Compare with the repository's own renderer** when possible (`tools/repo_psnr.py`): Shape of Motion matches to 0.000 dB; doing this is
   how we found that Spacetime stores raw colours outside [0,1], which the converter used to clip (31.43 → 34.37 dB).
 - Add in the right order: Deformable-3DGS and SC-GS add `d_scaling` to `exp(scale)` (after the activation), not to the log-scale. Check
   every such detail in the repository, do not infer it.
