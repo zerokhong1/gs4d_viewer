@@ -40,8 +40,9 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   `check_gsplat.py` and `check_cameras.py` need CUDA, `check_real.py` and `check_cameras.py` the real data
   (`../data_real`, `/home/cont/gs4d_train`). `bench_large.py`, `bench_display.py` measure; `repo_psnr.py` runs the methods'
   own renderers; `make_hypernerf_*.py`, `diag_native4d_banana.py` are one-off tools of WP16 / WP19c.
-- `docs/` `SUPPORTED.md` (methods, real outputs checked, PSNR), `FORMAT.md` (file format, compact layout, static group,
-  writer), `PERFORMANCE.md` (speed and memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the log); `shots/` screenshots and mp4s
+- `docs/` `USAGE.md` (user guide), `SUPPORTED.md` (methods, real outputs checked, PSNR), `FORMAT.md` (file format, compact
+  layout, static group, writer), `PERFORMANCE.md` (speed and memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the log);
+  `shots/` screenshots and mp4s; `CITATION.cff` (citation metadata read by GitHub)
 - `ruff.toml` lint rules (CI runs `ruff check .`); `.github/workflows/test.yml` lint + tests without / with CPU torch
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
@@ -83,7 +84,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 
 ## Conventions
 - A converter is a new file `convert_<method>.py` + a new `tests/test_<method>.py` + one row in `docs/SUPPORTED.md`
-  (and the short table of the README). It must not edit `viewer.py`, `gs4d/format.py` or other converters.
+  (and Table 1 of the README, the inputs table of `docs/USAGE.md`). It must not edit `viewer.py`, `gs4d/format.py` or other converters.
 - Converters run on CPU with numpy (torch only to unpickle weights or run a small MLP, imported through `gs4d.checkpoint`).
   Read reference repos to port formulas; do not execute their code and do not add them as dependencies.
 - Every converter test builds synthetic inputs in the method's real file layout and checks the maths
@@ -93,6 +94,7 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
 - Headless screenshot check: start `python viewer.py toy.npz --port 8123`, open with Playwright + Chrome flags
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
 - Measurements go to `docs/` (per-method results: `SUPPORTED.md`, speed and memory: `PERFORMANCE.md`, file format: `FORMAT.md`)
-  plus a dated entry at the end of `docs/HISTORY.md`; the README stays a user guide.
+  plus a dated entry at the end of `docs/HISTORY.md`. The README is the research overview (abstract, method, summary tables of
+  the validation, references, citation); the user guide is `docs/USAGE.md`. A number in the README must also be in `docs/`.
 - Everything in the repository is written in English (docs, `PLAN.md`, comments, messages), with English number separators.
 - Finish with a 5-line report: what changed, what was run, what is untested, files touched.

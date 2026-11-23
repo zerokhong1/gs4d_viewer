@@ -25,7 +25,7 @@ The table below is the summary; the "Details" section gives the commands, measur
 | D | SC-GS (`convert_scgs.py`) | self-trained `bouncingballs` (plain, with motion mask, with colour head); `slice-banana` | 40.3 dB; mask 40.14 dB; colour head 37.83 dB; `slice-banana` 26.69 dB | `--use_hash` and `--skinning` synthetic test only (the repo's own training did not converge / crashed); hash or view-direction colour heads stop |
 
 Every converter needs torch except `convert_per_frame.py` and `convert_spacetime.py` (the CPU build is enough: torch only opens the
-checkpoint or re-runs a small MLP). `python -m gs4d.open <output>` recognises all of the above (see the [README](../README.md)).
+checkpoint or re-runs a small MLP). `python -m gs4d.open <output>` recognises all of the above (see the [user guide](USAGE.md#opening-an-output-directly-python--m-gs4dopen)).
 
 ## Details
 
