@@ -24,8 +24,8 @@ do not change `viewer.py`, `gs4d/format.py` or other converters.
 7. Test: fake data in the real file layout, compared with an independent formulation (like `tests/test_template.py`: the full covariance
    matrix `R S Sᵀ Rᵀ`). `tests/run_all.py` picks up every `tests/test_*.py`; a test that needs torch goes into `NEEDS` in
    `tests/run_all.py`.
-8. Add a row to Table 1 of the README (with the reference in its References list) and to the inputs table of `docs/USAGE.md`, and a
-   row plus a "Details" section to `docs/SUPPORTED.md`. Making `gs4d.open` recognise the
+8. Add a row to the methods table of the README, to Table 1 of `docs/METHOD.md` (with the reference in its References list) and to
+   the inputs table of `docs/USAGE.md`, and a row plus a "Details" section to `docs/SUPPORTED.md`. Making `gs4d.open` recognise the
    output is a separate job in `gs4d/open.py` (and `tests/test_open.py`).
 9. Run `python tests/run_all.py` and `ruff check .`. Check on a real output (see below) before writing down a PSNR, with a dated entry at
    the end of `docs/HISTORY.md`.
