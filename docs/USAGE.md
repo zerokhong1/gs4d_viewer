@@ -1,7 +1,7 @@
 # User guide
 
 How to open the output of a 4DGS method, use the viewer, and run the tests. What the tool does and how it is validated is
-described in the [README](../README.md); measurements are in [SUPPORTED.md](SUPPORTED.md), [PERFORMANCE.md](PERFORMANCE.md) and
+described in [METHOD.md](METHOD.md); measurements are in [SUPPORTED.md](SUPPORTED.md), [PERFORMANCE.md](PERFORMANCE.md) and
 [FORMAT.md](FORMAT.md).
 
 Installation: see the [README](../README.md#installation).

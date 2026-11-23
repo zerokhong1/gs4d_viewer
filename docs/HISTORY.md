@@ -231,3 +231,8 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Made explicit: Shape of Motion is evaluated at its training cameras and the published Spacetime model (`allcam`) was presumably
   trained on all 21 cameras, so those two rows measure fit to training views; the Spacetime converter drops Gaussians whose peak
   opacity is at most 0.02 by default (`--min-peak-opacity`).
+
+## 23/11/2026 — short README (branch `docs/simple-readme`)
+- At Thai's request the README is short again, like a normal code repository: description, installation, quick start, supported
+  methods (linked to their official repositories), one results table (agreement with the methods' own rendering), citation,
+  license. The method, validation tables, limitations, references and the data-license notes moved unchanged to `docs/METHOD.md`.
