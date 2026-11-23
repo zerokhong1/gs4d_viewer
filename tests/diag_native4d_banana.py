@@ -4,7 +4,10 @@ Diagnosis only. Each step changes one thing and prints PSNR on the 33 held-out f
 the self-trained checkpoint (same paths as tests/check_real.py).
     python tests/diag_native4d_banana.py [--steps a,b,...]
 """
-import argparse, os, sys, tempfile
+import argparse
+import os
+import sys
+import tempfile
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +34,7 @@ def build(c, times, sh=True, sh_degree=None, sh_degree_t=None, mask=0.0, min_pea
     dt = c["sh_degree_t"] if sh_degree_t is None else sh_degree_t
     if sh:
         sh_all = cn.sh_at_times(c["features_dc"][keep], c["features_rest"][keep], tt[keep], times, float(times_range[1] - times_range[0]),
-                                c["sh_degree"], c["sh_degree_t"])
+                                c["sh_degree"], dt)
         if dg < c["sh_degree"]:
             sh_all = sh_all[:, :, :(dg + 1) ** 2]
         colors = np.clip(SH_C0 * sh_all[:, :, 0] + 0.5, 0, 1)

@@ -11,7 +11,13 @@
     python tests/check_trails.py [--shots DIR]
     python tests/check_trails.py --file ../data_real/scgs/bouncingballs_sh.npz --name scgs --up=+z    # screenshots only
 """
-import argparse, os, subprocess, sys, tempfile, threading, time
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

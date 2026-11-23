@@ -1,0 +1,18 @@
+# Lint rules checked in CI (`ruff check .`). The code is not auto-formatted; long lines are allowed.
+target-version = "py310"
+line-length = 160
+
+[lint]
+select = [
+    "E4", "E7", "E9", "F",        # ruff's default set: imports, statements, syntax errors, pyflakes
+    "B006", "B008", "B904",       # mutable / call defaults, `raise ... from` inside except
+    "PLE",                        # pylint errors
+    "SIM115",                     # files opened without a context manager
+    "RUF100",                     # noqa comments that suppress nothing
+]
+ignore = ["E741"]                 # l, r, O, ...: names taken from the papers' formulas
+
+[lint.per-file-ignores]
+# stand-alone scripts that put the repository on sys.path before importing it, and quick measurement scripts
+# (their older `# noqa: E402` comments are kept, hence RUF100)
+"tests/*" = ["E402", "E702", "E731", "SIM115", "RUF100"]

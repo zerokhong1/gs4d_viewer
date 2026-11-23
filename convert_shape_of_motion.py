@@ -28,23 +28,23 @@ import argparse
 import numpy as np
 
 from gs4d import Sequence4D, Sequence4DWriter, pack_cov
+from gs4d.checkpoint import import_torch, torch_load
 from gs4d.format import quat_to_rotmat
 
 
 def load_checkpoint(path: str) -> dict:
     """Model state_dict of a Shape of Motion checkpoint as numpy arrays."""
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_shape_of_motion.py needs torch (CPU is enough) to read the checkpoint: pip install torch")
+    torch = import_torch("convert_shape_of_motion.py")
     # Real checkpoints pickle numpy scalars next to the weights (seen in the released paper-windmill checkpoint),
     # which weights_only=True rejects by default. These are plain data constructors, safe to allow.
     import _codecs
     from numpy.core.multiarray import scalar
     torch.serialization.add_safe_globals([scalar, np.dtype, _codecs.encode] + [
         type(np.dtype(t)) for t in (np.float64, np.float32, np.int64, np.int32, np.bool_)])
-    ckpt = torch.load(path, map_location="cpu", weights_only=True)
+    ckpt = torch_load(path, "convert_shape_of_motion.py", weights_only=True)
     sd = ckpt["model"] if isinstance(ckpt, dict) and "model" in ckpt else ckpt
+    if not isinstance(sd, dict):
+        raise SystemExit(f"{path}: not a Shape of Motion checkpoint (no state dict)")
     need = ["fg.params.means", "fg.params.quats", "fg.params.scales", "fg.params.colors", "fg.params.opacities",
             "fg.params.motion_coefs", "motion_bases.params.rots", "motion_bases.params.transls"]
     missing = [k for k in need if k not in sd]
@@ -107,7 +107,7 @@ def main():
     ap.add_argument("--stride", type=int, default=1, help="keep every n-th training frame as a keyframe")
     ap.add_argument("--fg-only", action="store_true", help="drop the static background Gaussians")
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
     sd = load_checkpoint(a.checkpoint)
@@ -133,6 +133,7 @@ def main():
                 covs = np.concatenate([covs, b_cov])
             wr.add_keyframe(np.float32(f / a.fps), means=means[keep], covs=covs[keep])
     print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
+
 
 if __name__ == "__main__":
     main()

@@ -29,9 +29,8 @@ def _natural_key(s: str):
 
 
 def from_ply_folder(folder: str, stride: int, fps: float, sh: bool = False) -> Sequence4D:
-    files = sorted(glob.glob(os.path.join(folder, "*.ply")), key=_natural_key)[::stride]
-    if not files:
-        raise SystemExit(f"No .ply files in {folder}")
+    """Every frame in memory; needed when the Gaussian count changes between frames (padded, interpolation off)."""
+    files = _ply_files(folder, stride)
     frames = []
     for i, f in enumerate(files):
         frames.append(gaussians_from_ply(f, with_sh=sh))
@@ -63,6 +62,7 @@ def from_ply_folder(folder: str, stride: int, fps: float, sh: bool = False) -> S
 
 
 def _ply_files(folder: str, stride: int) -> list:
+    """Every `stride`-th .ply of the folder in natural order (time_2 before time_10)."""
     files = sorted(glob.glob(os.path.join(folder, "*.ply")), key=_natural_key)[::stride]
     if not files:
         raise SystemExit(f"No .ply files in {folder}")
@@ -109,7 +109,9 @@ def write_ply_folder(folder: str, output: str, stride: int, fps: float, sh: bool
     return True
 
 
-def from_dynamic3dgs(path: str, stride: int, fps: float, fg_only: bool) -> Sequence4D:
+def _load_dynamic3dgs(path: str, stride: int, fg_only: bool):
+    """Activated arrays of a Dynamic 3D Gaussians params.npz, every `stride`-th frame: means [T,N,3], quats [T,N,4] (wxyz),
+    colours [T,N,3] or [N,3] clipped to [0,1], opacities [N], linear scales [N,3]; with fg_only the foreground only."""
     with np.load(path) as z:
         p = {k: z[k] for k in z.files}
     means = p["means3D"][::stride].astype(np.float32)             # [T,N,3]
@@ -124,31 +126,22 @@ def from_dynamic3dgs(path: str, stride: int, fps: float, fg_only: bool) -> Seque
         keep = p["seg_colors"][:, 0] > 0.5
         means, quats, opac, scales = means[:, keep], quats[:, keep], opac[keep], scales[keep]
         rgb = rgb[:, keep] if rgb.ndim == 3 else rgb[keep]
+    elif fg_only:
+        print("  --fg-only ignored: params.npz has no seg_colors")
+    return means, quats, np.clip(rgb, 0, 1), opac, scales
+
+
+def from_dynamic3dgs(path: str, stride: int, fps: float, fg_only: bool) -> Sequence4D:
+    means, quats, rgb, opac, scales = _load_dynamic3dgs(path, stride, fg_only)
     covs = cov_from_quat_scale(quats, np.broadcast_to(scales, means.shape))
     times = np.arange(means.shape[0], dtype=np.float32) * stride / fps
-    return Sequence4D(times, means, covs, opac, np.clip(rgb, 0, 1),
-                      source=f"Dynamic 3D Gaussians: {os.path.abspath(path)}")
+    return Sequence4D(times, means, covs, opac, rgb, source=f"Dynamic 3D Gaussians: {os.path.abspath(path)}")
 
 
 def write_dynamic3dgs(path: str, output: str, stride: int, fps: float, fg_only: bool, compact: bool = False) -> None:
     """Same file as `from_dynamic3dgs(...).save(output, compact)`, covariances computed one frame at a time."""
-    with np.load(path) as z:
-        p = {k: z[k] for k in z.files}
-    means = p["means3D"][::stride].astype(np.float32)             # [T,N,3]
-    quats = p["unnorm_rotations"][::stride].astype(np.float32)    # [T,N,4] wxyz
-    rgb = p["rgb_colors"]
-    rgb = (rgb[::stride] if rgb.ndim == 3 else rgb).astype(np.float32)
-    opac = 1.0 / (1.0 + np.exp(-p["logit_opacities"].astype(np.float32).reshape(-1)))
-    scales = np.exp(p["log_scales"].astype(np.float32))
-    if scales.shape[-1] == 1:
-        scales = np.repeat(scales, 3, -1)
-    if fg_only and "seg_colors" in p:
-        keep = p["seg_colors"][:, 0] > 0.5
-        means, quats, opac, scales = means[:, keep], quats[:, keep], opac[keep], scales[keep]
-        rgb = rgb[:, keep] if rgb.ndim == 3 else rgb[keep]
-    del p
+    means, quats, rgb, opac, scales = _load_dynamic3dgs(path, stride, fg_only)
     times = np.arange(means.shape[0], dtype=np.float32) * stride / fps
-    rgb = np.clip(rgb, 0, 1)
     const = dict(opacities=opac, **({} if rgb.ndim == 3 else dict(colors=rgb)))
     with Sequence4DWriter(output, compact=compact, source=f"Dynamic 3D Gaussians: {os.path.abspath(path)}", **const) as wr:
         for k, t in enumerate(times):
@@ -167,7 +160,7 @@ def main():
     ap.add_argument("--sh", action="store_true",
                     help="ply folder: keep f_rest_* (view-dependent colour, gsplat renderer only); "
                          "adds N x K x 12 x (degree+1)^2 bytes")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
     if os.path.isdir(a.input):
@@ -180,6 +173,7 @@ def main():
         write_dynamic3dgs(a.input, a.output, a.stride, a.fps, a.fg_only, a.compact)
     else:
         raise SystemExit("input must be a folder of .ply files or a params.npz")
+
 
 if __name__ == "__main__":
     main()

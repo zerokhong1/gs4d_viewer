@@ -16,7 +16,11 @@ The first pass runs without the wrapper and reports `sent` and `browser` only, a
 
 Needs CUDA, gsplat, an X display and Chrome. Not part of tests/run_all.py (opens a window, takes about a minute).
 """
-import argparse, os, sys, threading, time
+import argparse
+import os
+import sys
+import threading
+import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import viewer as V

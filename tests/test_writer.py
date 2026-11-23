@@ -4,7 +4,10 @@ as `Sequence4D.save` of the whole sequence (CPU only).
 
     python tests/test_writer.py
 """
-import os, subprocess, sys, tempfile, tracemalloc
+import os
+import sys
+import tempfile
+import tracemalloc
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -202,7 +205,19 @@ def test_colors_out_of_range():
             assert ("colors_u8" in za.files) == packed and ("colors" in za.files) == (not packed), za.files
             if not packed:
                 assert np.array_equal(Sequence4D.load(a, lazy=True).at(1.0)[3], cols[1])
-    print("ok  compact: colours outside [0,1] stay float32 (save == writer), colours inside are uint8")
+        # a STATIC Gaussian with a colour outside [0,1]: it is stored once in float32 (colors_static), so the per-keyframe
+        # colours of the others are still packed as uint8, by `save` and by the writer alike
+        cols, still = np.clip(wild, 0, 1), 3
+        means[:, still], opac[:, still], cols[:, still] = means[0, still], opac[0, still], 1.7
+        Sequence4D(times, means, covs, opac, cols).save(a, compact=True)
+        with Sequence4DWriter(b, compact=True) as w:
+            for k in range(K):
+                w.add_keyframe(times[k], means=means[k], covs=covs[k], opacities=opac[k], colors=cols[k])
+        files = same_arrays(a, b)
+        assert "colors_u8" in files and "colors_static" in files, files
+        assert np.allclose(Sequence4D.load(b).at(2.0)[3][still], 1.7)
+    print("ok  compact: colours outside [0,1] stay float32 (save == writer), colours inside are uint8, "
+          "also next to a static Gaussian whose colour is outside")
 
 
 test_bit_identical()

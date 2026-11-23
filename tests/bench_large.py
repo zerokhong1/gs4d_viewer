@@ -11,7 +11,12 @@ Play-frame timing (needs CUDA): where the time of one frame goes on the CPU path
 interpolate / upload), and the time to get the gsplat inputs for one frame while playing, CPU path vs GPU path
 (viewer.frame_cpu vs viewer.frame_gpu), plus the largest difference between the two renders.
 """
-import argparse, os, subprocess, sys, tempfile, time
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+import time
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

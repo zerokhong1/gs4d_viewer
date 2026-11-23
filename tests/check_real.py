@@ -22,7 +22,14 @@ Exit code: 1 if any item failed (or, with --strict, was skipped), else 0.
 --work  : where the converted .npz files go (default: a temporary folder, deleted at the end)
 Model paths can also be set one by one with env GS4D_D3DGS, GS4D_SCGS, GS4D_NATIVE4D, GS4D_SPACETIME, GS4D_SOM.
 """
-import argparse, json, os, shutil, subprocess, sys, tempfile, time
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

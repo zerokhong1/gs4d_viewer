@@ -27,6 +27,7 @@ import argparse
 import numpy as np
 
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale, pack_cov
+from gs4d.checkpoint import torch_load
 
 
 def rotation_4d(l: np.ndarray, r: np.ndarray) -> np.ndarray:
@@ -112,10 +113,11 @@ def sh_at_times(features_dc, features_rest, t, times, duration, sh_degree, sh_de
 
 
 def load_checkpoint(path: str) -> dict:
-    import torch
-
-    obj = torch.load(path, map_location="cpu", weights_only=False)
+    # the repo saves a tuple with Python objects in it, which weights_only=True refuses: only open checkpoints you trust
+    obj = torch_load(path, "convert_native4d.py", weights_only=False)
     cap = obj[0] if isinstance(obj, (tuple, list)) and isinstance(obj[0], (tuple, list)) else obj
+    if not isinstance(cap, (tuple, list)):
+        raise SystemExit(f"{path}: not a native 4DGS checkpoint (expected the tuple torch.save((capture(), iteration)) writes)")
     if len(cap) != 19:
         raise SystemExit(f"{path}: expected the 19-field capture() of a 4D model, got {len(cap)} fields "
                          "(12 fields means a plain 3D model; use convert_per_frame.py on its ply instead)")
@@ -138,7 +140,7 @@ def main():
     ap.add_argument("--min-peak-opacity", type=float, default=0.02,
                     help="drop Gaussians whose opacity never exceeds this in [t0,t1]")
     ap.add_argument("--max-gaussians", type=int, default=0, help="keep only the N most visible Gaussians (0 = all)")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
     c = load_checkpoint(a.checkpoint)

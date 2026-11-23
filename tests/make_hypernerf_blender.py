@@ -12,7 +12,9 @@ uses a wrong focal (WP19c part 3; the model trained on that layout scored 24.2 d
 
     python tests/make_hypernerf_blender.py <split>/vrig_slice-banana/slice-banana <out_dir>
 """
-import json, os, sys
+import json
+import os
+import sys
 import numpy as np
 from PIL import Image
 

@@ -8,7 +8,9 @@ and the official `slice-banana` dataset.json lists all 330 frames as train and n
 
     python tests/make_hypernerf_split.py <path>/slice-banana /home/cont/gs4d_train/data
 """
-import json, os, sys
+import json
+import os
+import sys
 
 src, out = os.path.abspath(sys.argv[1]), sys.argv[2]
 name = os.path.basename(src)

@@ -8,7 +8,12 @@
 
     python tests/check_cameras.py [--out shots/cameras] [--no-browser]
 """
-import argparse, os, sys, tempfile, threading, time
+import argparse
+import os
+import sys
+import tempfile
+import threading
+import time
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

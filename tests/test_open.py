@@ -157,7 +157,8 @@ def test_all():
         assert gopen.find_cameras(d / "st") is None
         (d / "st" / "cameras.json").write_text('[{"c2w": []}]')
         assert gopen.find_cameras(d / "st" / "point_cloud" / "iteration_25000" / "point_cloud.ply") == d / "st" / "cameras.json"
-        import io, contextlib
+        import io
+        import contextlib
         for extra, want in (([], True), (["--cameras", "mine.json"], False)):
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -219,6 +220,10 @@ def test_all():
         (d / "dyn_big.pth").write_bytes(b"0" * (100 * 1000))     # MoSca: ~200 frames, one keyframe per --stride
         assert gopen.estimate_bytes(dict(kind="mosca", src=d / "dyn_big.pth"), []) == 1000 * 200 * 40
         assert gopen.estimate_bytes(dict(kind="mosca", src=d / "dyn_big.pth"), ["--stride", "4"]) == 1000 * 50 * 40
+        assert gopen.estimate_bytes(dict(kind="mosca", src=d / "dyn_big.pth"), ["--stride=4"]) == 1000 * 50 * 40
+        for bad in (["--stride"], ["--stride", "x"], ["--stride=x"]):   # not a number: the default (every frame)
+            assert gopen.estimate_bytes(dict(kind="mosca", src=d / "dyn_big.pth"), bad) == 1000 * 200 * 40, bad
+        assert gopen.estimate_bytes(dict(kind="4drotor", src=d / "rot.ckpt"), ["--frames=10"]) == 1000 * (10 * 16 + 228)
         cols = len(BASE) + 2                                     # E-D3DGS: float32 columns from the ply header
         with open(ed_ply, "ab") as f:
             f.write(np.zeros(cols * 999, "<f4").tobytes())       # 1000 vertices (the header still says 1: only sizes matter)

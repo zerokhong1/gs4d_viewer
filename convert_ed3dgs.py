@@ -35,11 +35,10 @@ import re
 
 import numpy as np
 
-from gs4d import Sequence4D, Sequence4DWriter
-from gs4d.format import cov_from_quat_scale
+from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale
+from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
-SH_C0 = 0.28209479177387814
 # ModelHiddenParams defaults of arguments/__init__.py (what cfg_args holds unless the config overrides it)
 DEFAULTS = dict(no_ds=False, no_dr=False, no_do=True, no_dc=False, min_embeddings=30, max_embeddings=150,
                 use_coarse_temporal_embedding=False, no_c2f_temporal_embedding=False, no_coarse_deform=False,
@@ -48,7 +47,8 @@ DEFAULTS = dict(no_ds=False, no_dr=False, no_do=True, no_dc=False, min_embedding
 
 def read_cfg(path):
     """cfg_args is the text of `Namespace(a=1, b='x', ...)`; parsed without eval."""
-    tree = ast.parse(open(path).read().strip(), mode="eval").body
+    with open(path) as f:
+        tree = ast.parse(f.read().strip(), mode="eval").body
     if not (isinstance(tree, ast.Call) and getattr(tree.func, "id", "") == "Namespace"):
         raise SystemExit(f"{path}: not a Namespace(...) dump")
     out = {}
@@ -154,10 +154,7 @@ class EmbeddingDeformation:
 
 
 def convert(model, out, frames=60, t0=0.0, t1=1.0, iteration=-1, keep_sh=True, compact=False, min_opacity=0.0, overrides=None, batch=65536):
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_ed3dgs.py needs torch (CPU is enough): pip install torch")
+    torch = import_torch("convert_ed3dgs.py")
     ply, pth, it = find_files(model, iteration)
     cfg = dict(DEFAULTS)
     cfg_path = os.path.join(model, "cfg_args")
@@ -166,8 +163,8 @@ def convert(model, out, frames=60, t0=0.0, t1=1.0, iteration=-1, keep_sh=True, c
     else:
         print(f"warning: {cfg_path} not found, using the ModelHiddenParams defaults of the repo (pass --set for the rest)")
     cfg.update(overrides or {})
-    sd = torch.load(pth, map_location="cpu", weights_only=True)
-    if "weight" not in sd or not any(k.startswith("feature_out_c.") for k in sd):
+    sd = torch_load(pth, "convert_ed3dgs.py")
+    if not isinstance(sd, dict) or "weight" not in sd or not any(k.startswith("feature_out_c.") for k in sd):
         raise SystemExit(f"{pth}: no temporal table / feature_out_c; not an E-D3DGS deformation.pth")
     net = EmbeddingDeformation(torch, sd, cfg, it)
     v = read_ply_vertices(ply)
@@ -199,20 +196,22 @@ def convert(model, out, frames=60, t0=0.0, t1=1.0, iteration=-1, keep_sh=True, c
     with Sequence4DWriter(out, compact=compact, source=f"E-D3DGS: {ply}", **const) as w:
         with torch.no_grad():
             for k, t in enumerate(times):
-                M, C, O, CO, SH = [], [], [], [], []
+                M, C, O, SH = [], [], [], []
                 for a in range(0, len(xyz), batch):
                     s = slice(a, a + batch)
                     p, ls, q, lg, shx = net(float(t), torch.from_numpy(z[s]), torch.from_numpy(xyz[s]), torch.from_numpy(lsc[s]),
                                             torch.from_numpy(quat[s]), torch.from_numpy(logit[s]), torch.from_numpy(sh0[s]))
                     q = torch.nn.functional.normalize(q, dim=-1)
-                    M.append(p.numpy()); C.append(cov_from_quat_scale(q.numpy(), np.exp(ls.numpy())))
-                    O.append(torch.sigmoid(lg[:, 0]).numpy()); SH.append(shx.numpy())
+                    M.append(p.numpy())
+                    C.append(cov_from_quat_scale(q.numpy(), np.exp(ls.numpy())))
+                    O.append(torch.sigmoid(lg[:, 0]).numpy())
+                    SH.append(shx.numpy())
                 fields = dict(means=np.concatenate(M), covs=np.concatenate(C))
                 if vary_o:
                     fields["opacities"] = np.concatenate(O)
                 if vary_c:
                     shk = np.concatenate(SH)
-                    fields["colors"] = shk[:, 0] * SH_C0 + 0.5
+                    fields["colors"] = np.clip(shk[:, 0] * SH_C0 + 0.5, 0, None)   # the renderer clamps SH colour at 0
                     if keep_sh:
                         fields["sh"] = shk
                 w.add_keyframe(float(t), **fields)
@@ -230,14 +229,19 @@ def main():
     ap.add_argument("--t1", type=float, default=1.0, help="dynerf: (frames - 1) / 300, technicolor: (frames - 1) / 50")
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians whose canonical opacity is at or below this")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients (view-dependent colour, gsplat renderer)")
-    ap.add_argument("--compact", action="store_true")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     ap.add_argument("--batch", type=int, default=65536)
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override a ModelHiddenParams entry (python literal)")
     a = ap.parse_args()
     ov = {}
     for s in a.set:
-        k, _, val = s.partition("=")
-        ov[k] = ast.literal_eval(val)
+        k, sep, val = s.partition("=")
+        if not sep or k not in DEFAULTS:
+            raise SystemExit(f"--set {s}: expected KEY=VALUE with KEY one of {', '.join(DEFAULTS)}")
+        try:
+            ov[k] = ast.literal_eval(val)
+        except (ValueError, SyntaxError):
+            raise SystemExit(f"--set {s}: VALUE must be a Python literal (True, False, 30, ...)") from None
     path = convert(a.model, a.output, a.frames, a.t0, a.t1, a.iteration, a.sh, a.compact, a.min_opacity, ov, a.batch)
     print(f"Wrote {path}: {Sequence4D.load(path, lazy=True).summary()}")
 

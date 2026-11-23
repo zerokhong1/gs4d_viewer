@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Runs every tests/test_*.py and tests/check_*.py, one at a time, and prints a table.
 
-    python tests/run_all.py            # everything
-    python tests/run_all.py sh static  # only files whose name contains one of the words
-    python tests/run_all.py --list     # what would run, and what is missing for each
+    python tests/run_all.py               # everything
+    python tests/run_all.py sh static     # only files whose name contains one of the words
+    python tests/run_all.py --list        # what would run, and what is missing for each
+    python tests/run_all.py --keep-shots  # let the check_*.py scripts overwrite the screenshots in shots/
 
 A file is "skipped" (not failed) when the machine lacks what it needs: CUDA, Chrome (Playwright), torch, or the
 real data (../data_real, /home/cont/gs4d_train). Exit code 1 if any file failed. Use the same Python as for the
-viewer (.venv); one GPU and 15 GB RAM are assumed, so files run sequentially.
+viewer (.venv); one GPU and 15 GB RAM are assumed, so files run sequentially. The screenshots the check_*.py
+scripts take go to a temporary folder unless --keep-shots is given (run a script on its own to refresh shots/).
 """
 import importlib.util
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -30,13 +33,19 @@ NEEDS = {
     "check_cameras.py": ("cuda", "data", "chrome"),
     "test_scgs_hash.py": ("torch",),
     "test_4drotor.py": ("torch",),
+    "test_4dgaussians.py": ("torch",),
     "test_ed3dgs.py": ("torch",),
+    "test_gpu_frames.py": ("torch",),
     "test_mosca.py": ("torch",),
+    "test_native4d_sh.py": ("torch",),
     "check_real.py": ("cuda", "data"),
     "test_deformable3dgs.py": ("torch",),
     "test_scgs.py": ("torch",),
     "test_shape_of_motion.py": ("torch",),
 }
+# option that sends a check script's screenshots elsewhere (by default they overwrite shots/, which a test run should not touch)
+SHOTS_ARG = {"check_gsplat.py": "--out", "check_compare.py": "--out", "check_points.py": "--out", "check_cameras.py": "--out",
+             "check_trails.py": "--shots"}
 
 
 def has_module(name):
@@ -83,6 +92,7 @@ def main(argv):
     files = [f for f in files if not words or any(w in f.name for w in words)]
     have = probe()
     rows, failed = [], 0
+    shots = None if "--keep-shots" in argv else tempfile.mkdtemp(prefix="gs4d_shots_")
     for f in files:
         missing = [REASON[n] for n in NEEDS.get(f.name, ()) if not have[n]]
         if "--list" in argv:
@@ -91,9 +101,12 @@ def main(argv):
         if missing:
             rows.append((f.name, "skipped", "", ", ".join(missing)))
             continue
+        cmd = [sys.executable, str(f)]
+        if shots and f.name in SHOTS_ARG:
+            cmd += [SHOTS_ARG[f.name], os.path.join(shots, f.stem)]
         t0 = time.time()
         try:
-            r = subprocess.run([sys.executable, str(f)], cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
+            r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT, check=False)
             out, code = (r.stdout + r.stderr), r.returncode
         except subprocess.TimeoutExpired:
             out, code = f"timeout after {TIMEOUT}s", 1
@@ -111,7 +124,8 @@ def main(argv):
     for n, res, dt, note in rows:
         print(f"{n:{w}s}  {res:8s}  {dt:>7s}  {note}")
     c = {k: sum(r[1] == k for r in rows) for k in ("pass", "skipped", "FAILED")}
-    print(f"\n{c['pass']} passed, {c['skipped']} skipped, {c['FAILED']} failed")
+    print(f"\n{c['pass']} passed, {c['skipped']} skipped, {c['FAILED']} failed"
+          + (f" (screenshots of this run: {shots})" if shots and any(r[0] in SHOTS_ARG and r[1] != "skipped" for r in rows) else ""))
     return 1 if failed else 0
 
 

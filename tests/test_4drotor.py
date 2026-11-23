@@ -82,7 +82,8 @@ def main():
             assert np.allclose(opac[g], op, atol=1e-5), ("opacity", g)
     assert np.allclose(cols, p["features_dc"][:, 0] * C.SH_C0 + 0.5, atol=1e-6)
     assert seq.sh is not None and seq.sh.shape[-2] == 16
-    assert bad.returncode != 0 and "gauss_params" in (bad.stderr + bad.stdout) or bad.returncode != 0
+    msg = bad.stderr + bad.stdout
+    assert bad.returncode != 0 and ("torch checkpoint" in msg or "gauss_params" in msg) and "Traceback" not in msg, msg[-500:]
     print("ok  convert_4drotor.py: conditional mean, covariance and marginal opacity equal the textbook conditioning of a 4D Gaussian; SH kept; wrong input stops")
 
 

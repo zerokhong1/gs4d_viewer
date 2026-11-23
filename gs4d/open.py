@@ -128,6 +128,7 @@ def _last_iteration(folder: Path, fname: str) -> Path | None:
 
 def _is_dnerf(path: Path) -> bool:
     """cfg_args (written by the training scripts) in the folder of the output or one of its parents."""
+    path = Path(path).resolve()
     d = path if path.is_dir() else path.parent
     for cur in [d, *list(d.parents)[:4]]:
         cfg = cur / "cfg_args"
@@ -323,9 +324,8 @@ def detect(path: Path) -> dict:
             if ply is not None and "trbf_center" in _ply_names(ply):
                 return dict(kind="spacetime", converter="convert_spacetime.py", src=ply, extra=[])
             no(f"{pc}/iteration_*/ has no deformation.pth (4DGaussians, E-D3DGS) and the ply has no trbf_center (Spacetime Gaussians)")
-        for name in ("params.npz",):
-            if (path / name).is_file():
-                return detect(path / name)
+        if (path / "params.npz").is_file():
+            return detect(path / "params.npz")
         fr = _frame_plys(path)
         if fr is not None:
             if "trbf_center" in _ply_names(sorted(fr.glob("*.ply"))[0]):
@@ -374,6 +374,22 @@ def _size(p: Path) -> int:
     return p.stat().st_size if p.is_file() else sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
 
 
+def _int_arg(args: list, name: str, default: int) -> int:
+    """Value of `name N` or `name=N` among converter arguments; default when absent or not an integer."""
+    for i, x in enumerate(args):
+        if x == name and i + 1 < len(args):
+            val = args[i + 1]
+        elif x.startswith(name + "="):
+            val = x[len(name) + 1:]
+        else:
+            continue
+        try:
+            return int(val)
+        except ValueError:
+            return default
+    return default
+
+
 def estimate_bytes(info: dict, convert_args=()) -> int:
     """Rough size of the plain .npz the converter would write (an upper bound: static Gaussians and
     --min-opacity make it smaller). Per-frame input is already N*K frames; the others are one model times K."""
@@ -381,7 +397,7 @@ def estimate_bytes(info: dict, convert_args=()) -> int:
     if kind in ("dynamic3dgs", "per_frame"):
         return _size(src) * OUT_BYTES // (PLY_BYTES if kind == "per_frame" else OUT_BYTES)
     args = list(convert_args)
-    k = int(args[args.index("--frames") + 1]) if "--frames" in args and args.index("--frames") + 1 < len(args) else 60
+    k = _int_arg(args, "--frames", 60)
     sh = "--sh" in args
     if kind == "shape_of_motion":
         return _size(src) // 300 * 200 * OUT_BYTES   # ~300 B per Gaussian with optimiser state, assume ~200 frames
@@ -390,10 +406,7 @@ def estimate_bytes(info: dict, convert_args=()) -> int:
     if kind == "4drotor":    # 65 float32 per Gaussian plus Adam's two moments (~780 B); only means and opacities change
         return _size(src) // 780 * (k * 16 + 228)   # per keyframe (16 B); covariance, colour, SH are written once (228 B)
     if kind == "mosca":      # ~100 B per Gaussian in the state dict (scaffold included); ~200 frames assumed, as for
-        try:                 # Shape of Motion, one keyframe per --stride frames
-            stride = max(int(args[args.index("--stride") + 1]), 1)
-        except (ValueError, IndexError):
-            stride = 1
+        stride = max(_int_arg(args, "--stride", 1), 1)   # Shape of Motion, one keyframe per --stride frames
         return _size(src) // 100 * max(200 // stride, 1) * OUT_BYTES
     if kind == "ed3dgs":     # the deltas change every field at every keyframe, the SH too with --sh
         ply = _last_iteration(src / "point_cloud", "point_cloud.ply")
@@ -460,7 +473,11 @@ def main(argv=None):
     if cmd_conv:
         tmp = target.with_name(target.stem + ".partial.npz")
         cmd_conv[cmd_conv.index("-o") + 1] = str(tmp)
-        r = subprocess.run(cmd_conv)
+        try:
+            r = subprocess.run(cmd_conv, check=False)
+        except KeyboardInterrupt:
+            tmp.unlink(missing_ok=True)   # never leave a half-written file behind
+            raise
         if r.returncode != 0:
             tmp.unlink(missing_ok=True)
             print(f"gs4d.open: {info['converter']} failed (exit {r.returncode})", file=sys.stderr)
@@ -472,4 +489,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:   # Ctrl+C reaches the converter / viewer too; they stop on their own
+        sys.exit(130)
