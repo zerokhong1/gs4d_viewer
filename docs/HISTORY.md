@@ -125,7 +125,7 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   entry for `check_points.py` (needs Chrome; CC-B's file, not changed).
 - viser 1.1.1 camera controls (tried in Chrome): left drag orbits, right drag pans, wheel / middle drag zooms, W/S forward/back (horizontal), A/D left/right,
   Q/E down/up along the up axis, arrow keys orbit.
-- Phase 3 (16/11/2026, PLAN.md "Giai đoạn 3"), all done on branch `cc-a/wp24-points`, one session:
+- Phase 3 (16/11/2026, PLAN.md "Phase 3"), all done on branch `cc-a/wp24-points`, one session:
   - WP25: `tests/run_all.py` `NEEDS["check_points.py"] = ("chrome",)`.
   - WP26: `gs4d/open.py::estimate_bytes` counts `--sh` (native 4DGS: 192 B per Gaussian per keyframe; others: 192 B per Gaussian once), `tests/test_open.py`.
   - WP27: `gs4d/open.py::nerfies_scene` / `write_nerfies_cameras`: for a 4DGaussians, Deformable-3DGS or SC-GS folder whose `cfg_args` `source_path` has the
@@ -200,3 +200,20 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Every converter output of the synthetic tests is bit for bit the one of the code before the polish (33 files compared).
 - CI: `ruff check .` (rules in `ruff.toml`) and a second test job with CPU torch, so the converter tests run on GitHub.
 - README rewritten as a user guide; measurements moved to `docs/SUPPORTED.md`, `docs/FORMAT.md`, `docs/PERFORMANCE.md`.
+
+## 23/11/2026 — documentation in English (branch `docs/english`)
+- PR #2 (the polish above, plus Thai's commit that makes the tests run on Windows) is merged into `main`.
+- `README.md`, `PLAN.md` and `docs/` (`SUPPORTED.md`, `FORMAT.md`, `PERFORMANCE.md`, `ADD_A_CONVERTER.md`) translated from
+  Vietnamese; numbers now use English separators (98,993 Gaussians; 26.31 dB). Checked by script: the digits of every file
+  are the same as in the Vietnamese version (`PLAN.md` only gains the new dates and notes below), no Vietnamese letters left
+  in any tracked file, all relative links and `#anchors` resolve, every table row has as many cells as its header.
+- `PLAN.md`: the WP28 row says done 17/11/2026 (it was measured then, see above), finished "Do now" items are struck
+  through, and the prompts' "write the numbers in the README" now points to `docs/`.
+- `shots/readme_hero.png`: the right-hand panel is cut from `shots/cameras/ground_truth_compare.png`, so the browser's
+  "Software WebGL rendering detected" toast and the control panel no longer cover the original image.
+- How GitHub shows the docs: rendered with cmark-gfm, the parser GitHub uses (for the files on `main` it gives the same
+  structure and text as GitHub's own pages; the 103 heading ids there follow the anchor rule of the link check), then shown
+  inside the real GitHub pages at a 1280 px window (README column 838 px, other files 861 px). Fixed: three tables wider
+  than the page (README "Supported methods": converter name only, full commands in `docs/SUPPORTED.md`; the summary table
+  of `docs/SUPPORTED.md`; the WP9 table of `PLAN.md`) and long code comments that were cut off. Still scrolling sideways:
+  the gsplat install line, a few long converter commands and the prompt blocks of `PLAN.md` (kept on one line to copy).

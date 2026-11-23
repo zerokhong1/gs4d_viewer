@@ -1,41 +1,44 @@
-# gs4d_viewer — xem kết quả 4D Gaussian Splatting theo thời gian
+# gs4d_viewer — view 4D Gaussian Splatting results over time
 
 [![tests](https://github.com/zerokhong1/gs4d_viewer/actions/workflows/test.yml/badge.svg)](https://github.com/zerokhong1/gs4d_viewer/actions/workflows/test.yml)
 
-Viewer chạy trên trình duyệt (dựng bằng [viser](https://viser.studio)) để xem kết quả của các phương pháp 4D Gaussian Splatting (4DGS)
-sau khi train: kéo thanh thời gian, play/pause, xoay camera quanh cảnh, xem Gaussian dạng splat hoặc dạng điểm, so sánh hai kết quả,
-đối chiếu với ảnh gốc kèm PSNR, tô màu theo vận tốc, quay video theo quỹ đạo camera.
+A browser viewer (built on [viser](https://viser.studio)) for the results of 4D Gaussian Splatting (4DGS) methods after training: drag a
+time slider, play/pause, orbit the camera around the scene, draw the Gaussians as splats or as points, compare two results, check a
+render against the original image with its PSNR, colour Gaussians by speed, and record a video along a camera path.
 
-Viewer chỉ đọc **một định dạng `.npz` chung** ("Gaussian theo từng keyframe"). Mỗi phương pháp 4DGS có một converter đưa output về định
-dạng đó; `python -m gs4d.open <output>` tự nhận ra loại output, chuyển và mở viewer bằng một lệnh. Viewer không import code của phương pháp nào.
+The viewer reads **one common `.npz` format** ("Gaussians per keyframe"). Every 4DGS method has a converter that writes this format;
+`python -m gs4d.open <output>` recognises the kind of output, converts it and opens the viewer in one command. The viewer never imports a
+method's code.
 
-![Cảnh toy theo thời gian, vệt chuyển động, và render SC-GS cạnh ảnh gốc kèm PSNR](shots/readme_hero.png)
+![Toy scene over time, motion trails, and an SC-GS render next to the original image with its PSNR](shots/readme_hero.png)
 
-_Trái sang phải: cảnh giả lập (`make_toy.py`) với renderer gsplat; vệt chuyển động của các Gaussian; model SC-GS tự train trên cảnh
-`bouncingballs` của D-NeRF, render cạnh ảnh gốc của camera test kèm PSNR._
+_Left to right: the synthetic scene (`make_toy.py`) with the gsplat renderer; motion trails of the Gaussians; a self-trained SC-GS model
+of the D-NeRF `bouncingballs` scene, rendered next to the original image of a test camera with its PSNR._
 
-## Tính năng
+## Features
 
-- Thanh thời gian, play/pause, tốc độ, lặp, bước từng keyframe; nội suy tuyến tính giữa các keyframe.
-- Hai renderer: **gsplat** (GPU NVIDIA của máy chạy viewer, cho cảnh hàng triệu Gaussian) và **client** (WebGL trong trình duyệt, không cần CUDA).
-- Vẽ Gaussian dạng **splat** hoặc **điểm** (mỗi Gaussian một điểm tại tâm), lọc theo opacity, chỉnh kích thước.
-- **So sánh** hai kết quả trên cùng thanh thời gian: xem A, B hoặc cạnh nhau, cùng camera.
-- **Camera huấn luyện**: nhảy tới camera và thời điểm của ảnh gốc; renderer gsplat vẽ render cạnh ảnh gốc kèm **PSNR**.
-- **Chuyển động**: tô màu theo vận tốc hoặc độ dịch, vẽ vệt đường đi của Gaussian.
-- **Quỹ đạo camera**: đặt mốc, phát lại, lưu / nạp file quỹ đạo; **xuất mp4** từ camera cố định hoặc theo quỹ đạo.
-- File lớn: lưu nén (nhỏ hơn 2–3 lần), nạp lười (chỉ đọc keyframe đang xem), giải mã trên GPU khi play.
-- 11 phương pháp 4DGS: 8 đã chạy với output thật (6 trong số đó có PSNR so với ảnh gốc, khớp renderer của chính repo khi đối chiếu được),
-  3 mới có test tổng hợp ([docs/SUPPORTED.md](docs/SUPPORTED.md)).
+- Time slider, play/pause, speed, loop, step by keyframe; linear interpolation between keyframes.
+- Two renderers: **gsplat** (the NVIDIA GPU of the machine that runs the viewer, for scenes with millions of Gaussians) and **client**
+  (WebGL in the browser, no CUDA needed).
+- Draw Gaussians as **splats** or as **points** (one point at each Gaussian's centre), hide them by opacity, scale them.
+- **Compare** two results on one time slider: show A, B or both side by side, with the same camera.
+- **Training cameras**: jump to the camera and the time of an original image; the gsplat renderer shows the render next to the image
+  with its **PSNR**.
+- **Motion**: colour by speed or displacement, draw the paths (trails) of the Gaussians.
+- **Camera path**: place keys, play them back, save / load the path; **export mp4** from a fixed camera or along the path.
+- Large files: compact storage (2–3x smaller), lazy loading (only the keyframes on screen are read), decoding on the GPU while playing.
+- 11 4DGS methods: 8 have been run on real outputs (6 of them with PSNR against the original images, matching the method's own renderer
+  wherever that comparison could be made); 3 have synthetic tests only ([docs/SUPPORTED.md](docs/SUPPORTED.md)).
 
-## Cài đặt
+## Installation
 
-Chỉ renderer client (máy nào cũng chạy được, không cần GPU):
+Client renderer only (runs on any machine, no GPU needed):
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Renderer gsplat (GPU NVIDIA; không cần CUDA toolkit; wheel dựng sẵn của gsplat chỉ có cho Python 3.10):
+gsplat renderer (NVIDIA GPU; no CUDA toolkit needed; the prebuilt gsplat wheels exist for Python 3.10 only):
 
 ```bash
 uv venv --python 3.10 --seed .venv
@@ -44,225 +47,250 @@ uv pip install --python .venv/bin/python -r requirements.txt
 uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" --find-links https://docs.gsplat.studio/whl/gsplat/ --index-strategy unsafe-best-match
 ```
 
-Các converter của phương pháp dùng checkpoint torch cần thêm torch (bản CPU là đủ): `pip install torch`.
+The converters of methods that save torch checkpoints also need torch (the CPU build is enough): `pip install torch`.
 
-## Bắt đầu nhanh
+## Quick start
 
 ```bash
-python make_toy.py -o toy.npz        # cảnh động giả lập: đĩa tĩnh, quả bóng bay vòng, quả bóng nảy, đám mây hiện / tắt
-python viewer.py toy.npz             # rồi mở http://localhost:8080
+# synthetic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
+python make_toy.py -o toy.npz
+python viewer.py toy.npz             # then open http://localhost:8080
 ```
 
-Với output thật của một phương pháp:
+With the real output of a method:
 
 ```bash
-python -m gs4d.open output/dnerf/bouncingballs              # thư mục model, checkpoint, ply, ... (xem bảng bên dưới)
+# a model folder, checkpoint, ply, ... (see the table below)
+python -m gs4d.open output/dnerf/bouncingballs
 python -m gs4d.open output/dnerf/bouncingballs --renderer gsplat --port 8081 --draw-as points
 ```
 
-## Mở thẳng một output: `python -m gs4d.open`
+## Opening an output directly: `python -m gs4d.open`
 
 ```bash
-python -m gs4d.open <đường_dẫn_output> [--reconvert] [--dry-run] [--convert-args "--stride 4"] [đối số của viewer.py]
+python -m gs4d.open <output_path> [--reconvert] [--dry-run] [--convert-args "--stride 4"]
+                    [viewer.py arguments]
 ```
 
-- Nhận ra (theo thứ tự, cái đầu tiên khớp được dùng, không đoán): `.npz` đã ở định dạng chung (mở luôn); `params.npz` hoặc thư mục ply
-  từng frame; `chkpnt*.pth`; `.ckpt` / `.pth` khác theo tên khoá trong checkpoint (đọc phần pickle, không cần torch; không đọc được thì
-  theo tên file): `step-*.ckpt` của 4D-Rotor GS, `last.ckpt` của Shape of Motion, `photometric_d_model_*.pth` của MoSca; thư mục có
-  `checkpoints/last.ckpt`, `nerfstudio_models/` (lấy step cuối) hoặc log MoSca; thư mục có `point_cloud/` + `deform/` (ply có cột `fea_*`
-  thì SC-GS, không thì Deformable-3DGS); thư mục có `point_cloud/iteration_*/deformation.pth` (ply có cột `embedding_*` thì E-D3DGS, không
-  thì 4DGaussians); `point_cloud.ply` của Spacetime Gaussians.
-- File chuyển đổi là `<tên>.gs4d.npz` cạnh output, dùng lại khi output và converter chưa đổi; `--reconvert` ép chuyển lại, `--dry-run` chỉ
-  in lệnh. File ước tính lớn hơn 1 GB thì tự chuyển với `--compact`.
-- Scene D-NeRF (`cfg_args` ghi dnerf / is_blender) tự đặt thời gian [0, 1].
-- Camera: nếu bạn không tự đưa `--cameras`, lệnh tự truyền `cameras.json` đọc được (cạnh output hoặc tối đa 3 thư mục phía trên) hoặc
-  `transforms_test.json` của dataset ghi trong `cfg_args`. Với dataset kiểu Nerfies / HyperNeRF (4DGaussians, Deformable-3DGS, SC-GS), các camera
-  giữ lại được ghi ra `<tên>.gs4d.cameras.json` cạnh output.
-- Không nhận ra thì in các dấu hiệu đã kiểm tra và thoát mã 2. Ctrl+C dừng cả viewer lẫn converter đang chạy.
+- Recognised (checked in this order, the first match wins, nothing is guessed): an `.npz` already in the common format (opened as it
+  is); `params.npz` or a folder of per-frame ply files; `chkpnt*.pth`; other `.ckpt` / `.pth` files by the key names in the checkpoint
+  (the pickle is read without torch; when it cannot be read, by the file name): `step-*.ckpt` of 4D-Rotor GS, `last.ckpt` of Shape of
+  Motion, `photometric_d_model_*.pth` of MoSca; a folder with `checkpoints/last.ckpt`, `nerfstudio_models/` (the last step) or a MoSca
+  log; a folder with `point_cloud/` + `deform/` (SC-GS when the ply has `fea_*` columns, else Deformable-3DGS); a folder with
+  `point_cloud/iteration_*/deformation.pth` (E-D3DGS when the ply has `embedding_*` columns, else 4DGaussians); the `point_cloud.ply`
+  of Spacetime Gaussians.
+- The converted file is `<name>.gs4d.npz` next to the output and is reused while the output and the converter are unchanged;
+  `--reconvert` converts again, `--dry-run` only prints the commands. When the estimated file is larger than 1 GB the conversion uses
+  `--compact`.
+- D-NeRF scenes (`cfg_args` says dnerf / is_blender) get the time range [0, 1].
+- Cameras: unless you pass `--cameras` yourself, a readable `cameras.json` (next to the output or up to 3 folders above it) or the
+  `transforms_test.json` of the dataset named in `cfg_args` is passed to the viewer. For Nerfies / HyperNeRF datasets (4DGaussians,
+  Deformable-3DGS, SC-GS) the held-out cameras are written to `<name>.gs4d.cameras.json` next to the output.
+- An output that is not recognised prints the checks that were made and exits with code 2. Ctrl+C stops the viewer and a running
+  converter.
 
-## Phương pháp được hỗ trợ
+## Supported methods
 
-| Dạng | Phương pháp | Đầu vào | Lệnh chuyển | Kiểm trên output thật |
+| Type | Method | Input | Converter | Checked on a real output |
 |---|---|---|---|---|
-| A | Gaussian theo từng frame (feed-forward; `export_perframe_3DGS.py` của 4DGaussians) | thư mục `*.ply` | `python convert_per_frame.py <thư_mục> -o scene.npz --fps 30` | có |
-| A | Dynamic 3D Gaussians | `params.npz` | `python convert_per_frame.py params.npz -o scene.npz --stride 5 --fg-only` | có (không có ảnh gốc) |
-| B | Native 4DGS (Yang et al., ICLR 2024) | `chkpnt*.pth` | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh` | có |
-| B | 4D-Rotor GS (SIGGRAPH 2024) | `step-*.ckpt` (Nerfstudio) | `python convert_4drotor.py step-N.ckpt -o scene.npz --frames 60` | chưa, chỉ test tổng hợp |
-| C | Spacetime Gaussians (bản lite) | `point_cloud.ply` | `python convert_spacetime.py point_cloud.ply -o scene.npz --frames 50` | có |
-| C | Shape of Motion | `checkpoints/last.ckpt` | `python convert_shape_of_motion.py last.ckpt -o scene.npz --fps 30` | có |
-| C/D | MoSca (CVPR 2025), chỉ Gaussian động | `photometric_d_model_*.pth` | `python convert_mosca.py <file.pth> -o scene.npz --fps 30 --stride 2` | chưa, chỉ test tổng hợp |
-| D | 4DGaussians (hustvl) | thư mục model | `python convert_4dgaussians.py <thư_mục> -o scene.npz --frames 60 --sh` | có |
-| D | Deformable-3DGS | thư mục model | `python convert_deformable3dgs.py <thư_mục> -o scene.npz --frames 60 --sh` | có |
-| D | SC-GS | thư mục model `<tên>_node` | `python convert_scgs.py <thư_mục> -o scene.npz --frames 60 --sh` | có |
-| D | E-D3DGS (ECCV 2024) | thư mục model | `python convert_ed3dgs.py <thư_mục> -o scene.npz --frames 60 --sh` | chưa, chỉ test tổng hợp |
+| A | Gaussians per frame (feed-forward models; the per-frame export of 4DGaussians) | folder of `*.ply` | `convert_per_frame.py` | yes |
+| A | Dynamic 3D Gaussians | `params.npz` | `convert_per_frame.py` | yes (no original images) |
+| B | Native 4DGS (Yang et al., ICLR 2024) | `chkpnt*.pth` | `convert_native4d.py` | yes |
+| B | 4D-Rotor GS (SIGGRAPH 2024) | `step-*.ckpt` (Nerfstudio) | `convert_4drotor.py` | no, synthetic test only |
+| C | Spacetime Gaussians (lite model) | `point_cloud.ply` | `convert_spacetime.py` | yes |
+| C | Shape of Motion | `checkpoints/last.ckpt` | `convert_shape_of_motion.py` | yes |
+| C/D | MoSca (CVPR 2025), dynamic Gaussians only | `photometric_d_model_*.pth` | `convert_mosca.py` | no, synthetic test only |
+| D | 4DGaussians (hustvl) | model folder | `convert_4dgaussians.py` | yes |
+| D | Deformable-3DGS | model folder | `convert_deformable3dgs.py` | yes |
+| D | SC-GS | model folder `<name>_node` | `convert_scgs.py` | yes |
+| D | E-D3DGS (ECCV 2024) | model folder | `convert_ed3dgs.py` | no, synthetic test only |
 
-Dạng: **A** Gaussian theo từng frame · **B** Gaussian 4D cắt theo thời gian · **C** hàm chuyển động tham số · **D** mạng biến dạng, chạy
-lại trên CPU. PSNR từng phương pháp, biến thể đã thử, biến thể converter dừng và lý do: [docs/SUPPORTED.md](docs/SUPPORTED.md).
-Thêm phương pháp mới: [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md) (có `convert_template.py` chạy được).
+`python -m gs4d.open` runs the right converter for you. By hand: `python <converter> <input> -o scene.npz [flags]`, for example
+`python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh`; the command of every method is in
+[docs/SUPPORTED.md](docs/SUPPORTED.md).
 
-Cờ chung của các converter: `--frames` số keyframe (dạng B, D); `--t0 --t1` khoảng thời gian theo đơn vị của phương pháp (cảnh D-NeRF:
-[0, 1]); `--fps` và `--stride` cho output theo frame; `--sh` giữ màu phụ thuộc hướng nhìn (chỉ renderer gsplat dùng, file lớn hơn);
-`--compact` ghi dạng nén. `python <converter> --help` liệt kê đủ cờ.
+Types: **A** Gaussians per frame · **B** 4D Gaussians sliced in time · **C** parametric motion functions · **D** deformation networks,
+re-run on the CPU. PSNR per method, the variants that were tried, the variants a converter refuses and why:
+[docs/SUPPORTED.md](docs/SUPPORTED.md). Adding a method: [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md) (with a working
+`convert_template.py`).
 
-## Dùng viewer
+Flags shared by the converters: `--frames` number of keyframes (types B, D); `--t0 --t1` time range in the method's unit (D-NeRF
+scenes: [0, 1]); `--fps` and `--stride` for per-frame outputs; `--sh` keeps view-dependent colour (used by the gsplat renderer only,
+bigger file); `--compact` writes the compact layout. `python <converter> --help` lists every flag.
+
+## Using the viewer
 
 ```bash
-python viewer.py scene.npz [--renderer auto|gsplat|client] [--up +z] [--port 8080] [--compare b.npz] [--cameras transforms_test.json]
+python viewer.py scene.npz [--renderer auto|gsplat|client] [--up +z] [--port 8080]
+                 [--compare b.npz] [--cameras transforms_test.json]
 ```
 
-Scene từ COLMAP thường cần `--up -y`; scene Blender / D-NeRF dùng `+z` (mặc định).
+Scenes from COLMAP usually need `--up -y`; Blender / D-NeRF scenes use `+z` (the default).
 
-### Renderer
+### Renderers
 
-- `--renderer gsplat`: rasterize bằng gsplat trên GPU NVIDIA của máy chạy viewer rồi gửi ảnh về trình duyệt. Dùng cho scene thật (hàng trăm
-  nghìn đến hàng triệu Gaussian). Màu theo hướng nhìn (`sh`) chỉ có ở renderer này.
-- `--renderer client`: gửi Gaussian sang trình duyệt, vẽ bằng WebGL. Không cần CUDA, hợp với laptop và scene nhỏ; mặc định giới hạn 300.000
-  Gaussian đục nhất (`--max-splats`).
-- `--renderer auto` (mặc định): gsplat nếu có CUDA, không thì client.
+- `--renderer gsplat`: rasterises with gsplat on the NVIDIA GPU of the machine that runs the viewer and streams the image to the browser.
+  For real scenes (hundreds of thousands to millions of Gaussians). View-dependent colour (`sh`) exists only in this renderer.
+- `--renderer client`: sends the Gaussians to the browser, which draws them with WebGL. No CUDA needed; suits a laptop and small scenes;
+  limited to the 300,000 most opaque Gaussians by default (`--max-splats`).
+- `--renderer auto` (default): gsplat when CUDA is available, else client.
 
-Tốc độ đo được: [docs/PERFORMANCE.md](docs/PERFORMANCE.md) (gsplat 1280×720 khoảng 14 ms một frame với scene nhỏ, 3 ms để lấy một frame của
-scene 1 triệu Gaussian khi play).
+Measured speed: [docs/PERFORMANCE.md](docs/PERFORMANCE.md) (gsplat at 1280×720 about 14 ms per frame for a small scene; fetching one
+frame of a scene with 1 million Gaussians while playing takes 3 ms).
 
-### Di chuyển camera
+### Moving the camera
 
-| Thao tác | Kết quả |
+| Action | Result |
 |---|---|
-| Kéo chuột trái | xoay quanh điểm đang nhìn |
-| Kéo chuột phải | trượt camera ngang / dọc |
-| Lăn chuột, hoặc kéo chuột giữa | lại gần / ra xa điểm đang nhìn |
-| `W` / `S` | tiến / lùi theo phương ngang |
-| `A` / `D` | sang trái / phải |
-| `Q` / `E` | xuống / lên theo trục up của cảnh (`--up`) |
-| Phím mũi tên | xoay quanh điểm đang nhìn |
+| Left drag | orbit around the point you look at |
+| Right drag | pan the camera sideways / up and down |
+| Mouse wheel, or middle drag | move closer to / away from the point you look at |
+| `W` / `S` | forward / backward, horizontally |
+| `A` / `D` | left / right |
+| `Q` / `E` | down / up along the scene's up axis (`--up`) |
+| Arrow keys | orbit around the point you look at |
 
-Phím chỉ có tác dụng khi con trỏ nằm trên vùng cảnh (không phải trên bảng điều khiển).
+Keys work only while the pointer is over the scene (not over the control panel).
 
-### So sánh hai kết quả: `--compare`
+### Comparing two results: `--compare`
 
 ```bash
 python viewer.py ours.npz --compare baseline.npz
 ```
 
-Hai file dùng chung thanh thời gian, nút play và camera. Ô **Show** chọn `A`, `B` hoặc `A | B` (cạnh nhau, mặc định); đổi giữa `A` và `B`
-ở cùng góc nhìn để soi khác biệt. Renderer gsplat chia đôi màn hình, mỗi nửa vẽ một file từ cùng một camera; renderer client đặt B sang bên
-phải A trong cùng scene, có nhãn tên file. Thanh thời gian phủ từ mốc sớm nhất đến mốc muộn nhất của cả hai file; hai file phải cùng hệ toạ
-độ và cùng trục up. Ảnh chụp: `shots/compare/`.
+Both files share the time slider, the play button and the camera. **Show** selects `A`, `B` or `A | B` (side by side, the default);
+switch between `A` and `B` from the same viewpoint to spot differences. The gsplat renderer splits the screen, each half drawing one file
+from the same camera; the client renderer places B to the right of A in the same scene, with a file-name label. The time slider spans
+from the earliest to the latest keyframe of both files; both files must share the coordinate frame and the up axis. Screenshots:
+`shots/compare/`.
 
-### Camera huấn luyện và ảnh gốc: `--cameras`
+### Training cameras and original images: `--cameras`
 
 ```bash
 python viewer.py bouncingballs.npz --cameras ../data/dnerf/bouncingballs/transforms_test.json
 ```
 
-`--cameras` nhận `transforms_*.json` (NeRF / D-NeRF / instant-ngp, camera OpenGL) hoặc một `cameras.json` (`{"convention": "opencv"|"opengl",
-"frames": [{"c2w": [[4x4]], "fx" hoặc "fov_x"/"fov_y", "w", "h", "time", "image", "name"}]}`). Mục **Cameras** trong bảng điều khiển liệt kê
-các camera; chọn một camera thì góc nhìn nhảy tới đó và thanh thời gian nhảy tới thời điểm của ảnh.
+`--cameras` takes a `transforms_*.json` (NeRF / D-NeRF / instant-ngp, OpenGL cameras) or a `cameras.json` (`{"convention":
+"opencv"|"opengl", "frames": [{"c2w": [[4x4]], "fx" or "fov_x"/"fov_y", "w", "h", "time", "image", "name"}]}`). The **Cameras** folder in the
+control panel lists the cameras; selecting one moves the view to it and the time slider to the time of its image.
 
-Với renderer gsplat, ô **Ground truth beside render** vẽ render cạnh ảnh gốc của camera đang chọn, kèm **PSNR** (cùng công thức với
-`tests/check_real.py`; hai thanh trượt Display không áp dụng, nên số là của chính model). Đặt **Max render height** bằng độ phân giải lúc train
-(ví dụ 400 cho SC-GS và native 4DGS trên D-NeRF), và **Image background** trắng cho model train nền trắng (4DGaussians): lệch độ phân giải
-làm PSNR tụt vài dB. Có `--compare` thì hiện ba ô **render A | ảnh gốc | render B** với PSNR của cả hai. Ảnh chụp: `shots/cameras/`.
+With the gsplat renderer, **Ground truth beside render** shows the render next to the original image of the selected camera, with its
+**PSNR** (same recipe as `tests/check_real.py`; the two Display sliders do not apply, so the number is the model's own). Set **Max render
+height** to the resolution the model was trained at (for example 400 for SC-GS and native 4DGS on D-NeRF), and **Image background** to
+white for models trained on a white background (4DGaussians): a different resolution costs several dB of PSNR. With `--compare` it shows
+three panels, **render A | original image | render B**, with the PSNR of both. Screenshots: `shots/cameras/`.
 
-### Dạng điểm
+### Points
 
-Mục **Display** → **Draw as**: `splats` (Gaussian như bình thường) hoặc `points` (mỗi Gaussian là một điểm tại tâm, mang màu của Gaussian),
-và thanh **Point size**. Mở thẳng ở chế độ điểm: `--draw-as points`. Dùng được khi play, với `--compare`, khi xuất video, ở cả hai renderer;
-**Hide opacity below** vẫn áp dụng. Renderer gsplat vẽ mỗi điểm là một Gaussian tròn, đục, có đường kính **Point size** pixel ở mọi độ sâu
-(điểm gần che điểm xa đúng thứ tự, màu theo hướng nhìn vẫn đúng); renderer client dùng point cloud của viser (cỡ điểm theo đơn vị cảnh).
-Ảnh chụp: `shots/points/`.
+**Display** → **Draw as**: `splats` (the Gaussians as usual) or `points` (one point at each Gaussian's centre, in the Gaussian's colour),
+and the **Point size** slider. Open directly in points mode: `--draw-as points`. Works while playing, with `--compare`, during video
+export, in both renderers; **Hide opacity below** still applies. The gsplat renderer draws every point as an opaque round Gaussian whose
+diameter is **Point size** pixels at any depth (near points hide far ones in the right order, view-dependent colour stays correct); the
+client renderer uses viser's point cloud (point size in scene units). Screenshots: `shots/points/`.
 
-### Vận tốc và vệt chuyển động
+### Speed and motion trails
 
-Mục **Motion** (chỉ khi các keyframe chung danh tính Gaussian):
+The **Motion** folder (only when the keyframes share Gaussian identities):
 
-- **Colour by**: `colour` (màu của Gaussian), `speed` (độ lớn vận tốc giữa hai keyframe kề) hoặc `displacement` (khoảng cách tới vị trí ở
-  keyframe đầu). Thang xanh → lục → vàng → đỏ; giá trị ứng với đỏ hiện trong bảng (phân vị 99 trên cả sequence × "Scale maximum (%)").
-- **Trails**: đường đi của "Number of trails" Gaussian trong cửa sổ ± "Window" quanh thời điểm đang xem (xanh = quá khứ, đỏ = tương lai),
-  chọn ngẫu nhiên có trọng số theo độ dài đường đi trong các Gaussian đủ đục. Vệt là đường vẽ đè lên ảnh: với renderer gsplat vệt không bị che
-  theo độ sâu. Ảnh chụp: `shots/trails/`.
+- **Colour by**: `colour` (the Gaussian's own colour), `speed` (magnitude of the velocity between the two neighbouring keyframes) or
+  `displacement` (distance from the position at the first keyframe). Scale blue → green → yellow → red; the value shown as red is written
+  in the panel (99th percentile over the whole sequence × "Scale maximum (%)").
+- **Trails**: the paths of "Number of trails" Gaussians over a window of ± "Window" around the current time (blue = past, red = future),
+  drawn at random with a weight that grows with path length, among Gaussians that are opaque enough. Trails are lines drawn over the
+  picture: with the gsplat renderer they are not hidden by depth. Screenshots: `shots/trails/`.
 
-### Quỹ đạo camera
+### Camera path
 
-Mục **Camera path**: di chuyển camera rồi bấm **Add key from my camera** để đặt mốc (hiện thành khung camera màu cam và đường đi trong cảnh),
-hoặc **Replace by an orbit around the scene** để dựng sẵn một vòng 12 mốc quanh cảnh. Vị trí nội suy bằng spline Catmull-Rom, hướng nhìn bằng
-slerp, fov tuyến tính.
+The **Camera path** folder: move the camera, then press **Add key from my camera** to place a key (drawn as an orange camera frustum, with
+the path in the scene), or **Replace by an orbit around the scene** to get a ready-made loop of 12 keys around the scene. Positions are
+interpolated with a Catmull-Rom spline, orientations with slerp, the field of view linearly.
 
-- **Play / stop path** chạy quỹ đạo trong "Path duration (s)" và điều khiển camera của mọi trình duyệt đang mở; kéo "Path position" để xem
-  từng điểm. **Scene time on the path**: đứng yên ở thời điểm đang chọn, hoặc chạy hết sequence trong lúc camera đi.
-- **Save path (json)** ghi ra `--camera-path` (hoặc `<video-dir>/camera_path.json`) và tải về; nạp lại bằng
-  `python viewer.py scene.npz --camera-path path.json`. Định dạng như `--cameras`: `{"convention", "duration", "closed", "time": "hold"|"run",
-  "frames": [{"c2w": [[4x4]], "fov_y": radian}]}`.
+- **Play / stop path** runs the path over "Path duration (s)" and drives the camera of every connected browser; drag "Path position" to
+  look at any point of it. **Scene time on the path**: stay at the current time, or run through the sequence while the camera moves.
+- **Save path (json)** writes to `--camera-path` (or `<video-dir>/camera_path.json`) and downloads the file; load it again with
+  `python viewer.py scene.npz --camera-path path.json`. Same convention as `--cameras`: `{"convention", "duration", "closed",
+  "time": "hold"|"run", "frames": [{"c2w": [[4x4]], "fov_y": radians}]}`.
 
-### Xuất video
+### Video export
 
-Mục **Export video**: chọn "Frames per second", "Video length (s)" và "Camera" (`this camera (fixed)` hoặc `camera path`), rồi bấm
-**Export mp4**. File `<tên>_<ngày_giờ>.mp4` được ghi vào `--video-dir` (mặc định thư mục đang chạy) trên máy chạy viewer và đồng thời tải về
-trình duyệt. Renderer gsplat render thẳng trên GPU (60 frame 1280×720 khoảng 1 giây); renderer client phải chờ trình duyệt vẽ từng frame nên
-chậm hơn nhiều. Trong lúc xuất, viewer tạm dừng cập nhật cho mọi trình duyệt.
+The **Export video** folder: choose "Frames per second", "Video length (s)" and "Camera" (`this camera (fixed)` or `camera path`), then
+press **Export mp4**. The file `<name>_<date_time>.mp4` is written to `--video-dir` (default: the current folder) on the machine that runs
+the viewer, and downloaded in the browser. The gsplat renderer renders directly on the GPU (60 frames at 1280×720 in about 1 second); the
+client renderer has to wait for the browser to draw every frame, which is much slower. While exporting, the viewer stops updating every
+browser.
 
-### Xem từ máy khác
+### Viewing from another machine
 
-Viewer chạy trên máy có GPU, trình duyệt mở ở máy khác: `ssh -L 8080:localhost:8080 <máy_có_GPU>` rồi mở `http://localhost:8080`.
-Hoặc chạy viewer với `--host 0.0.0.0` để nhận kết nối từ mạng (chỉ trong mạng tin cậy).
+Viewer on the GPU machine, browser on another one: `ssh -L 8080:localhost:8080 <gpu_machine>`, then open `http://localhost:8080`.
+Or run the viewer with `--host 0.0.0.0` to accept connections from the network (trusted networks only).
 
-## Định dạng file
+## File format
 
-Một file `.npz` với `times [K]`, `means [K,N,3]`, `covs [K,N,6]` (nửa trên của covariance), `opacities [K,N]`, `colors [K,N,3]` và tuỳ chọn
-`sh`; trường không có trục K là hằng theo thời gian. Có dạng nén (`--compact`, hoặc `python -m gs4d in.npz out.npz`), Gaussian không đổi
-chỉ lưu một lần, và `Sequence4DWriter` để ghi từng keyframe khi cảnh không vừa RAM. Chi tiết và số đo: [docs/FORMAT.md](docs/FORMAT.md).
+One `.npz` file with `times [K]`, `means [K,N,3]`, `covs [K,N,6]` (upper triangle of the covariance), `opacities [K,N]`, `colors [K,N,3]`
+and optionally `sh`; a field without the K axis is constant over time. There is a compact layout (`--compact`, or
+`python -m gs4d in.npz out.npz`), Gaussians that never change are stored once, and `Sequence4DWriter` writes one keyframe at a time when
+the scene does not fit in memory. Details and measurements: [docs/FORMAT.md](docs/FORMAT.md).
 
 ```python
 from gs4d import Sequence4D
-seq = Sequence4D.load("scene.npz", lazy=True)   # lazy: ánh xạ file vào bộ nhớ, chỉ đọc keyframe được dùng
-means, covs, opacities, colors = seq.at(0.5)     # Gaussian tại t = 0.5 (nội suy giữa hai keyframe)
+# lazy: memory-maps the file, only the keyframes used are read
+seq = Sequence4D.load("scene.npz", lazy=True)
+# Gaussians at t = 0.5 (interpolated between two keyframes)
+means, covs, opacities, colors = seq.at(0.5)
 ```
 
-## Kiểm tra
+## Tests
 
 ```bash
-python tests/run_all.py            # mọi tests/test_*.py và tests/check_*.py, lần lượt; in bảng qua / bỏ qua (kèm lý do) / hỏng
-python tests/run_all.py open sh    # chỉ các file có tên chứa một trong các từ
-ruff check .                       # lint, như CI
+# every tests/test_*.py and tests/check_*.py, one at a time;
+# prints pass / skipped (with the reason) / failed
+python tests/run_all.py
+python tests/run_all.py open sh    # only the files whose name contains one of the words
+ruff check .                       # lint, as in CI
 ```
 
-- `tests/test_*.py`: kiểm trên CPU. Mỗi converter được chạy trên dữ liệu giả đúng layout file thật và so với một cách tính độc lập (cần torch);
-  định dạng, ghi nén, nhóm tĩnh, `Sequence4DWriter`, `GpuFrames`, `gs4d.open`, thông báo lỗi của các lệnh.
-- `tests/check_*.py`: mở viewer trong Chrome headless và kiểm ảnh chụp (cần Playwright + Chrome; phần gsplat cần CUDA). Ảnh của một lần chạy
-  `run_all.py` vào thư mục tạm; chạy riêng một script (hoặc `run_all.py --keep-shots`) để cập nhật `shots/`.
-- `tests/check_real.py`: PSNR có ngưỡng trên output thật của mọi phương pháp (cần CUDA và dữ liệu thật, xem đầu file).
-- File thiếu thứ nó cần (torch, CUDA, Chrome, dữ liệu) được báo "skipped" kèm lý do, không tính là hỏng. GitHub Actions chạy lint, bộ test
-  không có torch và có torch bản CPU ở mỗi lần push.
+- `tests/test_*.py`: CPU checks. Every converter runs on synthetic files in the method's real layout and is compared with an independent
+  formulation (needs torch); the format, compact storage, the static group, `Sequence4DWriter`, `GpuFrames`, `gs4d.open`, the error
+  messages of the commands.
+- `tests/check_*.py`: open the viewer in headless Chrome and check screenshots (needs Playwright + Chrome; the gsplat parts need CUDA). The
+  screenshots of a `run_all.py` run go to a temporary folder; run a script on its own (or `run_all.py --keep-shots`) to refresh `shots/`.
+- `tests/check_real.py`: PSNR with thresholds on real outputs of every method (needs CUDA and the real data, see the top of the file).
+- A file that lacks what it needs (torch, CUDA, Chrome, data) is reported as "skipped" with the reason, not as failed. GitHub Actions runs
+  the lint, the tests without torch and the tests with CPU torch on every push.
 
-## Cấu trúc thư mục
+## Repository layout
 
 ```
-viewer.py                  viewer (GUI, hai renderer)
-gs4d/format.py             định dạng chung: Sequence4D, Sequence4DWriter, GpuFrames
-gs4d/open.py               python -m gs4d.open: nhận ra output, chuyển, mở viewer
-gs4d/ply.py, checkpoint.py đọc ply 3DGS; nạp torch / checkpoint cho converter
-convert_<phương_pháp>.py   một converter cho mỗi phương pháp; convert_template.py là mẫu
-make_toy.py                cảnh giả lập để thử viewer
-tests/                     kiểm tra (run_all.py chạy tất cả), đo tốc độ
-docs/                      SUPPORTED.md, FORMAT.md, PERFORMANCE.md, ADD_A_CONVERTER.md, HISTORY.md
-shots/                     ảnh chụp và video làm bằng chứng cho từng tính năng
-CLAUDE.md, PLAN.md         bối cảnh và kế hoạch cho các phiên Claude Code
+viewer.py                  the viewer (GUI, two renderers)
+gs4d/format.py             the common format: Sequence4D, Sequence4DWriter, GpuFrames
+gs4d/open.py               python -m gs4d.open: recognise, convert and open an output
+gs4d/ply.py, checkpoint.py 3DGS ply reader; loading torch / checkpoints for the converters
+convert_<method>.py        one converter per method; convert_template.py is the template
+make_toy.py                synthetic scene to try the viewer
+tests/                     tests (run_all.py runs them all) and benchmarks
+docs/                      SUPPORTED.md, FORMAT.md, PERFORMANCE.md,
+                           ADD_A_CONVERTER.md, HISTORY.md
+shots/                     screenshots and videos, the evidence for each feature
+CLAUDE.md, PLAN.md         context and plan for the Claude Code sessions
 ```
 
-## Giới hạn hiện tại
+## Current limitations
 
-- Màu phụ thuộc hướng nhìn chỉ có khi file có trường `sh` (cờ `--sh` của converter) và dùng renderer gsplat; renderer client luôn vẽ `colors`.
-- Dung lượng ≈ N × K × 40 byte cho phần thay đổi theo thời gian (≈ 19 byte ở dạng nén): giảm `--frames` / `--stride`, hoặc dùng `--compact`.
-- Số Gaussian thay đổi giữa các frame (một số model feed-forward): viewer nhảy theo keyframe gần nhất, không nội suy; mục Motion tắt.
-- Biến thể chưa hỗ trợ (Spacetime bản đầy đủ có `rgbdecoder`, đầu màu theo hướng nhìn của SC-GS, ...) làm converter dừng và nói rõ lý do;
-  danh sách ở [docs/SUPPORTED.md](docs/SUPPORTED.md).
+- View-dependent colour needs the `sh` field (the converters' `--sh` flag) and the gsplat renderer; the client renderer always draws
+  `colors`.
+- Size ≈ N × K × 40 bytes for the time-varying part (≈ 19 bytes in the compact layout): lower `--frames` / `--stride`, or use `--compact`.
+- Gaussian counts that change between frames (some feed-forward models): the viewer jumps to the nearest keyframe instead of
+  interpolating, and the Motion folder is off.
+- Unsupported variants (the full Spacetime model with `rgbdecoder`, SC-GS colour heads that depend on the view direction, ...) make the
+  converter stop and say why; the list is in [docs/SUPPORTED.md](docs/SUPPORTED.md).
 
-## Giấy phép và nguồn dữ liệu
+## License and data sources
 
-Code trong repo này theo giấy phép MIT (xem `LICENSE`).
+The code in this repository is under the MIT license (see `LICENSE`).
 
-Ba ảnh `shots/wp2/basketball_fg_up-y_t*.png` **không** thuộc giấy phép MIT. Chúng được render từ model đã train
-`basketball` của Dynamic 3D Gaussians, vốn dựng từ bản ghi của CMU Panoptic Studio. Bộ dữ liệu CMU Panoptic
-Studio chỉ được dùng cho mục đích nghiên cứu, phi thương mại; ba ảnh này cũng chỉ được dùng theo điều kiện đó.
+The three images `shots/wp2/basketball_fg_up-y_t*.png` are **not** under the MIT license. They are rendered from the trained
+`basketball` model of Dynamic 3D Gaussians, which is built from CMU Panoptic Studio recordings. The CMU Panoptic Studio dataset may be
+used for non-commercial research only; these three images may only be used under the same terms.
 
 - J. Luiten, G. Kopanas, B. Leibe, D. Ramanan. *Dynamic 3D Gaussians: Tracking by Persistent Dynamic View
   Synthesis.* 3DV 2024. <https://github.com/JonathonLuiten/Dynamic3DGaussians>
@@ -270,16 +298,16 @@ Studio chỉ được dùng cho mục đích nghiên cứu, phi thương mại; 
   A Massively Multiview System for Social Motion Capture.* ICCV 2015.
   <https://github.com/CMU-Perceptual-Computing-Lab/panoptic-toolbox>
 
-Các ảnh dưới đây ghép render của viewer với ảnh của bộ dữ liệu gốc (bốn ảnh trong `shots/real/`: hàng trên là render, hàng dưới
-là ảnh gốc), nên cũng **không** thuộc giấy phép MIT của repo này:
+The images below combine renders of the viewer with images of the original datasets (the four images in `shots/real/`: top row
+render, bottom row original image), so they are **not** under this repository's MIT license either:
 
-- `shots/real/shape_of_motion_paper-windmill.png`: cảnh `paper-windmill` của bộ iPhone trong DyCheck. Repo DyCheck ghi cả code
-  và dataset phát hành theo Apache 2.0. Checkpoint do tác giả Shape of Motion công bố (repo MIT).
-- `shots/real/deformable3dgs_bouncingballs.png`, `scgs_bouncingballs.png`, `native4d_bouncingballs.png`: cảnh tổng hợp
-  `bouncingballs` của D-NeRF. Repo D-NeRF theo giấy phép MIT và không ghi điều khoản riêng cho dataset. Model do
-  chúng tôi tự train bằng code của Deformable-3DGS, SC-GS và native 4DGS (cả ba repo đều MIT).
-- Ô ảnh gốc trong `shots/cameras/ground_truth*.png` và ô bên phải của `shots/readme_hero.png`: cũng là ảnh test của cảnh
-  `bouncingballs` của D-NeRF, cùng điều kiện như trên.
+- `shots/real/shape_of_motion_paper-windmill.png`: the `paper-windmill` scene of the iPhone set in DyCheck. The DyCheck repository
+  releases both code and dataset under Apache 2.0. The checkpoint was published by the Shape of Motion authors (MIT repository).
+- `shots/real/deformable3dgs_bouncingballs.png`, `scgs_bouncingballs.png`, `native4d_bouncingballs.png`: the synthetic `bouncingballs`
+  scene of D-NeRF. The D-NeRF repository is MIT-licensed and states no separate terms for the dataset. We trained the models ourselves
+  with the code of Deformable-3DGS, SC-GS and native 4DGS (all three repositories are MIT).
+- The original-image panels of `shots/cameras/ground_truth*.png` and the right-hand panel of `shots/readme_hero.png`: also test images of
+  the D-NeRF `bouncingballs` scene, same terms as above.
 
 - H. Gao, R. Li, S. Tulsiani, B. Russell, A. Kanazawa. *Monocular Dynamic View Synthesis: A Reality Check.*
   NeurIPS 2022. <https://github.com/KAIR-BAIR/dycheck>

@@ -1,46 +1,48 @@
-# Phương pháp được hỗ trợ và kết quả kiểm tra
+# Supported methods and validation results
 
-Viewer chỉ đọc một định dạng `.npz` chung ([FORMAT.md](FORMAT.md)); mỗi phương pháp 4DGS có một converter ghi định dạng đó.
-Bảng dưới là tóm tắt; phần "Chi tiết" ghi lệnh, số đo và ảnh của từng phương pháp.
+The viewer reads one common `.npz` format ([FORMAT.md](FORMAT.md)); every 4DGS method has a converter that writes it.
+The table below is the summary; the "Details" section gives the commands, measurements and images of each method.
 
-- PSNR đo bằng renderer gsplat của viewer trên ảnh test / ảnh giữ lại, ở độ phân giải lúc train (đo ở độ phân giải khác thì
-  PSNR tụt vài dB), bằng `tests/check_real.py`, trừ khi ghi khác.
-- "Output thật": model đã train (tác giả công bố hoặc tự train) chạy qua converter. "Tổng hợp": chỉ có test trên dữ liệu giả
-  đúng layout file thật (`tests/test_<tên>.py`), chưa có model thật.
-- Dạng output: **A** Gaussian theo từng frame · **B** Gaussian 4D, cắt theo thời gian · **C** hàm chuyển động tham số ·
-  **D** mạng biến dạng, chạy lại trên CPU.
+- PSNR is measured with the viewer's gsplat renderer on the test / held-out images, at the resolution the model was trained at
+  (at another resolution the PSNR drops by several dB), with `tests/check_real.py`, unless stated otherwise.
+- "Real output": a trained model (published by the authors or trained by us) run through the converter. "Synthetic": only a test on
+  fake data in the real file layout (`tests/test_<name>.py`), no real model yet.
+- Output types: **A** Gaussians per frame · **B** 4D Gaussians, sliced in time · **C** parametric motion functions ·
+  **D** deformation networks, re-run on the CPU.
 
-| Dạng | Phương pháp (converter) | Output thật đã kiểm | PSNR | Giới hạn |
+| Type | Method (converter) | Real outputs checked | PSNR | Limits |
 |---|---|---|---|---|
-| A | Thư mục ply theo frame, kể cả `gaussian_pertimestamp/` của 4DGaussians (`convert_per_frame.py`) | ply xuất từ 4DGaussians `bouncingballs`, `slice-banana` | khớp converter 4DGaussians | số Gaussian đổi theo frame thì không nội suy (`interpolate=False`) |
-| A | Dynamic 3D Gaussians `params.npz` (`convert_per_frame.py`) | `basketball` (375.870 Gaussian × 150 frame) | chưa có ảnh gốc | trục up là `-y`; ~14 % màu gốc ngoài [0,1] bị cắt; renderer client chưa đối chiếu với `visualize.py` |
-| B | Native 4DGS, Yang et al. (`convert_native4d.py`, `--sh`) | tự train `bouncingballs` (400 px); HyperNeRF `slice-banana` | `bouncingballs` 32,9 dB với `--sh` (repo 33,4); `slice-banana` 26,31 dB (repo 26,30) | không `--sh` thì chỉ SH bậc 0, màu loang (29,0 dB); `--sh` làm file lớn (`--compact` nén còn khoảng 1/3) |
-| B | 4D-Rotor GS, SIGGRAPH 2024 (`convert_4drotor.py`) | chưa có | — | chỉ test tổng hợp; màu là SH bậc 3 không đổi theo thời gian (ghi vào `sh`); khoảng thời gian mặc định [0, 1] như D-NeRF, chưa kiểm với camera và dữ liệu thật của Nerfstudio |
-| C | Spacetime Gaussians, bản lite (`convert_spacetime.py`) | `n3d_sear_steak` (tác giả công bố); Technicolor `Birthday` (không có ảnh gốc) | 34,37 dB; renderer của repo 34,48 | bản đầy đủ có `rgbdecoder`: converter dừng, `--base-color-only` chuyển bằng màu cơ sở; chưa thử model đầy đủ |
-| C | Shape of Motion (`convert_shape_of_motion.py`) | `paper-windmill` (tác giả công bố) | 25,86 dB tại keyframe; `--stride 1` khớp renderer của repo tới 0,000 dB | `--stride` thưa thì giữa hai keyframe thấp hơn (24,67 dB ở stride 8) |
-| C/D | MoSca, CVPR 2025 (`convert_mosca.py`) | chưa có (tiền xử lý quá nặng) | — | chỉ test tổng hợp; chỉ Gaussian ĐỘNG (`photometric_d_model_*.pth`), chưa đọc nền tĩnh (`photometric_s_model_*.pth`); `max_sph_order > 0` dừng; cách dùng scale của renderer bên thứ ba chưa đọc |
-| D | E-D3DGS, ECCV 2024 (`convert_ed3dgs.py`) | chưa có (môi trường py3.7/torch 1.13 chưa dựng) | — | chỉ test tổng hợp; cần `cfg_args` (hoặc `--set`); thời gian N3V = frame/300, Technicolor = frame/50, HyperNeRF chưa đọc `hyper_loader.py`; giấy phép chỉ cho nghiên cứu |
-| D | 4DGaussians, hustvl (`convert_4dgaussians.py`) | tự train `bouncingballs`; HyperNeRF `slice-banana` | 40,8 dB (repo 39,7); `slice-banana` 27,13 dB, bằng repo | dừng với `no_grid`, `empty_voxel`, `static_mlp`, `grid_pe > 1`, `no_dshs=False` |
-| D | Deformable-3DGS (`convert_deformable3dgs.py`) | tự train: biến thể D-NeRF, mặc định, `--is_6dof`; HyperNeRF `slice-banana` | 40,3 / 39,62 / 40,34 dB; `slice-banana` 24,72 dB | bỏ qua méo ống kính như repo |
-| D | SC-GS (`convert_scgs.py`) | tự train `bouncingballs` (thường, có motion mask, có đầu màu); `slice-banana` | 40,3 dB; mask 40,14 dB; đầu màu 37,83 dB; `slice-banana` 26,69 dB | `--use_hash` và `--skinning` chỉ test tổng hợp (repo tự train không hội tụ / sập); đầu màu hash hoặc theo hướng nhìn thì dừng |
+| A | Folder of per-frame ply files, including the `gaussian_pertimestamp/` of 4DGaussians (`convert_per_frame.py`) | ply files exported from 4DGaussians `bouncingballs`, `slice-banana` | matches the 4DGaussians converter | Gaussian counts that change between frames are not interpolated (`interpolate=False`) |
+| A | Dynamic 3D Gaussians `params.npz` (`convert_per_frame.py`) | `basketball` (375,870 Gaussians × 150 frames) | no original images | up axis is `-y`; ~14% of the original colours lie outside [0,1] and are clipped; the client renderer was not compared with `visualize.py` |
+| B | Native 4DGS, Yang et al. (`convert_native4d.py`, `--sh`) | self-trained `bouncingballs` (400 px); HyperNeRF `slice-banana` | `bouncingballs` 32.9 dB with `--sh` (repo 33.4); `slice-banana` 26.31 dB (repo 26.30) | without `--sh` only SH degree 0, mottled colour (29.0 dB); `--sh` makes the file big (`--compact` brings it to about 1/3) |
+| B | 4D-Rotor GS, SIGGRAPH 2024 (`convert_4drotor.py`) | none yet | — | synthetic test only; colour is SH degree 3, constant in time (written to `sh`); default time range [0, 1] as in D-NeRF, not checked with real Nerfstudio cameras and data |
+| C | Spacetime Gaussians, lite model (`convert_spacetime.py`) | `n3d_sear_steak` (published by the authors); Technicolor `Birthday` (no original images) | 34.37 dB; the repo's renderer 34.48 | full model with `rgbdecoder`: the converter stops, `--base-color-only` converts with the base colour; the full model was never tried |
+| C | Shape of Motion (`convert_shape_of_motion.py`) | `paper-windmill` (published by the authors) | 25.86 dB at keyframes; `--stride 1` matches the repo's renderer to 0.000 dB | with a sparse `--stride`, lower between two keyframes (24.67 dB at stride 8) |
+| C/D | MoSca, CVPR 2025 (`convert_mosca.py`) | none yet (preprocessing too heavy) | — | synthetic test only; DYNAMIC Gaussians only, the file of the static background is not read; stops on `max_sph_order > 0`; how the third-party renderer uses the scale was not read |
+| D | E-D3DGS, ECCV 2024 (`convert_ed3dgs.py`) | none yet (py3.7/torch 1.13 environment not built) | — | synthetic test only; needs `cfg_args` (or `--set`); time N3V = frame/300, Technicolor = frame/50, HyperNeRF: `hyper_loader.py` not read; research-only license |
+| D | 4DGaussians, hustvl (`convert_4dgaussians.py`) | self-trained `bouncingballs`; HyperNeRF `slice-banana` | 40.8 dB (repo 39.7); `slice-banana` 27.13 dB, same as the repo | stops on `no_grid`, `empty_voxel`, `static_mlp`, `grid_pe > 1`, `no_dshs=False` |
+| D | Deformable-3DGS (`convert_deformable3dgs.py`) | self-trained: D-NeRF variant, default, `--is_6dof`; HyperNeRF `slice-banana` | 40.3 / 39.62 / 40.34 dB; `slice-banana` 24.72 dB | lens distortion ignored, as in the repo |
+| D | SC-GS (`convert_scgs.py`) | self-trained `bouncingballs` (plain, with motion mask, with colour head); `slice-banana` | 40.3 dB; mask 40.14 dB; colour head 37.83 dB; `slice-banana` 26.69 dB | `--use_hash` and `--skinning` synthetic test only (the repo's own training did not converge / crashed); hash or view-direction colour heads stop |
 
-Mọi converter cần torch trừ `convert_per_frame.py` và `convert_spacetime.py` (bản CPU là đủ: torch chỉ để mở checkpoint hoặc
-chạy lại một MLP nhỏ). `python -m gs4d.open <output>` nhận ra tất cả các loại trên (xem [README](../README.md)).
+Every converter needs torch except `convert_per_frame.py` and `convert_spacetime.py` (the CPU build is enough: torch only opens the
+checkpoint or re-runs a small MLP). `python -m gs4d.open <output>` recognises all of the above (see the [README](../README.md)).
 
-## Chi tiết từng phương pháp
+## Details
 
-### A — Thư mục ply theo frame (`convert_per_frame.py`)
+### A — Folder of per-frame ply files (`convert_per_frame.py`)
 
 ```bash
-python convert_per_frame.py <thư_mục_ply> -o scene.npz --fps 30 [--stride 2] [--sh] [--compact]
+python convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--stride 2] [--sh] [--compact]
 ```
 
-- Đầu vào: thư mục `.ply` chuẩn 3DGS, mỗi frame một file, xếp theo thứ tự tự nhiên (`time_2` trước `time_10`): output từng frame của
-  model feed-forward, hoặc `gaussian_pertimestamp/time_00000.ply ...` do `export_perframe_3DGS.py` của 4DGaussians xuất ra.
-- `--sh` giữ `f_rest_*` (màu theo hướng nhìn, chỉ renderer gsplat dùng); tốn thêm N × K × 12 × (bậc+1)² byte, tức 192 byte mỗi Gaussian
-  mỗi keyframe với SH bậc 3.
-- Số Gaussian đổi giữa các frame: đệm Gaussian ẩn, viewer nhảy theo keyframe gần nhất, không nội suy.
-- Kiểm: ply xuất từ 4DGaussians `bouncingballs` và `slice-banana` cho đúng file của `convert_4dgaussians.py` (xem mục 4DGaussians).
+- Input: a folder of standard 3DGS `.ply` files, one per frame, in natural order (`time_2` before `time_10`): per-frame output of a
+  feed-forward model, or the `gaussian_pertimestamp/time_00000.ply ...` written by 4DGaussians' `export_perframe_3DGS.py`.
+- `--sh` keeps `f_rest_*` (view-dependent colour, used by the gsplat renderer only); costs N × K × 12 × (degree+1)² more bytes, i.e.
+  192 bytes per Gaussian per keyframe at SH degree 3.
+- Gaussian counts that change between frames: padded with hidden Gaussians, the viewer jumps to the nearest keyframe instead of
+  interpolating.
+- Checked: the ply files exported from 4DGaussians `bouncingballs` and `slice-banana` give the file of `convert_4dgaussians.py` (see the
+  4DGaussians section).
 
 ### A — Dynamic 3D Gaussians (`convert_per_frame.py`, `params.npz`)
 
@@ -49,9 +51,10 @@ python convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-onl
 python viewer.py scene.npz --up -y
 ```
 
-- Output thật `basketball` (375.870 Gaussian × 150 frame gốc): `--fg-only` cho 112.592 Gaussian × 30 keyframe, 163 MB; bỏ `--fg-only`:
-  375.870 Gaussian, 543 MB, nhưng cảnh bị nền và floater che. Trục up là `-y`; ảnh chụp `shots/wp2/`.
-- ~14 % màu gốc nằm ngoài [0,1] và bị cắt; renderer client chưa được đối chiếu với `visualize.py` gốc.
+- Real output `basketball` (375,870 Gaussians × 150 original frames): `--fg-only` gives 112,592 Gaussians × 30 keyframes, 163 MB; without
+  `--fg-only`: 375,870 Gaussians, 543 MB, but the scene is hidden behind background and floaters. The up axis is `-y`; screenshots in
+  `shots/wp2/`.
+- ~14% of the original colours lie outside [0,1] and are clipped; the client renderer was not compared with the original `visualize.py`.
 
 ### B — Native 4DGS, Yang et al. (`convert_native4d.py`)
 
@@ -59,21 +62,22 @@ python viewer.py scene.npz --up -y
 python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 [--sh] [--compact]
 ```
 
-- `--t0/--t1` là `time_duration` trong config lúc train (cảnh D-NeRF: [0, 1]); không truyền thì script đoán từ tâm thời gian của các
-  Gaussian và in ra khoảng đã đoán.
-- Không `--sh`: màu chỉ là SH bậc 0. Với `--sh` phần màu theo hướng nhìn và thời gian (`eval_shfs_4d`) được tính sẵn vào hệ số SH bậc 3
-  của từng keyframe.
-- `bouncingballs` của D-NeRF, tự train 20.000 vòng (38 phút trên RTX 3060, 400 px): 134.260 Gaussian trong checkpoint, giữ 116.193 ×
-  60 keyframe, 116 MB, chuyển mất 2 giây. 20 ảnh test ở 400 px: 26,0–31,9 dB, trung bình 29,0 dB (màu loang nhẹ vì bỏ SH bậc cao); với
-  `--sh` 27,3–39,6 dB, trung bình 32,9 dB, file 1,4 GB (453 MB với `--compact`), 8 giây. Repo tự đo 33,4 dB; phần chênh 0,5 dB chưa tách
-  được nguyên nhân. Ảnh: `shots/real/native4d_bouncingballs.png`.
-- HyperNeRF `slice-banana` (297 ảnh train, 33 ảnh giữ lại, ảnh 4x = 268×480; repo không có loader Nerfies nên dữ liệu được ghi theo layout
-  D-NeRF bằng `tests/make_hypernerf_blender.py`; config `resolution: 1`, `batch_size: 1`, `densify_until_num_points: 250_000`, 20.000 vòng,
-  20 phút): `--frames 110 --sh --compact` cho 21,41–29,17 dB, **trung bình 26,31 dB**; đánh giá của chính repo 26,30 dB.
-- Bài học từ lần train đầu (WP19c, WP20): layout cũ ghi `fl_x/fl_y/cx/cy` cho từng frame, khi đó repo để `FovX = FovY = -1`, rasteriser CUDA
-  dùng tiêu cự sai và model học bù. Model đó cho 24,23 dB qua viewer (repo 26,14 dB); dựng lại đúng cách vẽ sai đó bằng gsplat
-  (`tests/diag_native4d_banana.py`) cho 26,13 dB, nên converter không sai. Layout mới ghi `camera_angle_x`; số 26,31 dB ở trên là của
-  model train lại.
+- `--t0/--t1` are the `time_duration` of the training config (D-NeRF scenes: [0, 1]); without them the script guesses the range from the
+  Gaussians' temporal centres and prints the guess.
+- Without `--sh` the colour is SH degree 0 only. With `--sh` the view- and time-dependent colour (`eval_shfs_4d`) is folded into the SH
+  degree-3 coefficients of every keyframe.
+- D-NeRF `bouncingballs`, self-trained for 20,000 iterations (38 minutes on an RTX 3060, 400 px): 134,260 Gaussians in the checkpoint,
+  116,193 kept × 60 keyframes, 116 MB, converted in 2 seconds. 20 test images at 400 px: 26.0–31.9 dB, mean 29.0 dB (slightly mottled
+  colour, the higher SH degrees are dropped); with `--sh` 27.3–39.6 dB, mean 32.9 dB, file 1.4 GB (453 MB with `--compact`), 8 seconds.
+  The repo's own evaluation gives 33.4 dB; the remaining 0.5 dB has not been traced. Image: `shots/real/native4d_bouncingballs.png`.
+- HyperNeRF `slice-banana` (297 training images, 33 held-out images, 4x images = 268×480; the repo has no Nerfies loader, so the data is
+  written in the D-NeRF layout by `tests/make_hypernerf_blender.py`; config `resolution: 1`, `batch_size: 1`,
+  `densify_until_num_points: 250_000`, 20,000 iterations, 20 minutes): `--frames 110 --sh --compact` gives 21.41–29.17 dB,
+  **mean 26.31 dB**; the repo's own evaluation 26.30 dB.
+- Lesson from the first training run (WP19c, WP20): the old layout wrote `fl_x/fl_y/cx/cy` for every frame, which makes the repo set
+  `FovX = FovY = -1`; the CUDA rasteriser then uses a wrong focal length and the model learned to compensate. That model gives 24.23 dB in
+  the viewer (repo 26.14 dB); reproducing the wrong rendering with gsplat (`tests/diag_native4d_banana.py`) gives 26.13 dB, so the
+  converter was not at fault. The new layout writes `camera_angle_x`; the 26.31 dB above is the retrained model.
 
 ### B — 4D-Rotor Gaussian Splatting (`convert_4drotor.py`)
 
@@ -81,27 +85,30 @@ python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 
 python convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1
 ```
 
-- Đầu vào: checkpoint Nerfstudio `step-*.ckpt` (`pipeline` state dict, khoá `gauss_params.*`); cần torch.
-- Vị trí và opacity đổi theo thời gian; covariance và SH bậc 3 ghi một lần. Thời gian là `time` thô của file transforms (D-NeRF: [0, 1]).
-- Chưa có output thật: chỉ kiểm bằng checkpoint tổng hợp (`tests/test_4drotor.py`, so với phép lấy điều kiện của Gaussian 4D).
+- Input: a Nerfstudio checkpoint `step-*.ckpt` (`pipeline` state dict, keys `gauss_params.*`); needs torch.
+- Positions and opacities change in time; covariance and SH degree 3 are written once. Time is the raw `time` of the transforms file
+  (D-NeRF: [0, 1]).
+- No real output yet: checked only with a synthetic checkpoint (`tests/test_4drotor.py`, against the conditioning of a 4D Gaussian).
 
-### C — Spacetime Gaussians, bản lite (`convert_spacetime.py`)
+### C — Spacetime Gaussians, lite model (`convert_spacetime.py`)
 
 ```bash
 python convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1
 ```
 
-- Chỉ màu cơ sở `f_dc_0..2`; MLP `rgbdecoder` của bản đầy đủ không được tái hiện. Gặp bản đầy đủ (ply có `f_dc_3..` hoặc file
-  `rgbdecoder` cạnh ply) converter dừng; `--base-color-only` để chuyển bằng màu cơ sở.
-- Màu được giữ thô, không cắt về [0,1]: model lưu màu ngoài khoảng đó ở 30 % Gaussian (−5 đến 6,9), repo trộn màu thô rồi mới cắt ở
-  pixel. Trước 16/11/2026 converter cắt màu và chỉ đạt 31,43 dB; file chuyển trước ngày đó cần chuyển lại (`gs4d.open` tự chuyển lại khi
-  converter mới hơn file cache). Renderer client vẫn cắt màu.
-- `n3d_sear_steak_lite_allcam` (tác giả công bố): 108.317 Gaussian trong ply, giữ 98.993 × 50 keyframe, 199 MB, 3 giây. So với video gốc
-  `sear_steak` của Neural 3D Video (21 camera × frame 0, 12, 25, 37, 49 = 105 ảnh, 1352×1014, thời gian = frame/50): 27,76–37,81 dB,
-  **trung bình 34,37 dB**. Renderer của chính repo (`test_ours_lite` + rasteriser `forward_lite`, `tests/repo_psnr.py spacetime`) trên cùng
-  105 ảnh: 27,79–38,20 dB, trung bình 34,48 dB; 0,11 dB chênh là do `--min-peak-opacity 0.02` (để 0 thì khớp tới 0,01 dB).
-- Technicolor `Birthday` (`ours_lite`, 658.999 Gaussian): `--frames 50 --compact` giữ 596.601 Gaussian, 583 MB, 20 giây; render bằng camera 0
-  của `cameras.json` ở t = 0; 0,5; 1 cho cảnh đúng, người chuyển động; không có ảnh gốc nên không có PSNR.
+- Base colour `f_dc_0..2` only; the `rgbdecoder` MLP of the full model is not reproduced. For a full model (a ply with `f_dc_3..` or an
+  `rgbdecoder` file next to the ply) the converter stops; `--base-color-only` converts it with the base colour.
+- Colours are kept raw, not clipped to [0,1]: the model stores colours outside that range for 30% of the Gaussians (−5 to 6.9), and the
+  repo blends the raw colours and clamps only the final pixel. Before 16/11/2026 the converter clipped the colours and reached only
+  31.43 dB; files converted before that date must be converted again (`gs4d.open` reconverts when the converter is newer than the cached
+  file). The client renderer still clips colours.
+- `n3d_sear_steak_lite_allcam` (published by the authors): 108,317 Gaussians in the ply, 98,993 kept × 50 keyframes, 199 MB, 3 seconds.
+  Against the original `sear_steak` videos of Neural 3D Video (21 cameras × frames 0, 12, 25, 37, 49 = 105 images, 1352×1014,
+  time = frame/50): 27.76–37.81 dB, **mean 34.37 dB**. The repo's own renderer (`test_ours_lite` + the `forward_lite` rasteriser,
+  `tests/repo_psnr.py spacetime`) on the same 105 images: 27.79–38.20 dB, mean 34.48 dB; the 0.11 dB gap comes from
+  `--min-peak-opacity 0.02` (with 0 the match is within 0.01 dB).
+- Technicolor `Birthday` (`ours_lite`, 658,999 Gaussians): `--frames 50 --compact` keeps 596,601 Gaussians, 583 MB, 20 seconds; renders from
+  camera 0 of `cameras.json` at t = 0, 0.5, 1 show the right scene with the person moving; no original images, so no PSNR.
 
 ### C — Shape of Motion (`convert_shape_of_motion.py`)
 
@@ -109,14 +116,17 @@ python convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene
 python convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz --fps 30 [--stride 8] [--fg-only]
 ```
 
-- Motion bases SE(3) + hệ số theo Gaussian, nền tĩnh (nền chỉ lưu một lần trong file); cần torch để đọc checkpoint. Thời gian = frame / `--fps`.
-- `paper-windmill` (tác giả công bố), `--stride 8`: 71.867 Gaussian tiền cảnh + 924.075 nền × 35 keyframe (277 frame gốc), 147 MB (1,27 GB
-  trước khi có nhóm tĩnh), 10 giây. Render từ camera huấn luyện (`Ks`, `w2cs` trong checkpoint) khớp cảnh; ảnh `shots/real/`.
-- So với ảnh 1x (720×960) của bộ iPhone DyCheck tại camera huấn luyện, mỗi 4 frame (70 ảnh): tại keyframe **25,86 dB** (min 24,28); ở frame nằm
-  giữa hai keyframe của `--stride 8` 24,67 dB (min 21,61). Với `--stride 1` (mọi frame là keyframe, 416 MB khi `--compact`) 25,85 dB ở mọi nơi:
-  phần giảm 1,2 dB là do nội suy thẳng giữa các keyframe thưa của cối xay đang quay.
-- Renderer của chính repo (`SceneModel.render`, `tests/repo_psnr.py som`) trên cùng 70 ảnh: 24,28–27,66 dB, trung bình 25,85 dB; file
-  `--stride 1` lệch 0,000 dB ở từng ảnh.
+- SE(3) motion bases + per-Gaussian coefficients, static background (stored only once in the file); needs torch to read the checkpoint.
+  Time = frame / `--fps`.
+- `paper-windmill` (published by the authors), `--stride 8`: 71,867 foreground + 924,075 background Gaussians × 35 keyframes (277
+  original frames), 147 MB (1.27 GB before the static group), 10 seconds. Renders from the training cameras (`Ks`, `w2cs` in the
+  checkpoint) match the scene; images in `shots/real/`.
+- Against the 1x images (720×960) of the DyCheck iPhone set at the training cameras, every 4th frame (70 images): at keyframes
+  **25.86 dB** (min 24.28); at frames half way between two `--stride 8` keyframes 24.67 dB (min 21.61). With `--stride 1` (every frame a
+  keyframe, 416 MB with `--compact`) 25.85 dB everywhere: the 1.2 dB drop is the linear interpolation between sparse keyframes of the
+  spinning windmill.
+- The repo's own renderer (`SceneModel.render`, `tests/repo_psnr.py som`) on the same 70 images: 24.28–27.66 dB, mean 25.85 dB; the
+  `--stride 1` file differs by 0.000 dB on every image.
 
 ### C/D — MoSca (`convert_mosca.py`)
 
@@ -124,131 +134,176 @@ python convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz 
 python convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2
 ```
 
-- Scaffold node + skinning theo K node gần nhất, trộn dual quaternion (hoặc LBS); cần torch. Thời gian = frame / `--fps`.
-- Chỉ Gaussian động; nền tĩnh (`photometric_s_model_*.pth`) chưa đọc. `max_sph_order > 0` thì dừng.
-- Chưa có output thật: chỉ kiểm bằng state dict tổng hợp (`tests/test_mosca.py`, so với phép trộn dual quaternion chuẩn hoá theo sách).
+- Scaffold nodes + skinning over the K nearest nodes, dual-quaternion blending (or LBS); needs torch. Time = frame / `--fps`.
+- Dynamic Gaussians only; the static background (`photometric_s_model_*.pth`) is not read. Stops on `max_sph_order > 0`.
+- No real output yet: checked only with a synthetic state dict (`tests/test_mosca.py`, against the textbook normalised dual-quaternion
+  blend).
 
 ### D — E-D3DGS (`convert_ed3dgs.py`)
 
 ```bash
-python convert_ed3dgs.py <thư_mục_model> -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh
+python convert_ed3dgs.py <model_folder> -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh
 ```
 
-- Thư mục model có `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` và `cfg_args`. Embedding theo Gaussian + bảng thời gian,
-  chạy lại MLP thô và tinh trên CPU; cần torch.
-- Thời gian: N3V = frame/300 (`--t1 0.9967` cho 300 frame), Technicolor = frame/50. `cfg_args` quyết định đầu nào bật (`no_do`, `no_dc`,
-  `use_anneal`, ...); `--set KEY=VALUE` thay một giá trị. Màu và opacity theo keyframe khi `no_dc` / `no_do` là False.
-- Chưa có output thật: chỉ kiểm bằng model tổng hợp so với một module torch viết theo repo (`tests/test_ed3dgs.py`).
+- A model folder with `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` and `cfg_args`. Per-Gaussian embeddings + a temporal
+  table; the coarse and fine MLPs are re-run on the CPU; needs torch.
+- Time: N3V = frame/300 (`--t1 0.9967` for 300 frames), Technicolor = frame/50. `cfg_args` decides which heads are on (`no_do`, `no_dc`,
+  `use_anneal`, ...); `--set KEY=VALUE` overrides one value. Colour and opacity are per keyframe when `no_dc` / `no_do` are False.
+- No real output yet: checked only with a synthetic model against a torch module written after the repo (`tests/test_ed3dgs.py`).
 
 ### D — 4DGaussians, hustvl (`convert_4dgaussians.py`)
 
 ```bash
-python convert_4dgaussians.py <thư_mục_model> -o scene.npz --frames 60 [--sh]
+python convert_4dgaussians.py <model_folder> -o scene.npz --frames 60 [--sh]
 ```
 
-- Thư mục model có `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` và `cfg_args`. HexPlane + MLP biến dạng chạy lại trên CPU
-  (cần torch), không cần môi trường của repo gốc. Cách cũ vẫn dùng được: chạy `export_perframe_3DGS.py` trong repo rồi dùng dòng A.
-- Dừng (nêu tên biến thể) với `no_grid`, `empty_voxel`, `static_mlp`, `grid_pe > 1`, `no_dshs=False` (SH đổi theo thời gian).
-- `bouncingballs` của D-NeRF, tự train (20.000 vòng, 692 s trên RTX 3060, `arguments/dnerf/bouncingballs.py`, nền trắng): 27.043 Gaussian,
-  `--frames 60 --sh` cho file 64 MB, 4 giây. 20 ảnh test ở 800 px (ghép nền trắng): 36,7–45,9 dB, trung bình 40,8 dB (repo tự đo 39,7 dB ở
-  vòng 14.000). So với `export_perframe_3DGS.py` trên cùng model, tại 20 thời điểm test: vị trí lệch tối đa 1,2e-6, covariance lệch tương đối
-  7e-6, opacity giống hệt.
-- HyperNeRF `slice-banana` (reader HyperNeRF của repo, `arguments/hypernerf/banana.py`, 14.000 vòng, 18 phút, ảnh 4x 268×480, 297 ảnh train /
-  33 ảnh giữ lại): 52.741 Gaussian, `--frames 330 --sh --compact` cho file 325 MB, 35 giây, RAM đỉnh 1,5 GB. 33 ảnh giữ lại ở 268 px:
-  22,05–30,39 dB, trung bình 27,13 dB; repo tự render cùng 33 ảnh cho đúng số đó (từng ảnh lệch tối đa 0,003 dB). Repo này giữ camera và
-  điểm HyperNeRF ở toạ độ gốc, thời gian = warp_id / max.
+- A model folder with `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` and `cfg_args`. The HexPlane + deformation MLP are
+  re-run on the CPU (needs torch), without the repo's environment. The old route still works: run `export_perframe_3DGS.py` in the repo,
+  then use type A.
+- Stops (naming the variant) on `no_grid`, `empty_voxel`, `static_mlp`, `grid_pe > 1`, `no_dshs=False` (SH that change in time).
+- D-NeRF `bouncingballs`, self-trained (20,000 iterations, 692 s on an RTX 3060, `arguments/dnerf/bouncingballs.py`, white background):
+  27,043 Gaussians, `--frames 60 --sh` gives a 64 MB file in 4 seconds. 20 test images at 800 px (composited on white): 36.7–45.9 dB,
+  mean 40.8 dB (the repo's own evaluation 39.7 dB at iteration 14,000). Against `export_perframe_3DGS.py` on the same model, at the 20 test
+  times: positions differ by at most 1.2e-6, covariances by 7e-6 relative, opacities are identical.
+- HyperNeRF `slice-banana` (the repo's own HyperNeRF reader, `arguments/hypernerf/banana.py`, 14,000 iterations, 18 minutes, 4x images
+  268×480, 297 training / 33 held-out images): 52,741 Gaussians, `--frames 330 --sh --compact` gives a 325 MB file in 35 seconds, peak RAM
+  1.5 GB. 33 held-out images at 268 px: 22.05–30.39 dB, mean 27.13 dB; the repo's own renders of the same 33 images give the same numbers
+  (at most 0.003 dB apart per image). This repo keeps HyperNeRF cameras and points in their original coordinates, time = warp_id / max.
 
 ### D — Deformable-3DGS (`convert_deformable3dgs.py`)
 
 ```bash
-python convert_deformable3dgs.py <thư_mục_model> -o scene.npz --frames 60 [--sh]
+python convert_deformable3dgs.py <model_folder> -o scene.npz --frames 60 [--sh]
 ```
 
-- Thư mục model có `point_cloud/` và `deform/`; MLP biến dạng chạy lại trên CPU (cần torch). Biến thể D-NeRF (timenet), mặc định và 6-DoF
-  được đọc từ state dict.
-- `bouncingballs` (biến thể D-NeRF, tự train 20.000 vòng, 34 phút, 800 px): `--sh` cho 64.571 Gaussian × 60 keyframe, SH bậc 3, 153 MB
-  (84 MB với `--compact`), 49 giây. 20 ảnh test ở 800 px: 37,2–43,6 dB, trung bình 40,3 dB (ở 400 px chỉ 29,3–33,2 dB, vì model train ở
-  800 px). Ảnh (400 px): `shots/real/deformable3dgs_bouncingballs.png`.
-- Biến thể mặc định (không `--is_blender`): 35,35–43,14 dB, trung bình 39,62 dB. Biến thể 6-DoF (`--is_6dof`, 27 phút): 36,99–43,75 dB,
-  trung bình 40,34 dB. Converter không phải sửa cho cả hai.
-- HyperNeRF `slice-banana` (video một camera, 297 ảnh train / 33 giữ lại, ảnh 4x 268×480, 20.000 vòng, 73 phút, 392.000 Gaussian; dữ liệu
-  dựng bằng `tests/make_hypernerf_split.py`): `--frames 330 --sh --compact` (đúng 330 thời điểm của video), 33 ảnh giữ lại ở 268 px:
-  19,28–29,78 dB, trung bình 24,72 dB (bỏ qua méo ống kính như loader của repo).
+- A model folder with `point_cloud/` and `deform/`; the deformation MLP is re-run on the CPU (needs torch). The D-NeRF (timenet), default
+  and 6-DoF variants are read from the state dict.
+- `bouncingballs` (D-NeRF variant, self-trained for 20,000 iterations, 34 minutes, 800 px): `--sh` gives 64,571 Gaussians × 60 keyframes,
+  SH degree 3, 153 MB (84 MB with `--compact`), 49 seconds. 20 test images at 800 px: 37.2–43.6 dB, mean 40.3 dB (at 400 px only
+  29.3–33.2 dB, because the model was trained at 800 px). Image (400 px): `shots/real/deformable3dgs_bouncingballs.png`.
+- Default variant (no `--is_blender`): 35.35–43.14 dB, mean 39.62 dB. 6-DoF variant (`--is_6dof`, 27 minutes): 36.99–43.75 dB,
+  mean 40.34 dB. Neither needed a converter change.
+- HyperNeRF `slice-banana` (single-camera video, 297 training / 33 held-out images, 4x images 268×480, 20,000 iterations, 73 minutes,
+  392,000 Gaussians; data built with `tests/make_hypernerf_split.py`): `--frames 330 --sh --compact` (exactly the 330 times of the video),
+  33 held-out images at 268 px: 19.28–29.78 dB, mean 24.72 dB (lens distortion ignored, as in the repo's loader).
 
 ### D — SC-GS (`convert_scgs.py`)
 
 ```bash
-python convert_scgs.py <thư_mục_model>_node -o scene.npz --frames 60 [--knn 3] [--sh]
+python convert_scgs.py <model_folder>_node -o scene.npz --frames 60 [--knn 3] [--sh]
 ```
 
-- Thư mục model có `point_cloud/` và `deform/`; control node + MLP + nội suy theo K node gần nhất, chạy trên CPU (cần torch).
-  `--knn` = `--K` lúc train nếu khác 3; `--max-d-scale` = `--max_d_scale` lúc train nếu có.
-- `bouncingballs` (512 node, `--local_frame`, 20.000 vòng sau 10.000 bước khởi tạo node, 19 phút, 400 px): 165.900 Gaussian × 60 keyframe,
-  10 giây, 361 MB (393 MB với `--sh`). 20 ảnh test ở 400 px: 35,4–43,0 dB, trung bình 40,3 dB với `--sh`; 27,8–33,5 dB (5 ảnh) khi chỉ dùng
-  màu cơ sở. Ảnh: `shots/real/scgs_bouncingballs.png`.
-- Có motion mask (`--gs_with_motion_mask --gt_alpha_mask_as_dynamic_mask`, ply có `fea_0..8`, 20.000 vòng, 20 phút, 170.091 Gaussian):
-  35,48–43,14 dB, trung bình 40,14 dB; converter tự nhận ra mask.
-- Đầu màu `--pred_color`: d_color theo node được chạy lại và cộng vào hệ số SH DC, nên màu (và `sh` khi có `--sh`) ghi theo từng keyframe;
-  `--ignore-pred-color` giữ màu cố định (file nhỏ hơn, màu sai). Kiểm trên `bouncingballs` nhuộm màu theo thời gian, tự train: 37,83 dB có
-  đầu màu, 24,48 dB khi bỏ (mục `scgs_predcolor`). Đầu màu hash hoặc theo hướng nhìn: converter dừng.
-- HyperNeRF `slice-banana` (512 node, hyper_dim 8, 20.000 vòng, 52 phút, 603.000 Gaussian; bản clone SC-GS cần sửa `np.float` → `np.float64`):
-  `--frames 110 --sh --compact` 20,21–30,22 dB, trung bình 26,69 dB; `--frames 330` (mỗi ảnh giữ lại trùng một keyframe; 3,5 phút, file 3,7 GB)
-  21,27–30,05 dB, trung bình 26,87 dB.
-- `--use_hash` (hash grid viết lại bằng numpy, khớp tinycudann tới 2e-4) và `--skinning`: chỉ test tổng hợp; bản tự train của repo không
-  hội tụ (hash, 6,8 dB) hoặc sập sau densification (skinning).
+- A model folder with `point_cloud/` and `deform/`; control nodes + MLP + blending over the K nearest nodes, run on the CPU (needs torch).
+  `--knn` = the `--K` used for training when it was not 3; `--max-d-scale` = the training `--max_d_scale`, if any.
+- `bouncingballs` (512 nodes, `--local_frame`, 20,000 iterations after 10,000 node-initialisation steps, 19 minutes, 400 px): 165,900
+  Gaussians × 60 keyframes, 10 seconds, 361 MB (393 MB with `--sh`). 20 test images at 400 px: 35.4–43.0 dB, mean 40.3 dB with `--sh`;
+  27.8–33.5 dB (5 images) with the base colour only. Image: `shots/real/scgs_bouncingballs.png`.
+- With motion mask (`--gs_with_motion_mask --gt_alpha_mask_as_dynamic_mask`, ply with `fea_0..8`, 20,000 iterations, 20 minutes, 170,091
+  Gaussians): 35.48–43.14 dB, mean 40.14 dB; the converter recognises the mask by itself.
+- Colour head `--pred_color`: the per-node d_color is re-run and added to the SH DC coefficient, so the colours (and `sh` with `--sh`) are
+  written per keyframe; `--ignore-pred-color` keeps the colour constant (smaller file, wrong colours). Checked on a self-trained
+  `bouncingballs` tinted over time: 37.83 dB with the colour head, 24.48 dB without it (item `scgs_predcolor`). Hash or view-direction
+  colour heads: the converter stops.
+- HyperNeRF `slice-banana` (512 nodes, hyper_dim 8, 20,000 iterations, 52 minutes, 603,000 Gaussians; the SC-GS clone needed
+  `np.float` → `np.float64`): `--frames 110 --sh --compact` 20.21–30.22 dB, mean 26.69 dB; `--frames 330` (every held-out image on a
+  keyframe; 3.5 minutes, 3.7 GB file) 21.27–30.05 dB, mean 26.87 dB.
+- `--use_hash` (the hash grid rewritten in numpy, matches tinycudann to 2e-4) and `--skinning`: synthetic test only; the repo's own
+  training did not converge (hash, 6.8 dB) or crashed after densification (skinning).
 
-## Dừng có thông báo (converter không đoán)
+## Stops with a message (the converters never guess)
 
-- SC-GS: `--deform_type mlp` (đó là Deformable-3DGS), hash với `tcnn_mlp`, đầu màu hash / theo hướng nhìn, ply và `deform.pth` lệch số cột `fea_*`.
-- Spacetime: model đầy đủ có `rgbdecoder` (dùng `--base-color-only` để chuyển mà bỏ nó).
+- SC-GS: `--deform_type mlp` (that is Deformable-3DGS), hash with `tcnn_mlp`, hash / view-direction colour heads, ply and `deform.pth`
+  with mismatching numbers of `fea_*` columns.
+- Spacetime: the full model with `rgbdecoder` (use `--base-color-only` to convert without it).
 - 4DGaussians: `no_grid`, `empty_voxel`, `static_mlp`, `grid_pe > 1`, `no_dshs=False`.
-- E-D3DGS: ply không có SH bậc 3 hoặc không có cột `embedding_*`; `--set` với khoá không có trong ModelHiddenParams.
-- MoSca: `max_sph_order > 0`; file nền tĩnh `photometric_s_model_*.pth` (`gs4d.open` nói cần file động).
-- Native 4DGS: checkpoint không có đúng 19 trường `capture()` (không phải model 4D), hoặc ít kênh SH hơn yêu cầu.
-- Mọi converter: thiếu `torch` khi cần (báo cách cài), file torch không đọc được, thư mục model không có `iteration_*` (hoặc không có
-  `--iteration` đã chọn), file không đúng layout. Thông báo là một dòng, không phải traceback.
+- E-D3DGS: a ply without SH degree 3 or without `embedding_*` columns; `--set` with a key that is not in ModelHiddenParams.
+- MoSca: `max_sph_order > 0`; the static background file `photometric_s_model_*.pth` (`gs4d.open` says the dynamic file is needed).
+- Native 4DGS: a checkpoint without exactly the 19 fields of `capture()` (not a 4D model), or fewer SH channels than required.
+- Every converter: torch missing when needed (with the install command), a torch file that cannot be read, a model folder without
+  `iteration_*` (or without the chosen `--iteration`), a file in the wrong layout. The message is one line, not a traceback.
 
-`python -m gs4d.open <output>` nhận ra các loại trên và chuyển; biến thể không hỗ trợ dừng và nêu cờ để chuyển tiếp.
-Để thêm phương pháp mới: [ADD_A_CONVERTER.md](ADD_A_CONVERTER.md).
+`python -m gs4d.open <output>` recognises all of the above and converts; unsupported variants stop and name the flag that converts anyway.
+To add a method: [ADD_A_CONVERTER.md](ADD_A_CONVERTER.md).
 
-## Ghi chú tra repo trước khi viết ba converter mới (17/11/2026)
+## Repository notes taken before writing the three newest converters (17/11/2026)
 
-Giữ lại để tra cứu: đây là ghi chú đọc repo trước khi viết `convert_4drotor.py`, `convert_ed3dgs.py`, `convert_mosca.py`. Chỗ nào ghi "chưa xác minh" đã được đọc nốt khi viết converter (xem docstring của từng converter).
+Kept for reference: these are the notes from reading the repositories before `convert_4drotor.py`, `convert_ed3dgs.py` and
+`convert_mosca.py` were written. Points marked "not verified" were read in full while writing the converters (see each converter's
+docstring).
 
-Tra từ repo chính thức bằng cách đọc README và mã nguồn (không chạy). Mục nào ghi "chưa xác minh" là chỗ phần đọc được không bao gồm. Ước lượng công viết converter là ước lượng của người viết, dựa trên converter tương tự đã có; repo không công bố số GPU, RAM hay thời gian train nào.
+Gathered from the official repositories by reading the README and the source code (nothing was run). An item marked "not verified" is
+something the reading did not cover. The effort estimates for a converter are the writer's own, based on similar existing converters; the
+repositories publish no GPU, RAM or training-time figures.
 
-### 4D-Rotor Gaussian Splatting (4DRotorGS, SIGGRAPH 2024) — đã có `convert_4drotor.py` (17/11/2026)
-Công thức vị trí `slice_4d_to_3d` đã đọc: `mean(t) = xyz + speed·(t − t_g)`, `speed = Σ[:3,3]/Σ[3,3]`; không chuẩn hoá rotor khi render. Checkpoint là `pipeline` state dict với khoá kết thúc bằng `gauss_params.<tên>`; tiền tố `_model.` chưa xác minh trên file thật nên converter tìm theo đuôi khoá.
-- Repo: https://github.com/weify627/4D-Rotor-Gaussians, giấy phép Apache-2.0, xây trên Nerfstudio. Paper arXiv 2402.03307.
-- Output: `step-<N>.ckpt` (`torch.save` với `step, pipeline, optimizers, ...`); tham số Gaussian nằm trong `gauss_params`: `xyz, t, scales_xyz, scales_t, quats1, quats2, features_dc, features_rest, opacities`. Không thấy xuất ply theo Gaussian.
-- Công thức (`splatfacto.py`, `general_utils.py::slice_4d`): rotor 8 số → ma trận quay 4D, `scale = exp(cat(scales_xyz, scales_t))`, Σ = L·Lᵀ (4×4). `w = 1/Σ[3,3]`, covariance 3D điều kiện `cov3 = Σ[:3,:3] − Σ[:3,3]·Σ[3,:3]·w` (không phụ thuộc t); opacity `sigmoid(o)·exp(−0,5·w·(t_g − t)²)`, bỏ Gaussian khi mũ ≥ 16; màu SH bậc 3 không đổi theo thời gian. Công thức vị trí `slice_4d_to_3d` và khoảng thời gian: chưa xác minh.
-- Dạng: B (cùng họ native 4DGS; `convert_native4d.py` là khuôn mẫu, gồm cách bỏ Gaussian và bake opacity theo keyframe).
-- Dữ liệu: D-NeRF (`splatfacto`, 20.000 vòng) và N3V (`splatfacto-big`, cần `scripts/n3v2blender.py`).
-- Cài đặt: Python 3.8, torch 2.1.2+cu118, tiny-cuda-nn, PyTorch3D, ba submodule CUDA riêng (`diff-gaussian-rasterization-confidence`, `knn`, `knn_ops_3_fwd_bwd_mask`) và `simple_knn`. Rasteriser tuỳ biến, README nói bản FPS nhanh không công bố.
-- Công viết converter: nhỏ–vừa (khoảng 1 ngày): chỉ numpy + torch để mở ckpt, công thức đã rõ trừ phép cắt vị trí cần đọc nốt `slice_4d_to_3d`. Dùng `--sh` kiểu native 4DGS vì màu là SH.
-- Train trên máy 12 GB GPU / 15 GB RAM: D-NeRF có vẻ khả thi (cảnh nhỏ, như native 4DGS đã train), nhưng phải dựng môi trường py3.8/cu118 và build ba submodule; N3V chưa biết, không có số liệu bộ nhớ.
+### 4D-Rotor Gaussian Splatting (4DRotorGS, SIGGRAPH 2024) — `convert_4drotor.py` exists (17/11/2026)
+Position formula of `slice_4d_to_3d`, now read: `mean(t) = xyz + speed·(t − t_g)`, `speed = Σ[:3,3]/Σ[3,3]`; the rotors are not normalised
+when rendering. The checkpoint is a `pipeline` state dict whose keys end in `gauss_params.<name>`; the `_model.` prefix was not verified on
+a real file, so the converter matches on the end of the key.
+- Repo: https://github.com/weify627/4D-Rotor-Gaussians, Apache-2.0 license, built on Nerfstudio. Paper: arXiv 2402.03307.
+- Output: `step-<N>.ckpt` (`torch.save` with `step, pipeline, optimizers, ...`); the Gaussian parameters are in `gauss_params`:
+  `xyz, t, scales_xyz, scales_t, quats1, quats2, features_dc, features_rest, opacities`. No per-Gaussian ply export was found.
+- Formulas (`splatfacto.py`, `general_utils.py::slice_4d`): the 8-number rotor → a 4D rotation matrix, `scale = exp(cat(scales_xyz,
+  scales_t))`, Σ = L·Lᵀ (4×4). `w = 1/Σ[3,3]`, conditional 3D covariance `cov3 = Σ[:3,:3] − Σ[:3,3]·Σ[3,:3]·w` (independent of t); opacity
+  `sigmoid(o)·exp(−0.5·w·(t_g − t)²)`, a Gaussian is dropped when the exponent is ≥ 16; colour is SH degree 3, constant in time. Position
+  formula of `slice_4d_to_3d` and time range: not verified.
+- Type: B (same family as native 4DGS; `convert_native4d.py` is the model, including how Gaussians are dropped and opacity is baked per
+  keyframe).
+- Data: D-NeRF (`splatfacto`, 20,000 iterations) and N3V (`splatfacto-big`, needs `scripts/n3v2blender.py`).
+- Installation: Python 3.8, torch 2.1.2+cu118, tiny-cuda-nn, PyTorch3D, three separate CUDA submodules
+  (`diff-gaussian-rasterization-confidence`, `knn`, `knn_ops_3_fwd_bwd_mask`) and `simple_knn`. Custom rasteriser; the README says the
+  fast-FPS version is not released.
+- Converter effort: small to medium (about 1 day): numpy only + torch to open the ckpt; the formulas are clear except the position slicing,
+  which needs `slice_4d_to_3d` read in full. Use a native-4DGS-style `--sh`, since the colour is SH.
+- Training on a 12 GB GPU / 15 GB RAM machine: D-NeRF looks feasible (small scenes, as native 4DGS was trained), but needs a
+  py3.8/cu118 environment and the three submodules built; N3V unknown, no memory figures.
 
-### E-D3DGS (ECCV 2024, Per-Gaussian Embedding-Based Deformation) — đã có `convert_ed3dgs.py` (17/11/2026)
-Đã đọc đủ `scene/deformation.py`, renderer và `render.py`: đầu vào MLP chỉ là [embedding thời gian, embedding Gaussian], hai nhánh thô/tinh chỉ cộng dồn (không nối đầu ra nhánh thô vào nhánh tinh như ghi chú ban đầu); delta cộng TRƯỚC kích hoạt (log scale, logit opacity, quaternion rồi normalize).
-- Repo: https://github.com/JeongminB/E-D3DGS (trang dự án https://jeongminb.github.io/e-d3dgs/). Giấy phép là bản Inria/MPII của Gaussian Splatting: chỉ nghiên cứu, không thương mại.
-- Output: `point_cloud/iteration_N/point_cloud.ply` (x, y, z, `f_dc_*`, `f_rest_*`, `opacity`, `scale_*`, `rot_*`, thêm `embedding_0..E-1`; giá trị trước kích hoạt) và `deformation.pth` (state_dict của `deform_network`), cùng `cfg_args`.
-- Biến dạng (`scene/deformation.py`): mỗi Gaussian có embedding riêng; thời gian là bảng latent học được (`weight`, nội suy song tuyến tại t); hai nhánh MLP thô và tinh, nhánh tinh nhận đầu ra của nhánh thô. Đầu ra cộng vào: vị trí, log-scale, quaternion, logit opacity, và hệ số SH (cả màu theo hướng nhìn). Thời gian `t = frame / duration` (dynerf 300, Technicolor 50). Số Gaussian cố định theo thời gian.
-- Dạng: D (giống Deformable-3DGS: chạy lại MLP trên CPU), nhưng thêm delta opacity và SH, nên cần `sh` theo keyframe như `convert_scgs.py --pred_color`. Hai thiết lập chưa xác minh: kích thước embedding (file `arguments/`) và iteration dùng khi render.
-- Dữ liệu: N3V (nhiều camera), Technicolor, HyperNeRF (một camera); cần COLMAP.
-- Cài đặt cũ: Python 3.7, torch 1.13.1+cu116, mmcv 1.6.0, open3d, submodule `diff-gaussian-rasterization` và `simple-knn`.
-- Công viết converter: vừa (1–2 ngày): MLP thô + tinh và lấy mẫu bảng thời gian đều ở numpy, kiểm bằng so với `deformation.pth` chạy bằng torch như `test_deformable3dgs.py`.
-- Train trên máy này: không chắc. N3V là nhiều camera × 300 frame (hàng chục GB, như Spacetime full model đã không làm được); HyperNeRF `slice-banana` (đã có sẵn trong `../data_real`) thì có khả năng, nhưng môi trường py3.7/torch 1.13 phải dựng riêng.
+### E-D3DGS (ECCV 2024, Per-Gaussian Embedding-Based Deformation) — `convert_ed3dgs.py` exists (17/11/2026)
+`scene/deformation.py`, the renderer and `render.py` were read in full: the MLP input is only [temporal embedding, Gaussian embedding], the
+coarse and fine branches only add up (the coarse branch's output is not fed into the fine branch, contrary to the first note); the deltas
+are added BEFORE the activations (log scale, logit opacity, quaternion, then normalised).
+- Repo: https://github.com/JeongminB/E-D3DGS (project page https://jeongminb.github.io/e-d3dgs/). The license is the Inria/MPII Gaussian
+  Splatting license: research only, no commercial use.
+- Output: `point_cloud/iteration_N/point_cloud.ply` (x, y, z, `f_dc_*`, `f_rest_*`, `opacity`, `scale_*`, `rot_*`, plus `embedding_0..E-1`;
+  values before activation) and `deformation.pth` (state_dict of `deform_network`), with `cfg_args`.
+- Deformation (`scene/deformation.py`): every Gaussian has its own embedding; time is a learned latent table (`weight`, bilinear lookup at
+  t); coarse and fine MLP branches, the fine one fed by the coarse one. The outputs are added to: position, log-scale, quaternion, logit
+  opacity, and the SH coefficients (view-dependent colour included). Time `t = frame / duration` (dynerf 300, Technicolor 50). The number
+  of Gaussians is fixed over time.
+- Type: D (like Deformable-3DGS: the MLP is re-run on the CPU), plus opacity and SH deltas, so per-keyframe `sh` is needed, as in
+  `convert_scgs.py --pred_color`. Two settings not verified: the embedding size (`arguments/` files) and the iteration used for rendering.
+- Data: N3V (multi-camera), Technicolor, HyperNeRF (single camera); needs COLMAP.
+- Old setup: Python 3.7, torch 1.13.1+cu116, mmcv 1.6.0, open3d, submodules `diff-gaussian-rasterization` and `simple-knn`.
+- Converter effort: medium (1–2 days): coarse + fine MLPs and the temporal-table lookup in numpy, checked against `deformation.pth` run
+  with torch, as in `test_deformable3dgs.py`.
+- Training on this machine: uncertain. N3V is many cameras × 300 frames (tens of GB, like the full Spacetime model that could not be
+  done); HyperNeRF `slice-banana` (already in `../data_real`) is possible, but the py3.7/torch 1.13 environment has to be built separately.
 
-### MoSca (CVPR 2025, Dynamic Gaussian Fusion from Casual Videos via 4D Motion Scaffolds) — đã có `convert_mosca.py` (17/11/2026)
-Đã đọc `mosca.py`, `dynamic_gs.py`, `dualquat_helper.py`, `photo_recon.py`, `mosca_evaluate.py`. File cần: `photometric_d_model_<backend>.pth` (state_dict của `DynSCFGaussian`, scaffold ở `scf.*`). Sigma node = `max_sigma·sigmoid(logit)`; DQB trộn cả với đơn vị bằng `dyn_o` (mặc định `1 − 1e-3`), nên chuyển động không rigid tuyệt đối. Nền tĩnh nằm ở file riêng, converter chưa đọc.
-- Repo: https://github.com/JiahuiLei/MoSca, MIT cho `lib_moca`, `lib_mosca`; phần rasteriser và model bên thứ ba có giấy phép riêng.
-- Output: `mosca/mosca.pth` (scaffold: `_node_xyz [T,M,3]`, `_node_rotation` theo frame, `_node_sigma_logit`, `topo_knn_ind`, ...); model Gaussian động `DynSCFGaussian` lưu `_xyz` (toạ độ cục bộ theo node gắn), `_rotation`, `_scaling`, `_opacity`, `_features_*`, `_skinning_weight`, `attach_ind`, `ref_time`. File lưu model Gaussian (`photo_recon.py`) chưa đọc nên tên file chưa xác minh.
-- Chuyển động: vị trí = quay/tịnh tiến của node gắn tại `ref_time` rồi `warp` sang frame t bằng skinning K node gần nhất (K = 16 khi reconstruct) trọng số `exp(−|x−node|²/(2σ²))`; pha trộn dual quaternion (`dqb`, mặc định) hoặc `lbs`. Scale, opacity và màu không đổi theo thời gian (trừ `nn_fusion` làm opacity về 0 ngoài các frame hỗ trợ). Thời gian là chỉ số frame. Phần DQB (`scaffold_utils/dualquat_helper.py`) chưa đọc.
-- Dạng: D hoặc C lai (gần SC-GS: control node + K node gần nhất, thêm DQB); `convert_scgs.py` và `convert_shape_of_motion.py` là khuôn mẫu.
-- Dữ liệu: video thường (iPhone/DyCheck, NVIDIA, TUM, Sintel, wild); cần tiền xử lý nặng: tracker (BootsTAPIR, CoTracker, SpaTracker), độ sâu (DepthCrafter, Metric3D-v2, UniDepth), RAFT, rồi bundle adjustment camera; trọng số tải tay.
-- Cài đặt: Python 3.10, torch 2.1.0+cu118, pytorch3d, torch_geometric; ba rasteriser tuỳ biến (TODO của repo: chuyển sang gsplat). `cuda:0` cố định trong mã.
-- Công viết converter: lớn hơn hai cái trên (vài ngày): phải chép đúng DQB và `get_skinning_weights`, `resample_time` từ keyframe thưa (mỗi 4 frame) ra mọi frame, và Gaussian có `ref_time` nên tập Gaussian sống thay đổi theo frame.
-- Train trên máy này: khả năng thấp. Cần chạy nhiều model tiền xử lý nặng; repo không công bố yêu cầu bộ nhớ. Cảnh `paper-windmill` là DyCheck iPhone mà MoSca hỗ trợ nên có thể so sánh với Shape of Motion nếu tự train được.
+### MoSca (CVPR 2025, Dynamic Gaussian Fusion from Casual Videos via 4D Motion Scaffolds) — `convert_mosca.py` exists (17/11/2026)
+Read: `mosca.py`, `dynamic_gs.py`, `dualquat_helper.py`, `photo_recon.py`, `mosca_evaluate.py`. File needed:
+`photometric_d_model_<backend>.pth` (state_dict of `DynSCFGaussian`, scaffold under `scf.*`). Node sigma = `max_sigma·sigmoid(logit)`; DQB
+also blends with the identity through `dyn_o` (default `1 − 1e-3`), so motion is never perfectly rigid. The static background is in a
+separate file that the converter does not read.
+- Repo: https://github.com/JiahuiLei/MoSca, MIT for `lib_moca` and `lib_mosca`; the third-party rasterisers and models have their own
+  licenses.
+- Output: `mosca/mosca.pth` (scaffold: `_node_xyz [T,M,3]`, per-frame `_node_rotation`, `_node_sigma_logit`, `topo_knn_ind`, ...); the
+  dynamic Gaussian model `DynSCFGaussian` stores `_xyz` (local coordinates of the attached node), `_rotation`, `_scaling`, `_opacity`,
+  `_features_*`, `_skinning_weight`, `attach_ind`, `ref_time`. The file that saves the Gaussian model (`photo_recon.py`) was not read, so
+  its name was not verified.
+- Motion: position = the rotation/translation of the attached node at `ref_time`, then `warp` to frame t by skinning over the K nearest
+  nodes (K = 16 during reconstruction) with weights `exp(−|x−node|²/(2σ²))`; dual-quaternion blending (`dqb`, default) or `lbs`. Scale,
+  opacity and colour are constant in time (except `nn_fusion`, which sets opacity to 0 outside the supporting frames). Time is the frame
+  index. The DQB part (`scaffold_utils/dualquat_helper.py`) was not read.
+- Type: D or hybrid C (close to SC-GS: control nodes + K nearest nodes, plus DQB); `convert_scgs.py` and `convert_shape_of_motion.py` are
+  the models.
+- Data: casual videos (iPhone/DyCheck, NVIDIA, TUM, Sintel, in the wild); needs heavy preprocessing: trackers (BootsTAPIR, CoTracker,
+  SpaTracker), depth (DepthCrafter, Metric3D-v2, UniDepth), RAFT, then camera bundle adjustment; weights downloaded by hand.
+- Installation: Python 3.10, torch 2.1.0+cu118, pytorch3d, torch_geometric; three custom rasterisers (the repo's TODO: move to gsplat).
+  `cuda:0` is hard-coded.
+- Converter effort: bigger than the two above (several days): DQB and `get_skinning_weights` must be copied exactly, `resample_time` goes
+  from sparse keyframes (every 4 frames) to every frame, and Gaussians have a `ref_time`, so the set of live Gaussians changes per frame.
+- Training on this machine: unlikely. Several heavy preprocessing models must run; the repo publishes no memory requirements. The
+  `paper-windmill` scene is DyCheck iPhone data, which MoSca supports, so it could be compared with Shape of Motion if training worked.
 
-### Gợi ý thứ tự (theo công / lợi ích, chưa phải quyết định)
-4D-Rotor GS (công thức rõ nhất, cùng họ native 4DGS) → E-D3DGS (cần dựng môi trường cũ) → MoSca (tiền xử lý và converter đều nặng).
+### Suggested order (by effort / benefit, not a decision)
+4D-Rotor GS (clearest formulas, same family as native 4DGS) → E-D3DGS (needs an old environment) → MoSca (heavy preprocessing and
+converter).

@@ -94,4 +94,5 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
 - Measurements go to `docs/` (per-method results: `SUPPORTED.md`, speed and memory: `PERFORMANCE.md`, file format: `FORMAT.md`)
   plus a dated entry at the end of `docs/HISTORY.md`; the README stays a user guide.
+- Everything in the repository is written in English (docs, `PLAN.md`, comments, messages), with English number separators.
 - Finish with a 5-line report: what changed, what was run, what is untested, files touched.
