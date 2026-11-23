@@ -52,21 +52,24 @@ The converters of methods that save torch checkpoints also need torch (the CPU b
 ## Quick start
 
 ```bash
-python make_toy.py -o toy.npz        # synthetic dynamic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
+# synthetic dynamic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
+python make_toy.py -o toy.npz
 python viewer.py toy.npz             # then open http://localhost:8080
 ```
 
 With the real output of a method:
 
 ```bash
-python -m gs4d.open output/dnerf/bouncingballs              # model folder, checkpoint, ply, ... (see the table below)
+# a model folder, checkpoint, ply, ... (see the table below)
+python -m gs4d.open output/dnerf/bouncingballs
 python -m gs4d.open output/dnerf/bouncingballs --renderer gsplat --port 8081 --draw-as points
 ```
 
 ## Opening an output directly: `python -m gs4d.open`
 
 ```bash
-python -m gs4d.open <output_path> [--reconvert] [--dry-run] [--convert-args "--stride 4"] [viewer.py arguments]
+python -m gs4d.open <output_path> [--reconvert] [--dry-run] [--convert-args "--stride 4"]
+                    [viewer.py arguments]
 ```
 
 - Recognised (checked in this order, the first match wins, nothing is guessed): an `.npz` already in the common format (opened as it
@@ -88,19 +91,23 @@ python -m gs4d.open <output_path> [--reconvert] [--dry-run] [--convert-args "--s
 
 ## Supported methods
 
-| Type | Method | Input | Conversion command | Checked on real output |
+| Type | Method | Input | Converter | Checked on a real output |
 |---|---|---|---|---|
-| A | Gaussians per frame (feed-forward models; `export_perframe_3DGS.py` of 4DGaussians) | folder of `*.ply` | `python convert_per_frame.py <folder> -o scene.npz --fps 30` | yes |
-| A | Dynamic 3D Gaussians | `params.npz` | `python convert_per_frame.py params.npz -o scene.npz --stride 5 --fg-only` | yes (no original images) |
-| B | Native 4DGS (Yang et al., ICLR 2024) | `chkpnt*.pth` | `python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh` | yes |
-| B | 4D-Rotor GS (SIGGRAPH 2024) | `step-*.ckpt` (Nerfstudio) | `python convert_4drotor.py step-N.ckpt -o scene.npz --frames 60` | no, synthetic test only |
-| C | Spacetime Gaussians (lite model) | `point_cloud.ply` | `python convert_spacetime.py point_cloud.ply -o scene.npz --frames 50` | yes |
-| C | Shape of Motion | `checkpoints/last.ckpt` | `python convert_shape_of_motion.py last.ckpt -o scene.npz --fps 30` | yes |
-| C/D | MoSca (CVPR 2025), dynamic Gaussians only | `photometric_d_model_*.pth` | `python convert_mosca.py <file.pth> -o scene.npz --fps 30 --stride 2` | no, synthetic test only |
-| D | 4DGaussians (hustvl) | model folder | `python convert_4dgaussians.py <folder> -o scene.npz --frames 60 --sh` | yes |
-| D | Deformable-3DGS | model folder | `python convert_deformable3dgs.py <folder> -o scene.npz --frames 60 --sh` | yes |
-| D | SC-GS | model folder `<name>_node` | `python convert_scgs.py <folder> -o scene.npz --frames 60 --sh` | yes |
-| D | E-D3DGS (ECCV 2024) | model folder | `python convert_ed3dgs.py <folder> -o scene.npz --frames 60 --sh` | no, synthetic test only |
+| A | Gaussians per frame (feed-forward models; the per-frame export of 4DGaussians) | folder of `*.ply` | `convert_per_frame.py` | yes |
+| A | Dynamic 3D Gaussians | `params.npz` | `convert_per_frame.py` | yes (no original images) |
+| B | Native 4DGS (Yang et al., ICLR 2024) | `chkpnt*.pth` | `convert_native4d.py` | yes |
+| B | 4D-Rotor GS (SIGGRAPH 2024) | `step-*.ckpt` (Nerfstudio) | `convert_4drotor.py` | no, synthetic test only |
+| C | Spacetime Gaussians (lite model) | `point_cloud.ply` | `convert_spacetime.py` | yes |
+| C | Shape of Motion | `checkpoints/last.ckpt` | `convert_shape_of_motion.py` | yes |
+| C/D | MoSca (CVPR 2025), dynamic Gaussians only | `photometric_d_model_*.pth` | `convert_mosca.py` | no, synthetic test only |
+| D | 4DGaussians (hustvl) | model folder | `convert_4dgaussians.py` | yes |
+| D | Deformable-3DGS | model folder | `convert_deformable3dgs.py` | yes |
+| D | SC-GS | model folder `<name>_node` | `convert_scgs.py` | yes |
+| D | E-D3DGS (ECCV 2024) | model folder | `convert_ed3dgs.py` | no, synthetic test only |
+
+`python -m gs4d.open` runs the right converter for you. By hand: `python <converter> <input> -o scene.npz [flags]`, for example
+`python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 --sh`; the command of every method is in
+[docs/SUPPORTED.md](docs/SUPPORTED.md).
 
 Types: **A** Gaussians per frame · **B** 4D Gaussians sliced in time · **C** parametric motion functions · **D** deformation networks,
 re-run on the CPU. PSNR per method, the variants that were tried, the variants a converter refuses and why:
@@ -114,7 +121,8 @@ bigger file); `--compact` writes the compact layout. `python <converter> --help`
 ## Using the viewer
 
 ```bash
-python viewer.py scene.npz [--renderer auto|gsplat|client] [--up +z] [--port 8080] [--compare b.npz] [--cameras transforms_test.json]
+python viewer.py scene.npz [--renderer auto|gsplat|client] [--up +z] [--port 8080]
+                 [--compare b.npz] [--cameras transforms_test.json]
 ```
 
 Scenes from COLMAP usually need `--up -y`; Blender / D-NeRF scenes use `+z` (the default).
@@ -225,14 +233,18 @@ the scene does not fit in memory. Details and measurements: [docs/FORMAT.md](doc
 
 ```python
 from gs4d import Sequence4D
-seq = Sequence4D.load("scene.npz", lazy=True)   # lazy: memory-maps the file, only the keyframes used are read
-means, covs, opacities, colors = seq.at(0.5)     # Gaussians at t = 0.5 (interpolated between two keyframes)
+# lazy: memory-maps the file, only the keyframes used are read
+seq = Sequence4D.load("scene.npz", lazy=True)
+# Gaussians at t = 0.5 (interpolated between two keyframes)
+means, covs, opacities, colors = seq.at(0.5)
 ```
 
 ## Tests
 
 ```bash
-python tests/run_all.py            # every tests/test_*.py and tests/check_*.py, one at a time; prints pass / skipped (with the reason) / failed
+# every tests/test_*.py and tests/check_*.py, one at a time;
+# prints pass / skipped (with the reason) / failed
+python tests/run_all.py
 python tests/run_all.py open sh    # only the files whose name contains one of the words
 ruff check .                       # lint, as in CI
 ```

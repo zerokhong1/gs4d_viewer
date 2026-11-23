@@ -211,3 +211,9 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   through, and the prompts' "write the numbers in the README" now points to `docs/`.
 - `shots/readme_hero.png`: the right-hand panel is cut from `shots/cameras/ground_truth_compare.png`, so the browser's
   "Software WebGL rendering detected" toast and the control panel no longer cover the original image.
+- How GitHub shows the docs: rendered with cmark-gfm, the parser GitHub uses (for the files on `main` it gives the same
+  structure and text as GitHub's own pages; the 103 heading ids there follow the anchor rule of the link check), then shown
+  inside the real GitHub pages at a 1280 px window (README column 838 px, other files 861 px). Fixed: three tables wider
+  than the page (README "Supported methods": converter name only, full commands in `docs/SUPPORTED.md`; the summary table
+  of `docs/SUPPORTED.md`; the WP9 table of `PLAN.md`) and long code comments that were cut off. Still scrolling sideways:
+  the gsplat install line, a few long converter commands and the prompt blocks of `PLAN.md` (kept on one line to copy).

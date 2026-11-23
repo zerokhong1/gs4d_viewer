@@ -294,17 +294,17 @@ environment or running the original repository's code. WP9 has no branch of its 
 "Every file" means the kinds in this table. A new method gets a row, a `convert_<method>.py` and a detection branch in
 `gs4d/open.py`.
 
-| File kind | Converter | Now | Missing | Package |
-|---|---|---|---|---|
-| Folder of per-frame 3DGS ply files (any method can export one) | `convert_per_frame.py` | Done: the `gaussian_pertimestamp/` of 4DGaussians `bouncingballs`, item `4dgaussians_export` | — | — |
-| Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Done (`basketball`) | — | — |
-| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Done (`paper-windmill`): PSNR at the training cameras against the DyCheck iPhone images 25.86 dB at keyframes, 24.67 dB between keyframes of `--stride 8` (WP19c part 1, 16/11/2026) | — | — |
-| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27.3–39.6 dB, mean 32.9 (original repo 33.4). Real scene `slice-banana` (retrained with the right cameras, WP20): 26.31 dB (110 keyframes), the original repo's own evaluation 26.30 | Done. The old 1.9 dB gap came from the old layout of `make_hypernerf_blender.py` (`FovX = FovY = -1`), fixed and retrained. 330-keyframe file: 19.9 → 5.8 GB since WP21 (`sh` compacted to uint8) | WP20 |
-| 4DGaussians (hustvl), model folder | `convert_4dgaussians.py` | Converter done: `bouncingballs` 36.7–45.9 dB, mean 40.8; matches `export_perframe_3DGS.py` to 1e-6 | Done (WP19a): `gs4d.open` recognises this folder and opens it with a camera list. Real scene `slice-banana` (WP23): 22.05–30.39 dB, mean 27.13, matches the repo; `gs4d.open` writes the camera list for the HyperNeRF layout by itself (WP27) | — |
-| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Lite model: `n3d_sear_steak` 27.76–37.81 dB, mean 34.37 on 105 images of the original videos (the repo's renderer: 34.48; WP31, 16/11/2026; before the colour-clipping fix: 31.43); Technicolor `Birthday` checked by eye. Full model (`rgbdecoder`): the converter stops and names it, `--base-color-only` converts anyway (WP19a) | The full model is a known limit: no public model, training needs more than 15 GB of RAM | — |
-| Deformable-3DGS, model folder | `convert_deformable3dgs.py` | Done: D-NeRF 37.2–43.6 dB; default 35.35–43.14; 6-DoF 36.99–43.75; real scene `slice-banana` 19.28–29.78 (mean 24.72) | — | — |
-| SC-GS, model folder | `convert_scgs.py` | Done: D-NeRF 35.4–43.0 dB; motion mask 35.48–43.14; real scene `slice-banana` mean 26.69 dB (110 keyframes), 26.87 dB (330 keyframes, peak RAM 1.4 GB since WP19d). `--use_hash`, `--skinning`, `d_rot_as_res` off, `--pred_color` (`--ignore-pred-color` converts anyway): stop with a message | — | — |
-| A file of none of the kinds above | `gs4d/open.py` | Reports which detections were tried | — | — |
+| File kind → converter | Now | Missing |
+|---|---|---|
+| Folder of per-frame 3DGS ply files (any method can export one) → `convert_per_frame.py` | Done: the `gaussian_pertimestamp/` of 4DGaussians `bouncingballs`, item `4dgaussians_export` | — |
+| Dynamic 3D Gaussians `params.npz` → `convert_per_frame.py` | Done (`basketball`) | — |
+| Shape of Motion `last.ckpt` → `convert_shape_of_motion.py` | Done (`paper-windmill`): PSNR at the training cameras against the DyCheck iPhone images 25.86 dB at keyframes, 24.67 dB between keyframes of `--stride 8` (WP19c part 1, 16/11/2026) | — |
+| Native 4DGS `chkpnt*.pth` → `convert_native4d.py` | `--sh`: `bouncingballs` 27.3–39.6 dB, mean 32.9 (original repo 33.4). Real scene `slice-banana` (retrained with the right cameras, WP20): 26.31 dB (110 keyframes), the original repo's own evaluation 26.30 | Done (WP20). The old 1.9 dB gap came from the old layout of `make_hypernerf_blender.py` (`FovX = FovY = -1`), fixed and retrained. 330-keyframe file: 19.9 → 5.8 GB since WP21 (`sh` compacted to uint8) |
+| 4DGaussians (hustvl), model folder → `convert_4dgaussians.py` | Converter done: `bouncingballs` 36.7–45.9 dB, mean 40.8; matches `export_perframe_3DGS.py` to 1e-6 | Done (WP19a): `gs4d.open` recognises this folder and opens it with a camera list. Real scene `slice-banana` (WP23): 22.05–30.39 dB, mean 27.13, matches the repo; `gs4d.open` writes the camera list for the HyperNeRF layout by itself (WP27) |
+| Spacetime Gaussians `point_cloud.ply` → `convert_spacetime.py` | Lite model: `n3d_sear_steak` 27.76–37.81 dB, mean 34.37 on 105 images of the original videos (the repo's renderer: 34.48; WP31, 16/11/2026; before the colour-clipping fix: 31.43); Technicolor `Birthday` checked by eye. Full model (`rgbdecoder`): the converter stops and names it, `--base-color-only` converts anyway (WP19a) | The full model is a known limit: no public model, training needs more than 15 GB of RAM |
+| Deformable-3DGS, model folder → `convert_deformable3dgs.py` | Done: D-NeRF 37.2–43.6 dB; default 35.35–43.14; 6-DoF 36.99–43.75; real scene `slice-banana` 19.28–29.78 (mean 24.72) | — |
+| SC-GS, model folder → `convert_scgs.py` | Done: D-NeRF 35.4–43.0 dB; motion mask 35.48–43.14; real scene `slice-banana` mean 26.69 dB (110 keyframes), 26.87 dB (330 keyframes, peak RAM 1.4 GB since WP19d). `--use_hash`, `--skinning`, `d_rot_as_res` off, `--pred_color` (`--ignore-pred-color` converts anyway): stop with a message | — |
+| A file of none of the kinds above → `gs4d/open.py` | Reports which detections were tried | — |
 
 **WP9 done criteria** (in addition to "Done criteria for every package"):
 

@@ -30,9 +30,11 @@ The time-varying part takes ≈ N × K × 40 bytes as float32 (≈ 19 bytes in t
 ```python
 from gs4d import Sequence4DWriter
 
-with Sequence4DWriter("scene.npz", compact=True, colors=colors, source="my method") as w:   # constant fields
+# constant fields go to the constructor
+with Sequence4DWriter("scene.npz", compact=True, colors=colors, source="my method") as w:
     for t in times:
-        w.add_keyframe(t, means=means_at(t), covs=covs_at(t), opacities=opacities_at(t))  # fields that change with t
+        # fields that change with t
+        w.add_keyframe(t, means=means_at(t), covs=covs_at(t), opacities=opacities_at(t))
 ```
 
 Every converter writes through `Sequence4DWriter` (except ply folders whose Gaussian count changes between frames, since the writer
@@ -42,8 +44,9 @@ needs a fixed N). Peak RAM before and after the switch to the writer:
 ## Compact layout and lazy loading
 
 ```bash
-python -m gs4d scene.npz scene_small.npz             # re-save in the compact layout (slightly lossy)
-python -m gs4d scene_small.npz scene.npz --float32   # back to plain float32
+# re-save in the compact layout (slightly lossy), and back to plain float32
+python -m gs4d scene.npz scene_small.npz
+python -m gs4d scene_small.npz scene.npz --float32
 ```
 
 In code: `seq.save(path, compact=True)`; the default is `compact=False` (float32, lossless). Every `convert_*.py` has a `--compact` flag;
