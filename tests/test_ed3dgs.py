@@ -85,6 +85,7 @@ def run_case(name, cfg, D, it):
                  + [f"scale_{i}" for i in range(3)] + [f"rot_{i}" for i in range(4)] + [f"embedding_{i}" for i in range(gdim)])
         c = {n: rng.normal(0, 0.4, N).astype(np.float32) for n in attrs}
         c["opacity"] = rng.normal(1, 1, N).astype(np.float32)
+        c["f_dc_0"][:3] = -4.0   # red below 0: the renderer clamps an SH colour at 0, so must the converter
         write_ply(os.path.join(d, "point_cloud.ply"), c, attrs)
         torch.save(net.state_dict(), os.path.join(d, "deformation.pth"))
         with open(os.path.join(tmp, "cfg_args"), "w") as f:
@@ -110,7 +111,8 @@ def run_case(name, cfg, D, it):
             assert np.allclose(means, x2.numpy(), atol=1e-4), (name, "mean", np.abs(means - x2.numpy()).max())
             assert np.allclose(covs, want_cov, atol=1e-5), (name, "cov")
             assert np.allclose(opac, torch.sigmoid(lg2[:, 0]).numpy(), atol=1e-5), (name, "opacity")
-            assert np.allclose(cols, sh2[:, 0].numpy() * SH_C0 + 0.5, atol=1e-4), (name, "colour")
+            assert np.allclose(cols, np.maximum(sh2[:, 0].numpy() * SH_C0 + 0.5, 0), atol=1e-4), (name, "colour")
+            assert cols.min() >= 0 and (sh2[:, 0].numpy() * SH_C0 + 0.5).min() < 0, (name, "no negative colour to clamp")
     moved = np.abs(seq.at(float(seq.times[0]))[0] - seq.at(float(seq.times[-1]))[0]).max()
     assert moved > 1e-3, "nothing moves"
     print(f"ok  {name}: means, covariance, opacity, colour equal the repo-style torch module at 4 times")

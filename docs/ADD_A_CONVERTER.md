@@ -5,14 +5,14 @@ Viewer chỉ đọc một file `.npz` chung (`gs4d/format.py`, class `Sequence4D
 ## Các bước
 
 1. `cp convert_template.py convert_<tên>.py` và `cp tests/test_template.py tests/test_<tên>.py`. Template là phương pháp giả (vị trí = `xyz + vel * t`) đã chạy được.
-2. **Đọc repo gốc, không chạy nó.** Tìm: file output (checkpoint, ply, npz), cách tính vị trí / quaternion / scale / opacity / màu tại thời điểm `t`, các hàm kích hoạt (`exp` cho scale, `sigmoid` cho opacity), thời gian nằm trong khoảng nào. Chép công thức sang numpy. Torch chỉ để mở checkpoint hoặc chạy lại một MLP nhỏ trên CPU. Đừng thêm repo gốc làm dependency.
-3. Xếp phương pháp vào một dạng (README, bảng "Dạng output"): A Gaussian theo từng frame; B Gaussian 4D; C hàm chuyển động tham số; D mạng biến dạng chạy lại trên CPU.
+2. **Đọc repo gốc, không chạy nó.** Tìm: file output (checkpoint, ply, npz), cách tính vị trí / quaternion / scale / opacity / màu tại thời điểm `t`, các hàm kích hoạt (`exp` cho scale, `sigmoid` cho opacity), thời gian nằm trong khoảng nào. Chép công thức sang numpy. Torch chỉ để mở checkpoint hoặc chạy lại một MLP nhỏ trên CPU, và nạp qua `gs4d.checkpoint` (`import_torch`, `torch_load`: thiếu torch hay file hỏng thì báo một dòng). Đừng thêm repo gốc làm dependency.
+3. Xếp phương pháp vào một dạng ([SUPPORTED.md](SUPPORTED.md)): A Gaussian theo từng frame; B Gaussian 4D; C hàm chuyển động tham số; D mạng biến dạng chạy lại trên CPU.
 4. Thay `load_model` và `keyframe` trong template. Điều format cần: `means [N,3]`, `covs [N,6]` (nửa trên của 3×3; dùng `cov_from_quat_scale(quat_wxyz, scale_tuyến_tính)`), `opacities [N]` trong [0,1], `colors [N,3]` (có thể ngoài [0,1] nếu method lưu màu thô như Spacetime), `sh [N,S,3]` tùy chọn. Trường không đổi theo thời gian đưa vào constructor của `Sequence4DWriter`, trường đổi thì đưa vào từng `add_keyframe(t, ...)`.
 5. Ghi bằng `Sequence4DWriter` (RAM đỉnh chỉ vài keyframe, nhóm tĩnh và `--compact` có sẵn), không dựng cả chuỗi trong RAM.
 6. Biến thể chưa hỗ trợ thì `raise SystemExit("... nêu tên biến thể ...")`; đừng im lặng chuyển sai.
 7. Test: dữ liệu giả đúng layout file thật, so với một cách tính độc lập (như `tests/test_template.py`: ma trận covariance đầy đủ `R S Sᵀ Rᵀ`). `tests/run_all.py` tự nhặt `tests/test_*.py`; test cần torch thì thêm vào `NEEDS` trong `tests/run_all.py`.
-8. Thêm một dòng vào bảng trong README và một dòng vào `docs/SUPPORTED.md`. Nếu muốn `gs4d.open` nhận ra output, đó là việc riêng ở `gs4d/open.py`.
-9. Kiểm trên output thật (xem dưới) rồi mới ghi PSNR.
+8. Thêm một dòng vào bảng ngắn của README, một dòng vào bảng và một mục "Chi tiết" vào `docs/SUPPORTED.md`. Nếu muốn `gs4d.open` nhận ra output, đó là việc riêng ở `gs4d/open.py` (và `tests/test_open.py`).
+9. Chạy `python tests/run_all.py` và `ruff check .`. Kiểm trên output thật (xem dưới) rồi mới ghi PSNR, kèm một mục có ngày ở cuối `docs/HISTORY.md`.
 
 ## Bài học
 

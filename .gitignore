@@ -1,6 +1,15 @@
 .venv/
 __pycache__/
 *.pyc
+.ruff_cache/
+
+# sequences, converted outputs and videos (keep data out of git)
 *.npz
 *.mp4
+*.bundle
 !shots/**/*.mp4
+*.gs4d.cameras.json
+.gs4d_writer_*/
+
+# written by the viewer's "Save path" button when --camera-path is not given
+/camera_path.json

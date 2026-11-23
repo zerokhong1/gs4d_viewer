@@ -11,7 +11,13 @@ side time per frame while playing (decode + rasterise at 1280x720), points again
     python tests/check_points.py --file ../data_real/scgs/bouncingballs_sh.npz --name scgs --moving
     python tests/check_points.py --file ../data_real/som/paper-windmill.npz --name windmill --up=-y
 """
-import argparse, os, subprocess, sys, tempfile, threading, time
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

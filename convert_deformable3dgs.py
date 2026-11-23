@@ -36,6 +36,7 @@ import re
 import numpy as np
 
 from gs4d import Sequence4D, Sequence4DWriter, pack_cov
+from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 XYZ_FREQS = 10  # `multires` of the position embedding; fixed in the repo
@@ -184,15 +185,14 @@ def main():
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
     ap.add_argument("--batch", type=int, default=65536, help="Gaussians per MLP batch (lower it if RAM runs out)")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients for view-dependent colour (gsplat renderer)")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_deformable3dgs.py needs torch (CPU is enough): pip install torch")
+    import_torch("convert_deformable3dgs.py")
     ply, pth = find_files(a.model, a.deform, a.iteration)
-    sd = torch.load(pth, map_location="cpu", weights_only=True)
+    sd = torch_load(pth, "convert_deformable3dgs.py")
+    if not isinstance(sd, dict) or not any(k.startswith("linear.") for k in sd):
+        raise SystemExit(f"{pth}: no linear.* weights; not a Deformable-3DGS deform.pth")
     mlp = DeformMLP(sd)
     print(f"{ply}\n{pth}: {mlp.depth} layers" + (", D-NeRF time net" if mlp.blender else "") + (", 6-DoF" if mlp.six_dof else ""))
 

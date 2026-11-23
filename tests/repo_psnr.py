@@ -17,7 +17,10 @@ spacetime:  oppo-us-research/SpacetimeGaussians `test_ours_lite` with its `forwa
             submodules/forward_lite, after adding `#include <cstdint>` to cuda_rasterizer/rasterizer_impl.h) and an empty
             `mmcv/ops.py` stub with a `knn` name there. Writes the per-image PSNR to --out (npy).
 """
-import argparse, json, math, os, sys
+import argparse
+import math
+import os
+import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

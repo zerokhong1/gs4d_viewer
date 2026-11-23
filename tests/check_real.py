@@ -9,7 +9,7 @@ fail when the minimum is below the item's threshold.
   dB): Deformable-3DGS 800 px (resolution=-1), SC-GS 400 px (--resolution 2), native 4DGS 400 px (resolution: 2).
   The 800 px ground truth is resized with LANCZOS on the RGBA image, then composited on black; fx scales with W.
 Smoke items (no original images in the data folder, so images are NOT compared): run the converter and check
-the Gaussian count, keyframe count and file size against the README.
+the Gaussian count, keyframe count and file size against docs/SUPPORTED.md.
   Spacetime Gaussians (lite model), Shape of Motion (paper-windmill).
 
 An item whose data or CUDA is missing is SKIPPED with the reason; it is never reported as passed.
@@ -22,19 +22,26 @@ Exit code: 1 if any item failed (or, with --strict, was skipped), else 0.
 --work  : where the converted .npz files go (default: a temporary folder, deleted at the end)
 Model paths can also be set one by one with env GS4D_D3DGS, GS4D_SCGS, GS4D_NATIVE4D, GS4D_SPACETIME, GS4D_SOM.
 """
-import argparse, json, os, shutil, subprocess, sys, tempfile, time
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 # Minimum PSNR (dB) per method = the lowest value measured over all 20 test images on 14/11/2026 (RTX 3060),
-# minus 0.5 dB. See the table printed by this script and the README.
+# minus 0.5 dB. See the table printed by this script and docs/SUPPORTED.md.
 MEASURED_ON = "14/11/2026"
 MIN_PSNR = {"deformable3dgs": 36.70, "scgs": 34.85, "native4d": 26.78, "4dgaussians": 36.17, "d3dgs_default": 34.85, "d3dgs_6dof": 36.49, "scgs_mask": 34.98, "scgs_predcolor": 26.81, "scgs_skin": 0.0, "scgs_hash": 0.0, "d3dgs_banana": 18.78, "scgs_banana": 19.71, "native4d_banana": 20.91, "4dgaussians_banana": 21.55, "spacetime_psnr": 27.26, "som_psnr": 21.11}  # measured minima 37.20, 35.35, 27.28 (native4d with --sh; 26.04 without), 36.67 (4DGaussians --sh, white background), 35.35 (d3dgs_default, mean 39.62), 36.99 (d3dgs_6dof, mean 40.34), 35.48 (scgs_mask, mean 40.14), minus 0.5
 EVAL_SIZE = {"deformable3dgs": 800, "scgs": 400, "native4d": 400, "4dgaussians": 800, "d3dgs_default": 800, "d3dgs_6dof": 800, "scgs_mask": 400, "scgs_predcolor": 400, "scgs_skin": 400, "scgs_hash": 400, "d3dgs_banana": 268, "scgs_banana": 268, "native4d_banana": 268, "4dgaussians_banana": 268, "spacetime_psnr": 1352}  # training resolution of each model
 
-SIZE_TOL = 0.05  # file size must be within 5 % of the README figure
+SIZE_TOL = 0.05  # file size must be within 5 % of the figure in docs/SUPPORTED.md
 
 
 def default_data_root():
@@ -181,7 +188,7 @@ def run_banana(name, label, script, model, extra, work, train, results, thr_key=
 
 def run_vs_export(label, model, data, results):
     """convert_4dgaussians.py against the per-frame ply written by the repo's export_perframe_3DGS.py
-    (<model>/gaussian_pertimestamp, one ply per test camera). The export is run once by hand, see README."""
+    (<model>/gaussian_pertimestamp, one ply per test camera). The export is run once by hand, see docs/SUPPORTED.md (4DGaussians)."""
     import torch
     sys.path.insert(0, ROOT)
     import convert_4dgaussians as c4
@@ -304,11 +311,11 @@ def run_smoke(name, label, script, model, extra, work, expect, results):
     mb = os.path.getsize(out) / 1e6
     bad = []
     if seq.num_gaussians != expect["n"]:
-        bad.append(f"Gaussians {seq.num_gaussians} != README {expect['n']}")
+        bad.append(f"Gaussians {seq.num_gaussians} != docs {expect['n']}")
     if seq.num_frames != expect["k"]:
-        bad.append(f"keyframes {seq.num_frames} != README {expect['k']}")
+        bad.append(f"keyframes {seq.num_frames} != docs {expect['k']}")
     if abs(mb - expect["mb"]) > SIZE_TOL * expect["mb"]:
-        bad.append(f"size {mb:.0f} MB differs more than {SIZE_TOL:.0%} from README {expect['mb']} MB")
+        bad.append(f"size {mb:.0f} MB differs more than {SIZE_TOL:.0%} from docs {expect['mb']} MB")
     results.append(dict(name=label, kind="smoke", ok=not bad, bad=bad, n=seq.num_gaussians, k=seq.num_frames, mb=mb, secs=secs))
 
 
@@ -345,7 +352,7 @@ def main():
         som_scene=E("GS4D_SOM_SCENE") or os.path.join(opt.data, "som", "paper-windmill_data", "paper-windmill"),
         som=E("GS4D_SOM") or os.path.join(opt.data, "som", "paper-windmill", "checkpoints", "last.ckpt"),
     )
-    # README figures (14/11/2026)
+    # figures of docs/SUPPORTED.md (measured 14/11/2026)
     spacetime_expect = dict(n=98993, k=50, mb=199)
     spacetime_tb_expect = dict(n=596601, k=50, mb=583)   # --compact; 658,999 in the ply, 62,398 dropped by --min-peak-opacity
     som_expect = dict(n=71867 + 924075, k=35, mb=147)   # 1270 MB before the static group (WP11)
@@ -468,7 +475,7 @@ def main():
         print("\nConverter smoke checks (NO original images in the data folder: images were NOT compared, no PSNR)")
         for r in smoke:
             print(f"{r['name']:<30} {r['n']} Gaussians x {r['k']} keyframes, {r['mb']:.0f} MB, {r['secs']:.0f} s  "
-                  + ("PASS (count/size match README)" if r["ok"] else "FAIL: " + "; ".join(r["bad"])))
+                  + ("PASS (count/size match docs/SUPPORTED.md)" if r["ok"] else "FAIL: " + "; ".join(r["bad"])))
     for r in [r for r in results if r["kind"] == "export"]:
         print(f"\n{r['name']}: {r['n']} Gaussians x {r['k']} test times, {r['note']}  "
               + ("PASS" if r["ok"] else "FAIL: " + "; ".join(r["bad"])))

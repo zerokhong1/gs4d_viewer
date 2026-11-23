@@ -7,7 +7,10 @@
 3. The MLP and heads against a torch module written like the repo's `MLP` / `HashDeformNetwork`, fed with the same grid output.
 4. A synthetic deform.pth with a hash network converts end to end and gives finite, moving Gaussians.
 """
-import os, subprocess, sys, tempfile
+import os
+import subprocess
+import sys
+import tempfile
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -79,8 +82,6 @@ def make_hash_sd(torch, hash_time=False, local_frame=True, pred_opacity=True, pr
     n_in = 24 if hash_time else 24 + 13
 
     def mlp(name, din, dout, hidden, nh, skip=()):
-        dims = [din] + [hidden] * nh
-        i = 0
         sd[f"network.{name}.layers.0.weight"], sd[f"network.{name}.layers.0.bias"] = rn(hidden, din, sd=0.2), rn(hidden, sd=0.05)
         for j in range(nh - 1):
             din_j = hidden + din if j in skip else hidden

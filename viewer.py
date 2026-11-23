@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import threading
 import time
 
 import numpy as np
@@ -99,7 +98,8 @@ def load_cameras(path: str) -> list[dict]:
     else OpenCV. Returns dicts with c2w (OpenCV, 4x4), fx (pixels at width w), w, h (0 when unknown), time (None if absent),
     image (path or None), name.
     """
-    meta = json.load(open(path))
+    with open(path) as f:
+        meta = json.load(f)
     top = meta if isinstance(meta, dict) else {}
     frames = meta if isinstance(meta, list) else (meta.get("frames") or meta.get("cameras") or [])
     base = os.path.dirname(os.path.abspath(path))
@@ -235,7 +235,8 @@ def load_path(path: str) -> dict:
     "frames": [{"c2w" or "transform_matrix": 4x4, "fov_y": radians}]} (the `--cameras` convention). Returns
     dict(keys, duration, closed, run) with keys in the viewer's convention (OpenCV)."""
     from viser.transforms import SO3
-    meta = json.load(open(path))
+    with open(path) as f:
+        meta = json.load(f)
     frames = meta if isinstance(meta, list) else meta.get("frames") or []
     top = meta if isinstance(meta, dict) else {}
     keys = []
@@ -332,6 +333,18 @@ VIEW_DIR = {"+z": (1.0, -1.0, 0.6), "-z": (1.0, -1.0, -0.6), "+y": (1.0, 0.6, 1.
             "-y": (1.0, -0.6, 1.0), "+x": (0.6, 1.0, -1.0), "-x": (-0.6, 1.0, -1.0)}
 
 
+def _peak_opacity(seq: Sequence4D) -> np.ndarray:
+    """Largest opacity of every Gaussian over the keyframes [N], decoding one keyframe at a time (a compact or lazily
+    loaded file never has its whole opacity field in memory)."""
+    o = seq.opacities
+    if o.ndim == 1:
+        return np.asarray(o, np.float32)
+    peak = np.array(o[0], np.float32)
+    for k in range(1, len(o)):
+        np.maximum(peak, o[k], out=peak)
+    return peak
+
+
 def _bounds(seq: Sequence4D):
     """Median centre and 90th-percentile radius of the first keyframe."""
     m0 = np.asarray(seq.means[0] if seq.means.ndim == 3 else seq.means)
@@ -353,7 +366,6 @@ class Viewer:
         self.t0 = float(min(s.times[0] for s in self.seqs))
         self.t1 = float(max(s.times[-1] for s in self.seqs))
         self.duration = max(self.t1 - self.t0, 1e-9)
-        self.lock = threading.Lock()
         self.dirty = True
         self.cam_stamp: dict[int, float] = {}
         self.cameras = load_cameras(args.cameras) if getattr(args, "cameras", None) else []
@@ -366,8 +378,7 @@ class Viewer:
         self.subsets = [None] * len(self.seqs)
         for i, s in enumerate(self.seqs):
             if self.renderer == "client" and s.num_gaussians > args.max_splats:
-                peak = s.opacities.max(0) if s.opacities.ndim == 2 else s.opacities
-                self.subsets[i] = np.sort(np.argpartition(peak, -args.max_splats)[-args.max_splats:])
+                self.subsets[i] = np.sort(np.argpartition(_peak_opacity(s), -args.max_splats)[-args.max_splats:])
                 print(f"client renderer: showing the {args.max_splats:,} most opaque of {s.num_gaussians:,} Gaussians "
                       "(raise --max-splats or use --renderer gsplat)")
 
@@ -375,7 +386,6 @@ class Viewer:
         self.motion_ok = all(q.interpolate for q in self.seqs)  # speed, displacement and trails need identities shared by keyframes
         self.lut = colour_lut()
         self.vmax_cache: dict = {}
-        self.first_np: dict = {}
         self.speed_np: dict = {}
         self.speed_gpu: dict = {}
         self.ref0_gpu: dict = {}
@@ -383,7 +393,7 @@ class Viewer:
         self.trail_h: dict = {}
         self.trail_n: dict = {}
         self.path_keys: list[dict] = []  # camera path (WP34)
-        self.path_u, self.path_playing, self.path_shape = 0.0, False, None
+        self.path_u, self.path_playing = 0.0, False
         # client renderer, side by side: B is drawn this far to the right of A (as seen from the initial camera)
         up = np.zeros(3)
         up["xyz".index(args.up[1])] = 1.0 if args.up[0] == "+" else -1.0
@@ -1179,8 +1189,12 @@ def main():
                     help="gsplat renderer: decode and interpolate keyframes with numpy instead of on the GPU (reference path)")
     ap.add_argument("--video-dir", default=".", help="folder for the mp4 files written by the Export video button")
     args = ap.parse_args()
-    seq_b = Sequence4D.load(args.compare, lazy=True) if args.compare else None
-    Viewer(Sequence4D.load(args.file, lazy=True), args, seq_b).run()
+    try:
+        seq = Sequence4D.load(args.file, lazy=True)
+        seq_b = Sequence4D.load(args.compare, lazy=True) if args.compare else None
+    except (OSError, ValueError) as e:   # missing file, or not in the common format (the message says what to do)
+        raise SystemExit(f"viewer.py: {e}") from None
+    Viewer(seq, args, seq_b).run()
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ def main():
                     help="drop Gaussians whose opacity never exceeds this at the keyframes")
     ap.add_argument("--base-color-only", action="store_true",
                     help=f"convert a {FULL_MODEL} with its base colour f_dc_0..2 only (without this flag it stops)")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
     g = load_spacetime_ply(a.ply, a.base_color_only)
@@ -127,6 +127,7 @@ def main():
         for t, (means, covs, opac) in zip(times.astype(np.float32), slice_frames(g, times, keep)):
             wr.add_keyframe(t, means=means, covs=covs, opacities=opac)
     print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
+
 
 if __name__ == "__main__":
     main()

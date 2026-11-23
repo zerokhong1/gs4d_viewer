@@ -18,21 +18,21 @@ So per keyframe only `means` and `opacities` change; covariance, colour and SH a
 Time is the raw `time` of the dataset's transforms json (D-NeRF: [0, 1]); pass --t0 / --t1 for other data.
 NOT checked against a real checkpoint (none trained here); only against a synthetic one, see tests/test_4drotor.py.
 """
+from __future__ import annotations
+
 import argparse
+
 import numpy as np
 
-from gs4d import Sequence4DWriter
+from gs4d import SH_C0, Sequence4D, Sequence4DWriter
+from gs4d.checkpoint import torch_load
 
-SH_C0 = 0.28209479177387814
 FIELDS = ("xyz", "t", "scales_xyz", "scales_t", "quats1", "quats2", "features_dc", "features_rest", "opacities")
 
 
 def load_params(path):
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_4drotor.py needs torch (CPU is enough) to read the checkpoint: pip install torch")
-    ck = torch.load(path, map_location="cpu", weights_only=False)
+    # a Nerfstudio checkpoint pickles more than tensors, which weights_only=True refuses: only open checkpoints you trust
+    ck = torch_load(path, "convert_4drotor.py", weights_only=False)
     sd = ck.get("pipeline", ck) if isinstance(ck, dict) else None
     if sd is None:
         raise SystemExit(f"{path}: not a Nerfstudio checkpoint (no 'pipeline' state dict)")
@@ -106,15 +106,20 @@ def convert(p, out, frames=60, t0=0.0, t1=1.0, compact=False, min_peak_opacity=0
     return int(keep.sum()), len(keep)
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("checkpoint")
+    ap.add_argument("checkpoint", help="nerfstudio_models/step-*.ckpt")
     ap.add_argument("-o", "--output", required=True)
-    ap.add_argument("--frames", type=int, default=60)
-    ap.add_argument("--t0", type=float, default=0.0)
+    ap.add_argument("--frames", type=int, default=60, help="number of keyframes K")
+    ap.add_argument("--t0", type=float, default=0.0, help="start time (the dataset's raw time; D-NeRF: 0)")
     ap.add_argument("--t1", type=float, default=1.0)
     ap.add_argument("--min-peak-opacity", type=float, default=0.02, help="drop Gaussians whose opacity never exceeds this at a keyframe")
-    ap.add_argument("--compact", action="store_true")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
     k, n = convert(load_params(a.checkpoint), a.output, a.frames, a.t0, a.t1, a.compact, a.min_peak_opacity, source=a.checkpoint)
-    print(f"wrote {a.output}: kept {k} of {n} Gaussians x {a.frames} keyframes")
+    out = a.output if a.output.endswith(".npz") else a.output + ".npz"
+    print(f"Kept {k:,} of {n:,} Gaussians\nWrote {out}: {Sequence4D.load(out, lazy=True).summary()}")
+
+
+if __name__ == "__main__":
+    main()

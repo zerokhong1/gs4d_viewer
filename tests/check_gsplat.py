@@ -7,7 +7,13 @@ when the time changes and when the camera moves. Screenshots are written to --ou
 
     python tests/check_gsplat.py [--out shots] [--chrome /usr/bin/google-chrome]
 """
-import argparse, os, subprocess, sys, tempfile, threading, time
+import argparse
+import os
+import subprocess
+import sys
+import tempfile
+import threading
+import time
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

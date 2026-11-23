@@ -53,8 +53,8 @@ import re
 
 import numpy as np
 
-from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
-from gs4d.format import SH_C0
+from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale
+from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 XYZ_FREQS = 10  # `multires` of the position embedding; fixed in the repo
@@ -329,11 +329,13 @@ def deform_frames(xyz, scales, rots, opac, mask, idx, w, nodes_xyz, mlp: NodeMLP
     K = len(times)
     node_t = torch.from_numpy(nodes_xyz.astype(np.float32))
     x = xyz.astype(np.float64)
-    blend = lambda v: (v[idx] * w[..., None]).sum(1)  # noqa: E731  node values [M,C] -> per Gaussian [N,C]
     skin = idx is None  # skinning: w is [N,M], softmax weights over all nodes
     if skin:
-        def blend(v):  # noqa: F811
+        def blend(v):  # node values [M,C] -> per Gaussian [N,C], in chunks of the dense weights
             return np.concatenate([w[a:a + SKIN_CHUNK] @ v for a in range(0, len(w), SKIN_CHUNK)])
+    else:
+        def blend(v):  # node values [M,C] -> per Gaussian [N,C]: weighted sum over its K nearest nodes
+            return (v[idx] * w[..., None]).sum(1)
     with torch.no_grad():
         for k, t in enumerate(times):
             v = mlp(node_t, float(t))
@@ -391,16 +393,13 @@ def main():
     ap.add_argument("--max-d-scale", type=float, default=-1.0, help="the repo's --max_d_scale used for training, if any")
     ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients for view-dependent colour (gsplat renderer)")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_scgs.py needs torch (CPU is enough): pip install torch")
+    import_torch("convert_scgs.py")
     ply, pth = find_files(a.model, a.deform, a.iteration)
-    sd = torch.load(pth, map_location="cpu", weights_only=True)
-    if "nodes" not in sd:
+    sd = torch_load(pth, "convert_scgs.py")
+    if not isinstance(sd, dict) or "nodes" not in sd:
         raise SystemExit(f"{pth}: no control nodes. An SC-GS model trained with --deform_type mlp is a Deformable-3DGS "
                          "network: use convert_deformable3dgs.py")
     skinning = "_node_radius" not in sd

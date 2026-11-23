@@ -41,6 +41,10 @@ like [K,N,...] and `at(t)` returns all N Gaussians in the original order.
 """
 from __future__ import annotations
 
+import argparse
+import os
+import shutil
+import tempfile
 import zipfile
 from dataclasses import dataclass
 from typing import Optional
@@ -226,6 +230,14 @@ def _in_unit_range(a: np.ndarray) -> bool:
     return bool(a.size == 0 or (float(a.min()) >= -1e-6 and float(a.max()) <= 1.0 + 1e-6))
 
 
+def _rows_in_unit_range(a: np.ndarray) -> np.ndarray:
+    """Per Gaussian (first axis): True when all its values lie in [0,1], with the tolerance of `_in_unit_range`."""
+    a = np.asarray(a).reshape(len(a), -1)
+    if a.shape[1] == 0:
+        return np.ones(len(a), bool)
+    return (a.min(1).astype(np.float64) >= -1e-6) & (a.max(1).astype(np.float64) <= 1.0 + 1e-6)
+
+
 class _PackedU8(_Packed):
     """Values in [0,1] as uint8."""
 
@@ -358,9 +370,17 @@ class _Split(_Virtual):
         return self.layout.merge(d, self.static)
 
 
+# members every sequence file has: one name of each group (plain layout first, then the compact one)
+_REQUIRED = (("times",), ("means", "means_d16"), ("covs", "covs_q"), ("opacities", "opacities_u8"), ("colors", "colors_u8"))
+
+
 def _npz_arrays(path: str, lazy: bool) -> dict:
     """Arrays of an .npz. With lazy=True, members stored without compression are memory-mapped, not read."""
     out = {}
+    if not zipfile.is_zipfile(path):
+        with open(path, "rb"):   # a missing or unreadable file raises the usual OSError
+            pass
+        raise ValueError(f"{path} is not an .npz file")
     with np.load(path, allow_pickle=False) as z:
         names = list(z.files)
         if not lazy:
@@ -515,7 +535,7 @@ class Sequence4D:
     def speed_segment(self, t: float) -> int:
         """Index i of the keyframe pair (i, i + 1) whose velocity is the velocity at time t: the pair t lies in; at a keyframe
         the pair that starts there, at the last keyframe the pair that ends there."""
-        i0, i1, _ = self._bracket(t)
+        i0 = self._bracket(t)[0]
         return min(i0, self.num_frames - 2) if self.num_frames > 1 else 0
 
     def segment_speed(self, i: int) -> np.ndarray:
@@ -532,8 +552,9 @@ class Sequence4D:
         return self.segment_speed(self.speed_segment(t))
 
     def displacement_at(self, t: float, means: Optional[np.ndarray] = None) -> np.ndarray:
-        """Distance of every Gaussian's centre at time t from its position at the first keyframe, float32 [N]."""
-        m = self.at(t)[0] if means is None else means
+        """Distance of every Gaussian's centre at time t from its position at the first keyframe, float32 [N].
+        `means` (the centres at t, when the caller already has them) saves decoding them again."""
+        m = self._field(self.means, 2, *self._bracket(t)) if means is None else means
         return np.linalg.norm(np.asarray(m, np.float64) - self.keyframe_means(0), axis=1).astype(np.float32)
 
     def sh_at(self, t: float) -> Optional[np.ndarray]:
@@ -593,8 +614,13 @@ class Sequence4D:
     def load(path: str, lazy: bool = False) -> "Sequence4D":
         """Reads either layout. lazy=True memory-maps the big arrays instead of reading them: loading is
         immediate and only the keyframes that are used get paged in. The file must not be overwritten
-        while a lazily loaded sequence is alive."""
+        while a lazily loaded sequence is alive. A file that is not in this format raises ValueError."""
         z = _npz_arrays(path, lazy)
+        missing = [" or ".join(alt) for alt in _REQUIRED if not any(n in z for n in alt)]
+        if missing:
+            raise ValueError(f"{path} is not a sequence in the common format (missing {', '.join(missing)}; it has "
+                             f"{', '.join(sorted(z)[:8]) or 'nothing'}). Convert the method's output with its convert_*.py "
+                             "script, or open it with python -m gs4d.open")
         if "means_d16" in z:
             means = _PackedMeans(np.asarray(z["means_ref"], np.float32), z["means_d16"])
         else:
@@ -652,9 +678,6 @@ class Sequence4DWriter:
 
     def __init__(self, path: str, compact: bool = False, split_static: bool = True, interpolate: bool = True,
                  source: str = "", **constant):
-        import os
-        import tempfile
-
         self.path = path if path.endswith(".npz") else path + ".npz"  # as np.savez
         self.compact, self.split_static, self.interpolate, self.source = compact, split_static, interpolate, source
         unknown = set(constant) - set(_TAILS) - {"sh"}
@@ -672,7 +695,7 @@ class Sequence4DWriter:
         self._static = None                 # [N] bool: unchanged so far in every time-varying field
         self._scale = None                  # running covs_scale (float64), compact only
         self._means_ok = None               # [N] bool: float16 offsets finite so far, compact only
-        self._colors_ok = True              # every colour so far lies in [0,1] (uint8 would clip the others), compact only
+        self._colors_ok = None              # [N] bool: every colour so far lies in [0,1] (uint8 would clip the others), compact only
         self._sh_lo = self._sh_hi = None    # running range of every sh coefficient, compact only
         self._closed = False
         self._dir = tempfile.mkdtemp(prefix=".gs4d_writer_", dir=os.path.dirname(os.path.abspath(self.path)))
@@ -687,8 +710,6 @@ class Sequence4DWriter:
             raise ValueError(f"{name} has shape {a.shape}, expected {(self.n,) + _TAILS[name]}")
 
     def add_keyframe(self, t: float, **fields) -> None:
-        import os
-
         if self._closed:
             raise ValueError("writer is closed")
         fields = {n: np.ascontiguousarray(a, np.float32) for n, a in fields.items() if a is not None}
@@ -701,7 +722,7 @@ class Sequence4DWriter:
             for n in names:
                 self._check(n, fields[n])
                 self.tails[n] = fields[n].shape[1:]
-                self._files[n] = open(os.path.join(self._dir, n + ".f32"), "wb")
+                self._files[n] = open(os.path.join(self._dir, n + ".f32"), "wb")  # noqa: SIM115 - open until close()
                 self._first[n] = fields[n].copy()
             self.names = names
             if self.split_static and names:
@@ -710,6 +731,8 @@ class Sequence4DWriter:
                 self._scale = np.zeros(self.n, np.float64)
             if self.compact and "means" in names:
                 self._means_ok = np.ones(self.n, bool)
+            if self.compact and "colors" in names:
+                self._colors_ok = np.ones(self.n, bool)
             if self.compact and "sh" in names:
                 self._sh_lo, self._sh_hi = fields["sh"].copy(), fields["sh"].copy()
         elif sorted(fields) != sorted(self.names):
@@ -730,15 +753,13 @@ class Sequence4DWriter:
                 self._means_ok &= np.isfinite(_PackedMeans.encode_frame(a, self._first[n])).all(1)
             if n == "sh" and self._sh_lo is not None:
                 _PackedSH.grow_range(self._sh_lo, self._sh_hi, a)
-            if n == "colors" and self.compact and self._colors_ok:
-                self._colors_ok = _in_unit_range(a)
+            if n == "colors" and self._colors_ok is not None:
+                self._colors_ok &= _rows_in_unit_range(a)
             a.tofile(self._files[n])
         self.times.append(t)
 
     def close(self) -> None:
         """Writes the .npz (to a scratch file first, then renamed) and removes the scratch folder."""
-        import os
-
         if self._closed:
             return
         try:
@@ -792,7 +813,8 @@ class Sequence4DWriter:
                         scale = np.where(self._scale[sel] > 0, self._scale[sel], 1.0)
                         put("covs_scale", scale.astype(np.float32))
                         put_frames("covs_q", n, np.int16, lambda a: _PackedCovs.encode_frame(a, scale))
-                    elif self.compact and (n == "opacities" or (n == "colors" and self._colors_ok)):
+                    elif self.compact and (n == "opacities" or (n == "colors" and self._colors_ok[sel].all())):
+                        # colours: as `save`, decided on the Gaussians stored per keyframe (static ones are float32 anyway)
                         put_frames(n + "_u8", n, np.uint8, _PackedU8.encode_frame)
                     elif self.compact and n == "sh" and _PackedSH.step_of(self._sh_lo[sel], self._sh_hi[sel]) is not None:
                         lo = np.array(self._sh_lo[sel], np.float32)
@@ -808,8 +830,6 @@ class Sequence4DWriter:
 
     def abort(self) -> None:
         """Removes the scratch folder without writing the .npz."""
-        import shutil
-
         self._closed = True
         for f in self._files.values():
             f.close()
@@ -842,6 +862,7 @@ class GpuFrames:
 
         self.torch, self.seq, self.cache_size = torch, seq, max(int(cache), 2)
         self.device = torch.device("cuda") if device is None else torch.device(device)
+        self.pin = self.device.type == "cuda"   # pinned staging buffers need CUDA (other devices: tests, CPU fallback)
         self.n = seq.num_gaussians
         self.fields: dict = {}   # name -> dict(kind, ...)
         self._cache: dict = {}   # (name, k) -> float32 tensor of the dynamic rows, least recently used first
@@ -874,6 +895,8 @@ class GpuFrames:
             elif isinstance(src, _PackedSH):
                 f["lo"], f["step"] = self._put(src.lo), self._put(src.step)
             self.fields[name] = f
+        self.n_dyn = sum(f["kind"] == "dyn" for f in self.fields.values())
+        self._stage.clear()   # staging buffers of the one-off uploads above; the per-keyframe ones are made on first use
 
     # ------------------------------------------------------------------ helpers
     def _put(self, a: np.ndarray):
@@ -883,8 +906,10 @@ class GpuFrames:
         key = (a.shape, a.dtype.str)
         buf = self._stage.get(key)
         if buf is None:
-            buf = self._stage[key] = torch.empty(a.shape, dtype=getattr(torch, a.dtype.name), pin_memory=True)
+            buf = self._stage[key] = torch.empty(a.shape, dtype=getattr(torch, a.dtype.name), pin_memory=self.pin)
         buf.numpy()[...] = a
+        if self.device.type == "cpu":
+            return buf.clone()      # .to("cpu") would return the staging buffer itself, which the next call overwrites
         return buf.to(self.device)  # synchronous, so the staging buffer can be reused at once
 
     def _decode(self, f: dict, k: int):
@@ -909,7 +934,7 @@ class GpuFrames:
         if v is None:
             v = self._decode(self.fields[name], k)
         self._cache[key] = v  # most recently used goes last
-        while len(self._cache) > self.cache_size * len(self.fields):
+        while len(self._cache) > self.cache_size * self.n_dyn:
             self._cache.pop(next(iter(self._cache)))
         return v
 
@@ -939,9 +964,6 @@ class GpuFrames:
 
 
 def main():
-    import argparse
-    import os
-
     ap = argparse.ArgumentParser(description="Re-save a sequence in the compact layout (default) or as plain float32.")
     ap.add_argument("input")
     ap.add_argument("output")
@@ -949,12 +971,16 @@ def main():
     ap.add_argument("--no-split", action="store_true",
                     help="write every Gaussian at every keyframe instead of storing the static ones once")
     a = ap.parse_args()
-    if os.path.exists(a.output) and os.path.samefile(a.input, a.output):
-        raise SystemExit("input and output must be different files")
-    seq = Sequence4D.load(a.input, lazy=True)
-    seq.save(a.output, compact=not a.float32, split_static=not a.no_split)
-    print(Sequence4D.load(a.output, lazy=True).summary())
-    print(f"Wrote {a.output}: {os.path.getsize(a.input) / 1e6:.1f} MB -> {os.path.getsize(a.output) / 1e6:.1f} MB")
+    out = a.output if a.output.endswith(".npz") else a.output + ".npz"   # np.savez adds the suffix
+    try:
+        seq = Sequence4D.load(a.input, lazy=True)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"gs4d: {e}") from None
+    if os.path.exists(out) and os.path.samefile(a.input, out):
+        raise SystemExit("input and output must be different files (the input is memory-mapped while it is read)")
+    seq.save(out, compact=not a.float32, split_static=not a.no_split)
+    print(Sequence4D.load(out, lazy=True).summary())
+    print(f"Wrote {out}: {os.path.getsize(a.input) / 1e6:.1f} MB -> {os.path.getsize(out) / 1e6:.1f} MB")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,10 @@
 
     python tests/test_sh.py
 """
-import argparse, os, sys, tempfile
+import argparse
+import os
+import sys
+import tempfile
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -84,7 +87,8 @@ def test_ply():
 
 def test_render():
     try:
-        import torch, gsplat  # noqa: F401
+        import torch
+        import gsplat  # noqa: F401
         assert torch.cuda.is_available()
     except Exception:
         print("skip gsplat render check (no CUDA)")

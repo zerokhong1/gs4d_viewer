@@ -30,19 +30,14 @@ import argparse
 
 import numpy as np
 
-from gs4d import Sequence4D, Sequence4DWriter
-from gs4d.format import pack_cov
+from gs4d import SH_C0, Sequence4D, Sequence4DWriter, pack_cov
+from gs4d.checkpoint import import_torch, torch_load
 
-SH_C0 = 0.28209479177387814
 DQ_EPS = 0.001   # mosca.py
 
 
 def _torch():
-    try:
-        import torch
-        return torch
-    except ImportError:
-        raise SystemExit("convert_mosca.py needs torch (CPU is enough): pip install torch")
+    return import_torch("convert_mosca.py")
 
 
 def quaternion_to_matrix(q):
@@ -178,13 +173,14 @@ class DynMoSca:
             R, tr = dq2Rt(dq2unitdq(dq))
         return torch.einsum("nij,nj->ni", R, pre["x"]) + tr, torch.einsum("nij,njk->nik", R, pre["Rm"])
 
-    def frame(self, t, pres, batch):
+    def frame(self, t, pres):
         torch = self.torch
         means, covs = [], []
         for sl, pre in pres:
             mu, fr = self.warp(pre, t)
             M = fr * self.scale[sl][:, None, :]
-            means.append(mu.numpy()); covs.append(pack_cov((M @ M.transpose(1, 2)).numpy()))
+            means.append(mu.numpy())
+            covs.append(pack_cov((M @ M.transpose(1, 2)).numpy()))
         o = self.opacity.clone()
         if self.nn_fusion > 0:
             sup = torch.unique(self.all_ref)
@@ -195,7 +191,9 @@ class DynMoSca:
 
 def convert(path, out, fps=30.0, stride=1, compact=False, min_opacity=0.0, batch=65536):
     torch = _torch()
-    sd = torch.load(path, map_location="cpu", weights_only=True)
+    sd = torch_load(path, "convert_mosca.py")
+    if not isinstance(sd, dict):
+        raise SystemExit(f"{path}: not a MoSca DynSCFGaussian state_dict (photometric_d_model_*.pth)")
     m = DynMoSca(sd)
     keep = m.opacity.numpy() > min_opacity
     print(f"{path}: {m.N:,} dynamic Gaussians (keeping {keep.sum():,}), {m.M} nodes, {m.T} frames, "
@@ -206,29 +204,32 @@ def convert(path, out, fps=30.0, stride=1, compact=False, min_opacity=0.0, batch
         for a in range(0, len(idx), batch):
             sl = idx[a:a + batch]
             pres.append((sl, m.prepare(sl)))
-        sub = DynMoSca.__new__(DynMoSca)
+        sub = DynMoSca.__new__(DynMoSca)   # the same model restricted to the kept Gaussians (prepare() already used `sl`)
         sub.__dict__.update(m.__dict__)
-        sub.opacity = m.opacity[idx]; sub.all_ref = m.ref_time; sub.ref_time = m.ref_time[idx]
-        sub.scale = m.scale
+        sub.opacity, sub.all_ref, sub.ref_time = m.opacity[idx], m.ref_time, m.ref_time[idx]
         frames = list(range(0, m.T, stride))
         colors = np.clip(m.dc[idx].numpy() * SH_C0 + 0.5, 0, None).astype(np.float32)
         with Sequence4DWriter(out, compact=compact, source=f"MoSca: {path}", colors=colors) as w:
             for k, t in enumerate(frames):
-                means, covs, op = sub.frame(t, pres, batch)
+                means, covs, op = sub.frame(t, pres)
                 w.add_keyframe(t / fps, means=means, covs=covs, opacities=op)
                 print(f"\r  frame {k + 1}/{len(frames)}", end="\n" if k + 1 == len(frames) else "", flush=True)
     return w.path
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("checkpoint", help="photometric_d_model_<backend>.pth")
     ap.add_argument("-o", "--output", required=True)
     ap.add_argument("--fps", type=float, default=30.0, help="time = frame / fps")
     ap.add_argument("--stride", type=int, default=1, help="keep every n-th frame as a keyframe")
-    ap.add_argument("--min-opacity", type=float, default=0.0)
-    ap.add_argument("--compact", action="store_true")
-    ap.add_argument("--batch", type=int, default=65536)
+    ap.add_argument("--min-opacity", type=float, default=0.0, help="drop Gaussians with opacity at or below this")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
+    ap.add_argument("--batch", type=int, default=65536, help="Gaussians per batch (lower it if RAM runs out)")
     a = ap.parse_args()
     p = convert(a.checkpoint, a.output, a.fps, a.stride, a.compact, a.min_opacity, a.batch)
     print(f"Wrote {p}: {Sequence4D.load(p, lazy=True).summary()}")
+
+
+if __name__ == "__main__":
+    main()

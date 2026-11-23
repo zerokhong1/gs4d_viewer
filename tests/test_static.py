@@ -3,7 +3,11 @@
 
     python tests/test_static.py
 """
-import os, subprocess, sys, tempfile
+import gc
+import os
+import subprocess
+import sys
+import tempfile
 import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -64,6 +68,8 @@ def test_roundtrip():
             assert old.num_static == 0 and all(np.array_equal(x, y) for w, g in zip(want, frames(old, TS)) for x, y in zip(w, g))
         ratio = os.path.getsize(p_old) / os.path.getsize(p_new)
         assert ratio > 1.25, ratio
+        del b, old   # Windows cannot overwrite the files of the next round while they are memory-mapped
+        gc.collect()
         print(f"ok  static group, {name} ({len(idx)} of {N} static): same frames in the same order, file {ratio:.2f}x smaller")
 
 

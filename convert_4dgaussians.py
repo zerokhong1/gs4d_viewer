@@ -38,6 +38,7 @@ import re
 import numpy as np
 
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
+from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
 
 _FLAGS = ("no_dx", "no_ds", "no_dr", "no_do", "no_dshs", "no_grid", "empty_voxel", "static_mlp", "apply_rotation")
@@ -57,6 +58,8 @@ def find_files(model: str, deform: str | None, iteration: int):
                 its[int(m.group(1))] = p
         if not its:
             raise SystemExit(f"{model}: no point_cloud/iteration_*/point_cloud.ply")
+        if iteration >= 0 and iteration not in its:
+            raise SystemExit(f"{model}: no iteration_{iteration} (have {sorted(its)})")
         ply = its[max(its) if iteration < 0 else iteration]
     pth = deform or os.path.join(os.path.dirname(ply), "deformation.pth")
     if not os.path.exists(pth):
@@ -77,7 +80,8 @@ def read_flags(cfg: str | None) -> dict:
         print("  no cfg_args next to the model: assuming the default flags of the repo "
               "(no_do=True, no_dshs=True, the others False); pass --flag name=True/False to override")
         return flags
-    text = open(cfg).read()
+    with open(cfg) as f:
+        text = f.read()
     for k in _FLAGS:
         m = re.search(rf"\b{k}=(True|False)", text)
         if m:
@@ -223,21 +227,21 @@ def main():
                     help="override a flag read from cfg_args, e.g. --flag no_do=False")
     ap.add_argument("--batch", type=int, default=65536, help="Gaussians per network batch (lower it if RAM runs out)")
     ap.add_argument("--sh", action="store_true", help="keep all SH coefficients for view-dependent colour (gsplat renderer)")
-    ap.add_argument("--compact", action="store_true", help="write the compact encoding (float16 offsets, about 2.2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
 
-    try:
-        import torch
-    except ImportError:
-        raise SystemExit("convert_4dgaussians.py needs torch (CPU is enough): pip install torch")
+    import_torch("convert_4dgaussians.py")
     ply, pth, cfg = find_files(a.model, a.deform, a.iteration)
     flags = read_flags(cfg)
     for kv in a.flag:
-        k, v = kv.split("=")
-        if k not in _FLAGS:
-            raise SystemExit(f"unknown flag {k}; known: {', '.join(_FLAGS)}")
+        k, sep, v = kv.partition("=")
+        if not sep or k not in _FLAGS or v.lower() not in ("1", "true", "yes", "0", "false", "no"):
+            raise SystemExit(f"--flag {kv}: expected NAME=True or NAME=False with NAME one of {', '.join(_FLAGS)}")
         flags[k] = v.lower() in ("1", "true", "yes")
-    sd = torch.load(pth, map_location="cpu", weights_only=True)
+    sd = torch_load(pth, "convert_4dgaussians.py")
+    if not isinstance(sd, dict) or ("deformation_net.grid.aabb" not in sd and not flags["no_grid"]):
+        raise SystemExit(f"{pth}: no deformation_net.grid.aabb; not a 4DGaussians deformation.pth "
+                         "(an E-D3DGS model folder goes through convert_ed3dgs.py)")
     net = HexPlaneDeform(sd, flags)
     print(f"{ply}\n{pth}: {len(net.grids)} grid levels, MLP depth {net.depth} width {net.width}; flags "
           + " ".join(f"{k}={flags[k]}" for k in _FLAGS if flags[k] != _DEFAULT_FLAGS[k] or k in ("no_do",)))
@@ -262,6 +266,7 @@ def main():
         for t, (means, covs, opac) in zip(times, frames):
             wr.add_keyframe(t, means=means, covs=covs, opacities=None if flags["no_do"] else opac)
     print(f"Wrote {wr.path}: {Sequence4D.load(wr.path, lazy=True).summary()}")
+
 
 if __name__ == "__main__":
     main()

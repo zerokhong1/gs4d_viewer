@@ -11,21 +11,23 @@ and writes the common format (see docs/ADD_A_CONVERTER.md). Position at time t i
 Rules (CLAUDE.md): run on CPU with numpy, port formulas from the method's repo instead of importing it, stop with a
 message (SystemExit) on variants that are not supported, write through Sequence4DWriter so that memory stays small.
 """
+from __future__ import annotations
+
 import argparse
+
 import numpy as np
 
-from gs4d import Sequence4DWriter
-from gs4d.format import cov_from_quat_scale
+from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 
 REQUIRED = ("xyz", "vel", "quat", "log_scale", "logit_opacity", "rgb")   # TODO: the method's own names
 
 
 def load_model(path):
-    d = np.load(path)
-    missing = [k for k in REQUIRED if k not in d]
-    if missing:
-        raise SystemExit(f"{path}: missing {missing}; not a model of this method")   # say what is wrong, do not guess
-    return {k: np.asarray(d[k], np.float32) for k in REQUIRED}
+    with np.load(path) as d:
+        missing = [k for k in REQUIRED if k not in d]
+        if missing:
+            raise SystemExit(f"{path}: missing {missing}; not a model of this method")   # say what is wrong, do not guess
+        return {k: np.asarray(d[k], np.float32) for k in REQUIRED}
 
 
 def keyframe(m, t):
@@ -42,14 +44,19 @@ def convert(m, out, frames=30, t0=0.0, t1=1.0, compact=False, source=""):
             w.add_keyframe(float(t), **keyframe(m, float(t)))
 
 
-if __name__ == "__main__":
+def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("model")
     ap.add_argument("-o", "--output", required=True)
-    ap.add_argument("--frames", type=int, default=30, help="number of keyframes")
-    ap.add_argument("--t0", type=float, default=0.0)
+    ap.add_argument("--frames", type=int, default=30, help="number of keyframes K")
+    ap.add_argument("--t0", type=float, default=0.0, help="start time (TODO: the method's time unit)")
     ap.add_argument("--t1", type=float, default=1.0)
-    ap.add_argument("--compact", action="store_true", help="compact encoding (about 2x smaller, lossy)")
+    ap.add_argument("--compact", action="store_true", help="write the compact encoding (lossy, about 2-3x smaller; see docs/FORMAT.md)")
     a = ap.parse_args()
     convert(load_model(a.model), a.output, a.frames, a.t0, a.t1, a.compact, source=a.model)
-    print(f"wrote {a.output}")
+    out = a.output if a.output.endswith(".npz") else a.output + ".npz"
+    print(f"Wrote {out}: {Sequence4D.load(out, lazy=True).summary()}")
+
+
+if __name__ == "__main__":
+    main()
