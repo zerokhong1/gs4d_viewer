@@ -18,8 +18,8 @@ that it works: a test, a measurement, or a screenshot.
 ```bash
 git clone https://github.com/zerokhong1/gs4d_viewer.git
 cd gs4d_viewer
-pip install -r requirements.txt     # viewer with the client (WebGL) renderer
-pip install torch ruff==0.16.9      # converters (the CPU build of PyTorch is enough) and the linter used by CI
+pip install -r requirements.txt   # viewer, mp4 export and Playwright (browser checks)
+pip install torch ruff==0.16.9    # converter tests (CPU PyTorch is enough), CI linter
 ```
 
 The gsplat (GPU) renderer is installed as described in the [README](README.md#installation).
@@ -27,11 +27,13 @@ The gsplat (GPU) renderer is installed as described in the [README](README.md#in
 ## Before opening a pull request
 
 ```bash
-python tests/run_all.py     # every test and browser check; what needs CUDA, Chrome or data is skipped with the reason
-ruff check .                # lint, as in CI
+python tests/run_all.py   # every test and browser check; prints why any is skipped
+ruff check .              # lint, as in CI
 ```
 
-GitHub Actions runs the same on every push and pull request: the lint, and the tests without and with CPU PyTorch.
+The browser checks (`tests/check_*.py`) start Google Chrome from `/usr/bin/google-chrome`; files that need Chrome, CUDA or the
+real data are skipped when these are missing. GitHub Actions runs the lint and all tests that need no GPU or data, browser
+checks included, on every push and pull request.
 
 ## Rules
 

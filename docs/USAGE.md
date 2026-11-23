@@ -108,7 +108,8 @@ from the earliest to the latest keyframe of both files; both files must share th
 ### Training cameras and original images: `--cameras`
 
 ```bash
-python viewer.py bouncingballs.npz --cameras ../data/dnerf/bouncingballs/transforms_test.json
+python viewer.py bouncingballs.npz \
+    --cameras ../data/dnerf/bouncingballs/transforms_test.json
 ```
 
 `--cameras` takes a `transforms_*.json` (NeRF / D-NeRF / instant-ngp, OpenGL cameras) or a `cameras.json` (`{"convention":

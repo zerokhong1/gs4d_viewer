@@ -39,7 +39,7 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
   - `convert_template.py`   working template for a new converter (`docs/ADD_A_CONVERTER.md`, `tests/test_template.py`)
 - `tests/` only tests, run by `tests/run_all.py`
   - `run_all.py` runs every `test_*.py` / `check_*.py` one at a time: pass / skipped (reason) / failed, exit 1 on failure;
-    `NEEDS` says what a file needs (torch, cuda, chrome, data); screenshots go to a temp folder unless `--keep-shots`
+    `NEEDS` says what a file needs (torch, cuda, chrome = Playwright + `/usr/bin/google-chrome`, data); screenshots go to a temp folder unless `--keep-shots`
   - `test_*.py` CPU checks (converters on synthetic files in the real layout, format, writer, GpuFrames on the CPU device,
     `gs4d.open`, CLI errors); the converter ones need torch
   - `check_*.py` drive the viewer in headless Chrome; `check_gsplat.py` and `check_cameras.py` need CUDA, `check_real.py`

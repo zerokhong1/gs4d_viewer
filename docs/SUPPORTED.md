@@ -32,7 +32,8 @@ checkpoint or re-runs a small MLP). `python -m gs4d.open <output>` recognises al
 ### A — Folder of per-frame ply files (`convert_per_frame.py`)
 
 ```bash
-python converters/convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--stride 2] [--sh] [--compact]
+python converters/convert_per_frame.py <ply_folder> -o scene.npz --fps 30 \
+    [--stride 2] [--sh] [--compact]
 ```
 
 - Input: a folder of standard 3DGS `.ply` files, one per frame, in natural order (`time_2` before `time_10`): per-frame output of a
@@ -47,7 +48,8 @@ python converters/convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--str
 ### A — Dynamic 3D Gaussians (`convert_per_frame.py`, `params.npz`)
 
 ```bash
-python converters/convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only
+python converters/convert_per_frame.py params.npz -o scene.npz \
+    --stride 5 --fps 30 --fg-only
 python viewer.py scene.npz --up -y
 ```
 
@@ -59,7 +61,8 @@ python viewer.py scene.npz --up -y
 ### B — Native 4DGS, Yang et al. (`convert_native4d.py`)
 
 ```bash
-python converters/convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 [--sh] [--compact]
+python converters/convert_native4d.py chkpnt_best.pth -o scene.npz \
+    --frames 60 --t0 0 --t1 1 [--sh] [--compact]
 ```
 
 - `--t0/--t1` are the `time_duration` of the training config (D-NeRF scenes: [0, 1]); without them the script guesses the range from the
@@ -82,7 +85,8 @@ python converters/convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 -
 ### B — 4D-Rotor Gaussian Splatting (`convert_4drotor.py`)
 
 ```bash
-python converters/convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1
+python converters/convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz \
+    --frames 60 --t0 0 --t1 1
 ```
 
 - Input: a Nerfstudio checkpoint `step-*.ckpt` (`pipeline` state dict, keys `gauss_params.*`); needs torch.
@@ -93,7 +97,8 @@ python converters/convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o sc
 ### C — Spacetime Gaussians, lite model (`convert_spacetime.py`)
 
 ```bash
-python converters/convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1
+python converters/convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply \
+    -o scene.npz --frames 50 --t0 0 --t1 1
 ```
 
 - Base colour `f_dc_0..2` only; the `rgbdecoder` MLP of the full model is not reproduced. For a full model (a ply with `f_dc_3..` or an
@@ -113,7 +118,8 @@ python converters/convert_spacetime.py point_cloud/iteration_25000/point_cloud.p
 ### C — Shape of Motion (`convert_shape_of_motion.py`)
 
 ```bash
-python converters/convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz --fps 30 [--stride 8] [--fg-only]
+python converters/convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt \
+    -o scene.npz --fps 30 [--stride 8] [--fg-only]
 ```
 
 - SE(3) motion bases + per-Gaussian coefficients, static background (stored only once in the file); needs torch to read the checkpoint.
@@ -131,7 +137,8 @@ python converters/convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o
 ### C/D — MoSca (`convert_mosca.py`)
 
 ```bash
-python converters/convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2
+python converters/convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz \
+    --fps 30 --stride 2
 ```
 
 - Scaffold nodes + skinning over the K nearest nodes, dual-quaternion blending (or LBS); needs torch. Time = frame / `--fps`.
@@ -142,7 +149,8 @@ python converters/convert_mosca.py photometric_d_model_native_add3.pth -o scene.
 ### D — E-D3DGS (`convert_ed3dgs.py`)
 
 ```bash
-python converters/convert_ed3dgs.py <model_folder> -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh
+python converters/convert_ed3dgs.py <model_folder> -o scene.npz \
+    --frames 60 --t0 0 --t1 0.9967 --sh
 ```
 
 - A model folder with `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` and `cfg_args`. Per-Gaussian embeddings + a temporal
@@ -190,7 +198,8 @@ python converters/convert_deformable3dgs.py <model_folder> -o scene.npz --frames
 ### D — SC-GS (`convert_scgs.py`)
 
 ```bash
-python converters/convert_scgs.py <model_folder>_node -o scene.npz --frames 60 [--knn 3] [--sh]
+python converters/convert_scgs.py <model_folder>_node -o scene.npz \
+    --frames 60 [--knn 3] [--sh]
 ```
 
 - A model folder with `point_cloud/` and `deform/`; control nodes + MLP + blending over the K nearest nodes, run on the CPU (needs torch).

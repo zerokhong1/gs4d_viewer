@@ -249,3 +249,6 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - Community: `CONTRIBUTING.md` (ways to contribute, set-up, checks before a pull request, rules), `CODE_OF_CONDUCT.md` (adopts the
   Contributor Covenant 2.1), issue templates (bug report, new method) and a pull-request checklist in `.github/`; the README has
   short "Repository layout" and "Contributing" sections.
+- `tests/run_all.py` counted Chrome as present when only Playwright's own Chromium was installed, while the `check_*.py`
+  scripts start `/usr/bin/google-chrome`; on such a machine the browser checks failed instead of being skipped. It now checks
+  that path. Commands longer than 90 characters in the README and `docs/` are wrapped, so GitHub shows them without scrolling.

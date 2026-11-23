@@ -206,11 +206,11 @@ check with a threshold in `tests/check_real.py`; per-method details are in [SUPP
 ## 4. Reproducing the results
 
 ```bash
-python tests/run_all.py        # every test and browser check (pass / skipped / failed)
-python tests/check_real.py     # Tables 2 and 4: PSNR of every real output (CUDA + data)
-python tools/repo_psnr.py som  # Table 2: the method's own renderer (needs its repository)
-python benchmarks/bench_large.py    # Tables 3 and 5: compact layout, decoding speed
-python benchmarks/bench_display.py --rates 20 30 40 50 60    # Table 5: frames shown by Chrome
+python tests/run_all.py            # every test and browser check: pass / skipped / failed
+python tests/check_real.py         # Tables 2, 4: PSNR of every real output (CUDA + data)
+python tools/repo_psnr.py som      # Table 2: the method's own renderer (needs its repo)
+python benchmarks/bench_large.py   # Tables 3 and 5: compact layout, decoding speed
+python benchmarks/bench_display.py --rates 20 30 40 50 60  # Table 5: frames Chrome shows
 ```
 
 The data paths of `tests/check_real.py` are set at the top of the file.

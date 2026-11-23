@@ -25,9 +25,12 @@ gsplat renderer (NVIDIA GPU, Python 3.10):
 
 ```bash
 uv venv --python 3.10 --seed .venv
-uv pip install --python .venv/bin/python torch==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+uv pip install --python .venv/bin/python torch==2.4.1 \
+    --index-url https://download.pytorch.org/whl/cu124
 uv pip install --python .venv/bin/python -r requirements.txt
-uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" --find-links https://docs.gsplat.studio/whl/gsplat/ --index-strategy unsafe-best-match
+uv pip install --python .venv/bin/python "gsplat==1.5.3+pt24cu124" \
+    --find-links https://docs.gsplat.studio/whl/gsplat/ \
+    --index-strategy unsafe-best-match
 ```
 
 Converters for methods that save PyTorch checkpoints also need PyTorch (the CPU build is enough): `pip install torch`.
