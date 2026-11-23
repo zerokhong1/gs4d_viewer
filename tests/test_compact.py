@@ -3,6 +3,7 @@
 
     python tests/test_compact.py
 """
+import gc
 import os
 import subprocess
 import sys
@@ -167,6 +168,8 @@ def test_sh_per_keyframe():
     st = Sequence4D(s.times, s.means.copy(), s.covs.copy(), s.opacities.copy(), s.colors.copy(), sh=sh.copy())
     for a in (st.means, st.covs, st.opacities, st.colors, st.sh):
         a[:, 200:900] = a[0, 200:900]
+    del c, o         # Windows cannot overwrite a file that is still memory-mapped
+    gc.collect()
     st.save(small, compact=True)
     c = Sequence4D.load(small, lazy=True)
     assert c.num_static == 700 and np.load(small)["sh_u8"].shape == (K, N - 700, 16, 3)
@@ -175,6 +178,8 @@ def test_sh_per_keyframe():
     # a value that is not finite: sh stays float32, the rest is still compact
     bad = sh.copy()
     bad[2, 7, 3, 1] = np.inf
+    del c
+    gc.collect()
     Sequence4D(s.times, s.means, s.covs, s.opacities, s.colors, sh=bad).save(small, compact=True)
     assert "sh" in np.load(small).files and "sh_u8" not in np.load(small).files and "covs_q" in np.load(small).files
     ratio = os.path.getsize(plain) / os.path.getsize(again)

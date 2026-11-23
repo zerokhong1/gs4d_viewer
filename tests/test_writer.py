@@ -205,6 +205,8 @@ def test_colors_out_of_range():
             assert ("colors_u8" in za.files) == packed and ("colors" in za.files) == (not packed), za.files
             if not packed:
                 assert np.array_equal(Sequence4D.load(a, lazy=True).at(1.0)[3], cols[1])
+            za.close()   # Windows cannot overwrite or delete an open file
+            zb.close()
         # a STATIC Gaussian with a colour outside [0,1]: it is stored once in float32 (colors_static), so the per-keyframe
         # colours of the others are still packed as uint8, by `save` and by the writer alike
         cols, still = np.clip(wild, 0, 1), 3

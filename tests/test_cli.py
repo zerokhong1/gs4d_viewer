@@ -50,6 +50,9 @@ def test_bad_inputs(tmp):
 
 
 def test_ctrl_c(tmp):
+    if os.name == "nt":   # process groups, SIGINT delivery and preexec_fn are POSIX-only
+        print("skip  Ctrl+C check: POSIX only")
+        return
     toy = os.path.join(tmp, "toy.npz")
     subprocess.run([sys.executable, "make_toy.py", "-o", toy, "--frames", "8", "--points", "300"], cwd=ROOT, check=True,
                    capture_output=True)

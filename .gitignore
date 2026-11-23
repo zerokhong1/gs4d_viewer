@@ -6,6 +6,7 @@ __pycache__/
 # sequences, converted outputs and videos (keep data out of git)
 *.npz
 *.mp4
+*.bundle
 !shots/**/*.mp4
 *.gs4d.cameras.json
 .gs4d_writer_*/
