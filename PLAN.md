@@ -1,802 +1,871 @@
-# Kế hoạch giai đoạn 2, 3 và 4 — gs4d_viewer
+# Plan for phases 2, 3 and 4 — gs4d_viewer
 
-Cập nhật 23/11/2026: rà soát và chau chuốt toàn bộ repo (nhánh `polish/code-and-docs`; sửa lỗi, test mới, README viết lại thành hướng dẫn,
-số đo chuyển sang `docs/`, nhật ký `Status` của `CLAUDE.md` chuyển sang `docs/HISTORY.md`). Mọi nhánh `cc-*` cũ đã nằm trong `main`.
-Trong bảng gói việc bên dưới chỉ dòng WP39 được cập nhật.
+Update 23/11/2026: the whole repository was reviewed and polished (PR #2, branch `polish/code-and-docs`: bug fixes, new tests, the
+README rewritten as a user guide, measurements moved to `docs/`, the `Status` log of `CLAUDE.md` moved to `docs/HISTORY.md`); the same day
+all documentation was translated into English (branch `docs/english`). Every old `cc-*` branch is already in `main`. In the work-package tables below only the WP28 and WP39 rows
+were updated, and the finished items of the "Do now" lists are struck through. Where a prompt below says a measurement goes into the
+README, it now goes into `docs/` (see the conventions in `CLAUDE.md`).
 
-Cập nhật 16/11/2026 (20:20): thêm giai đoạn 4 ngay dưới (WP32–WP40, chưa gói nào bắt đầu); giai đoạn 3 xong trừ việc đo FPS cần người làm.
+Update 16/11/2026 (20:20): phase 4 added right below (WP32–WP40, no package started yet); phase 3 is done except the FPS measurement that
+needs a human.
 
-Cập nhật 16/11/2026: giai đoạn 2 đã xong (WP24 là gói cuối); giai đoạn 3 ở mục "Giai đoạn 3" ngay dưới.
+Update 16/11/2026: phase 2 is done (WP24 was the last package); phase 3 is in the "Phase 3" section below.
 
-Cập nhật 15/11/2026 (15:15). Giai đoạn 1 (WP1–WP8) đã xong; kế hoạch gốc nằm ở phụ lục cuối file. Giai đoạn 2: WP10–WP18, WP19a,
-WP19d và WP19c phần 3 đã làm, đã commit và merge vào `main` (13:45). Giáo sư đã trả lời (bảng bên dưới): không còn gói nào phải chờ.
-Phiên Claude Code nào cũng tự đọc `CLAUDE.md` nên không phải giải thích lại bối cảnh.
+Update 15/11/2026 (15:15). Phase 1 (WP1–WP8) is done; its original plan is in the appendix at the end of this file. Phase 2: WP10–WP18,
+WP19a, WP19d and part 3 of WP19c are done, committed and merged into `main` (13:45). The professor has answered (table below): no package
+has to wait any more. Every Claude Code session reads `CLAUDE.md` by itself, so the context does not need to be explained again.
 
-## Giai đoạn 4 — để người khác dùng được, và quan sát được chuyển động (16/11/2026)
+## Phase 4 — usable by other people, and showing the motion (16/11/2026)
 
-Giai đoạn 2 và 3 đã cho ra sản phẩm đọc được mọi loại output đã biết, có số PSNR đối chiếu. Giai đoạn 4 là các tính năng và việc đóng gói
-chưa có ở đâu trong file này. Đánh số từ WP32 để không trùng với WP25–WP31 của giai đoạn 3.
+Phases 2 and 3 produced a product that reads every known kind of output, with PSNR numbers to compare against. Phase 4 is the features and
+packaging work that appear nowhere else in this file. Numbering starts at WP32 to avoid clashing with WP25–WP31 of phase 3.
 
-### Làm ngay
+### Do now
 
-1. **Đưa nhánh `cc-a/wp24-points` về `main`** (người làm). Hai commit ngày 16/11 (WP24 + giai đoạn 3; SC-GS `--use_hash`, `--skinning`) chưa có trong `main`.
+1. ~~**Bring branch `cc-a/wp24-points` into `main`** (human).~~ (Done: merged.) The two commits of 16/11 (WP24 + phase 3; SC-GS
+   `--use_hash`, `--skinning`) were not in `main` yet.
    ```bash
    git status --short
-   git add -A && git commit -m "PLAN.md: giai đoạn 4"        # nếu còn thay đổi chưa commit
+   git add -A && git commit -m "PLAN.md: phase 4"        # if there are uncommitted changes
    git checkout main && git merge cc-a/wp24-points
    python tests/run_all.py && python tests/check_real.py
    ```
-2. **Đo FPS ở chế độ điểm và ở 1920×1080** (người làm, màn hình không khoá, GPU không train; WP28 của giai đoạn 3):
-   `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, rồi thêm `--size 1920 1080`; ghi bảng vào README.
-3. **Giải phóng đĩa** (còn khoảng 15 GB): xoá `../data_real/som/paper-windmill_data/paper-windmill.zip` (6,6 GB) và `sear_steak.zip` (1,1 GB) sau khi
-   kiểm `check_real.py` vẫn qua; cả hai đã giải nén đủ.
-4. **Mở ba phiên** (sau bước 1): CC-C làm WP32, CC-B làm WP33, CC-A làm WP34. Ba gói không sửa chung file.
-5. **Demo cho giáo sư** (người làm) ngay khi WP32 xong, và điền bảng phản hồi bên dưới. Phản hồi xếp lại thứ tự WP35–WP37 và WP40.
+2. ~~**Measure FPS in points mode and at 1920×1080**~~ (done 17/11/2026; human, unlocked screen, GPU not training; WP28 of phase 3):
+   `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080`; the table is in
+   `docs/PERFORMANCE.md`.
+3. **Free disk space** (about 15 GB left): delete `../data_real/som/paper-windmill_data/paper-windmill.zip` (6.6 GB) and `sear_steak.zip`
+   (1.1 GB) after checking that `check_real.py` still passes; both are fully extracted.
+4. **Open three sessions** (after step 1): CC-C does WP32, CC-B WP33, CC-A WP34. The three packages touch no file in common.
+5. **Demo for the professor** (human) as soon as WP32 is done, and fill in the feedback table below. The feedback reorders WP35–WP37 and
+   WP40.
 
-### Trạng thái giai đoạn 4
+### Phase 4 status
 
-| WP | Việc | Trạng thái | Phiên | Ghi chú |
+| WP | Task | Status | Session | Notes |
 |---|---|---|---|---|
-| 32 | Bộ cảnh mẫu và kịch bản demo 10 phút (`DEMO.md`) | Chưa | CC-C | Chuẩn bị cho buổi demo với giáo sư |
-| 33 | Cài trên máy sạch bằng một lệnh (`setup.sh`) | Chưa | CC-B | Cần khoảng 8 GB đĩa trống để thử trên bản clone mới |
-| 34 | Quỹ đạo camera: đặt mốc, phát lại, xuất mp4 theo quỹ đạo | Xong 16/11/2026 (nhánh `cc-a/wp34-path`) | CC-A | Sát nhất với yêu cầu "di chuyển camera để quan sát" |
-| 35 | Vệt chuyển động và tô màu theo vận tốc | Xong 16/11/2026 (nhánh `cc-a/wp34-path`) | CC-A | Sau WP34 |
-| 36 | Chọn cảnh trong giao diện; so sánh tới bốn sequence | Chưa | CC-A | Sau WP35 |
-| 37 | Chế độ xem độ sâu và độ đục | Chưa | CC-A | Nhỏ; sau WP36, hoặc đẩy lên nếu giáo sư cần |
-| 38 | Xem từ máy khác qua SSH | Chưa | người làm | Cần một máy thứ hai |
-| 39 | Chạy test tự động khi push | Xong 17/11/2026; chạy trên GitHub từ 17/11, xanh; 23/11 thêm lint (ruff) và job có torch CPU | CC-B | Sau WP33; cần repo trên GitHub |
-| 40 | Danh sách phương pháp hỗ trợ + hướng dẫn và file mẫu thêm converter | Xong 17/11/2026 (việc 1-2; việc 3 chờ phản hồi giáo sư) | CC-C | Sau WP32; phương pháp mới nào làm tiếp: chờ phản hồi sau demo |
+| 32 | Demo scene set and a 10-minute demo script (`DEMO.md`) | Not started | CC-C | Preparation for the demo with the professor |
+| 33 | Install on a clean machine with one command (`setup.sh`) | Not started | CC-B | Needs about 8 GB of free disk to try on a fresh clone |
+| 34 | Camera path: set waypoints, play back, export an mp4 along the path | Done 16/11/2026 (branch `cc-a/wp34-path`) | CC-A | Closest to the request "move the camera to observe" |
+| 35 | Motion trails and colouring by speed | Done 16/11/2026 (branch `cc-a/wp34-path`) | CC-A | After WP34 |
+| 36 | Pick the scene in the GUI; compare up to four sequences | Not started | CC-A | After WP35 |
+| 37 | Depth and opacity view modes | Not started | CC-A | Small; after WP36, or earlier if the professor needs it |
+| 38 | Viewing from another machine over SSH | Not started | human | Needs a second machine |
+| 39 | Run the tests automatically on push | Done 17/11/2026; runs on GitHub since 17/11, green; 23/11 added lint (ruff) and a job with CPU torch | CC-B | After WP33; needs the repository on GitHub |
+| 40 | List of supported methods + guide and template for adding a converter | Done 17/11/2026 (tasks 1-2; task 3 waits for the professor's feedback) | CC-C | After WP32; which new method comes next: waiting for the feedback after the demo |
 
-Thứ tự: đợt 1 là WP32, WP33, WP34 song song; demo ngay khi WP32 xong; đợt 2 là WP35 (CC-A), WP39 (CC-B), WP40 (CC-C);
-đợt 3 là WP36, WP37 và WP38, xếp lại theo phản hồi sau demo.
+Order: round 1 is WP32, WP33, WP34 in parallel; the demo as soon as WP32 is done; round 2 is WP35 (CC-A), WP39 (CC-B), WP40 (CC-C);
+round 3 is WP36, WP37 and WP38, reordered after the demo feedback.
 
-### Phản hồi của giáo sư sau demo
+### Professor's feedback after the demo
 
-| Câu hỏi | Trả lời | Ngày |
+| Question | Answer | Date |
 |---|---|---|
-| Điều gì còn thiếu khi xem một kết quả? | | |
-| Chế độ điểm (WP24) có đúng ý "quan sát các điểm 4DGS" không? Cần thêm vệt chuyển động (WP35) không? | | |
-| Có cần quay video theo quỹ đạo camera (WP34), so nhiều phương pháp cạnh nhau (WP36) không? | | |
-| Ngoài các phương pháp đã có, lab cần phương pháp nào nữa? (ví dụ 4D-Rotor GS, E-D3DGS, MoSca) | | |
-| Ai sẽ dùng, trên máy nào? (quyết định WP33, WP38) | | |
+| What is still missing when looking at a result? | | |
+| Is points mode (WP24) what "observe the 4DGS points" meant? Are motion trails (WP35) needed? | | |
+| Are videos along a camera path (WP34), or several methods side by side (WP36), needed? | | |
+| Besides the methods already supported, which methods does the lab need? (e.g. 4D-Rotor GS, E-D3DGS, MoSca) | | |
+| Who will use it, on which machine? (decides WP33, WP38) | | |
 
-### Quy ước của giai đoạn 4
+### Phase 4 conventions
 
-Rút từ những gì đã hỏng ở giai đoạn 2 và 3:
+Drawn from what went wrong in phases 2 and 3:
 
-- **Mỗi phiên làm trong worktree riêng** (`git worktree add ../gs4d-wp<N> -b cc-<phiên>/wp<N>-<tên>`), không checkout nhánh trong thư mục chính.
-  Giai đoạn 2–3 dồn WP22, WP24 và cả giai đoạn 3 vào một nhánh `cc-a/wp24-points`, còn `main` đứng yên từ sáng 16/11.
-- **`PLAN.md` chỉ sửa trong thư mục chính, và phiên chỉ sửa đúng dòng của gói mình** trong bảng trạng thái (thay từng dòng, không ghi lại cả file).
-  File này đã hai lần bị một phiên ghi đè mất phần của người khác. Không đặt lại số WP đã dùng.
-- File mỗi phiên được sửa: CC-A: `viewer.py`, `gs4d/format.py`, `tests/check_*.py` mới của gói; CC-B: `gs4d/open.py`, `gs4d/doctor.py`, `setup.sh`,
-  `requirements.txt`, `tests/run_all.py`, `.github/`; CC-C: `DEMO.md`, `docs/`, `tests/make_demo_scenes.py`, `convert_template.py`. README: mỗi phiên chỉ sửa đoạn của gói mình.
-  Cần thay đổi ở file của phiên khác thì ghi vào báo cáo, không tự sửa.
-- Gói thêm tính năng giao diện phải có một script `tests/check_*.py` chụp ảnh headless làm bằng chứng, và thử trên ít nhất một cảnh thật.
-- Xong một gói thì người merge vào `main`, chạy `python tests/run_all.py`, rồi mới mở gói kế tiếp của phiên đó.
-- Chung một GPU (RTX 3060 12 GB) và 15 GB RAM: mỗi lúc chỉ một phiên được train, chạy `check_real.py` hoặc `bench_display.py`; hỏi người dùng trước.
+- **Every session works in its own worktree** (`git worktree add ../gs4d-wp<N> -b cc-<session>/wp<N>-<name>`), and never checks out a
+  branch in the main folder. Phases 2–3 piled WP22, WP24 and all of phase 3 onto one branch `cc-a/wp24-points`, while `main` had not moved
+  since the morning of 16/11.
+- **`PLAN.md` is edited only in the main folder, and a session edits only its own package's row** in the status table (replace that row,
+  never rewrite the whole file). Twice a session has overwritten someone else's part of this file. Never reuse a WP number.
+- Files each session may edit: CC-A: `viewer.py`, `gs4d/format.py`, the package's new `tests/check_*.py`; CC-B: `gs4d/open.py`,
+  `gs4d/doctor.py`, `setup.sh`, `requirements.txt`, `tests/run_all.py`, `.github/`; CC-C: `DEMO.md`, `docs/`, `tests/make_demo_scenes.py`,
+  `convert_template.py`. README: every session edits only its own package's paragraph. A change needed in another session's file goes into
+  the report, not into the file.
+- A package that adds a GUI feature comes with a `tests/check_*.py` script that takes headless screenshots as evidence, and is tried on at
+  least one real scene.
+- When a package is done, the human merges it into `main` and runs `python tests/run_all.py` before opening that session's next package.
+- One shared GPU (RTX 3060 12 GB) and 15 GB of RAM: only one session at a time may train, run `check_real.py` or `bench_display.py`; ask
+  the user first.
 
-### Prompt giai đoạn 4
+### Phase 4 prompts
 
-Dán nguyên khối vào một phiên Claude Code mới mở trong `gs4d_viewer`.
+Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
 
-#### WP32 — bộ cảnh mẫu và kịch bản demo
+#### WP32 — demo scene set and demo script
 ```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Việc 1: viết tests/make_demo_scenes.py tạo thư mục `../demo_scenes/` (ngoài repo) từ các output thật đã có: mỗi phương pháp một file
-`.npz` dạng nén trên `bouncingballs` (hoặc cảnh đang có của phương pháp đó), cộng bốn file `slice-banana` của Deformable-3DGS, SC-GS,
-native 4DGS và 4DGaussians. Mỗi file kèm file camera nếu có. In bảng: tên, phương pháp, số Gaussian, số keyframe, dung lượng.
-Không train gì mới; thiếu output nào thì bỏ qua và in lý do.
-Việc 2: viết DEMO.md, một trang, cho buổi demo 10 phút với giáo sư: 5–6 lệnh theo thứ tự, mỗi lệnh kèm một dòng "cho thấy điều gì"
-(mở một output bằng một lệnh; kéo thời gian và xoay camera; chế độ điểm; so hai phương pháp trên cùng cảnh bằng --compare; ảnh gốc cạnh
-ảnh render kèm PSNR; xuất mp4), và một dòng về giới hạn đã biết. Chạy thật từng lệnh trước khi ghi vào.
-Việc 3: ghi vào DEMO.md cảnh nào có điều kiện sử dụng riêng (dữ liệu có người, giấy phép chỉ cho nghiên cứu: xem mục "Giấy phép và nguồn
-dữ liệu" của README) để người demo biết cảnh nào không được đăng công khai. Không tải gì lên mạng.
-Chỉ thêm: tests/make_demo_scenes.py, DEMO.md, một dòng trong README trỏ tới DEMO.md.
-Xong khi: thư mục demo có đủ file, mọi lệnh trong DEMO.md đã chạy được trên máy này, tổng dung lượng thư mục được ghi lại. Báo cáo 5 dòng rồi dừng.
-```
-
-#### WP33 — cài trên máy sạch bằng một lệnh
-```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Việc: viết setup.sh tạo `.venv` đúng phiên bản đã kiểm (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser, và các gói trong
-requirements.txt), tự chọn nhánh không CUDA khi máy không có GPU NVIDIA (khi đó chỉ có renderer client), rồi chạy một bài thử: tạo toy.npz,
-`python tests/run_all.py`, và in rõ renderer nào dùng được. Thêm `python -m gs4d.doctor` in phiên bản các gói, CUDA, Chrome, và việc cần làm
-nếu thiếu. Viết lại mục cài đặt của README thành: clone, `./setup.sh`, `python -m gs4d.open <output>`.
-Bước 0: `df -h .`; cần khoảng 8 GB trống cho một `.venv` thứ hai (ổ đĩa hiện còn khoảng 15 GB); thiếu thì báo và dừng.
-Kiểm bằng một bản clone mới vào thư mục tạm, không dùng lại `.venv` hiện có; ghi thời gian cài và dung lượng tải.
-Chỉ thêm hoặc sửa: setup.sh, gs4d/doctor.py, requirements.txt, mục cài đặt của README.
-Xong khi: trên bản clone mới, ba lệnh trên chạy được từ đầu đến cuối và mở được toy.npz bằng renderer gsplat. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Task 1: write tests/make_demo_scenes.py, which builds the folder `../demo_scenes/` (outside the repo) from the real outputs already on this
+machine: one compact `.npz` per method on `bouncingballs` (or the scene that method already has), plus the four `slice-banana` files of
+Deformable-3DGS, SC-GS, native 4DGS and 4DGaussians. Each file comes with its camera file if there is one. Print a table: name, method,
+number of Gaussians, number of keyframes, size.
+Train nothing new; when an output is missing, skip it and print why.
+Task 2: write DEMO.md, one page, for a 10-minute demo with the professor: 5–6 commands in order, each with one line "what it shows"
+(open an output with one command; drag the time slider and orbit the camera; points mode; compare two methods on the same scene with
+--compare; original image next to the render with PSNR; mp4 export), and one line on the known limits. Run every command for real before
+writing it down.
+Task 3: note in DEMO.md which scenes have their own terms of use (data showing people, research-only licenses: see the "License and data
+sources" section of the README) so the presenter knows which scenes must not be shown publicly. Upload nothing.
+Only add: tests/make_demo_scenes.py, DEMO.md, one line in the README pointing to DEMO.md.
+Done when: the demo folder has every file, every command in DEMO.md runs on this machine, and the total size of the folder is written down.
+Report in 5 lines, then stop.
 ```
 
-#### WP34 — quỹ đạo camera
+#### WP33 — install on a clean machine with one command
 ```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Vấn đề: giáo sư muốn di chuyển camera để quan sát cảnh động; hiện camera chỉ điều khiển bằng chuột và video chỉ quay từ camera đứng yên.
-Việc: thêm mục "Camera path" vào bảng điều khiển của viewer.py: nút thêm mốc từ camera hiện tại, danh sách mốc (nhảy tới, xoá, xoá hết),
-nút phát quỹ đạo, thanh "Path duration (s)", và ô chọn thời gian của cảnh khi đi theo quỹ đạo: đứng yên tại thời điểm hiện tại, hoặc chạy
-từ đầu đến cuối sequence. Nội suy vị trí trơn qua các mốc, hướng nhìn bằng slerp, fov tuyến tính. Lưu và nạp quỹ đạo dạng JSON
-(`--camera-path file.json`), cùng quy ước camera với `--cameras`. Nút xuất mp4 có thêm lựa chọn "theo quỹ đạo". Chạy ở cả hai renderer,
-với `--compare` và chế độ điểm. Thêm một quỹ đạo dựng sẵn: quay một vòng quanh tâm cảnh.
-Chỉ sửa viewer.py, thêm tests/check_path.py, một đoạn trong README; `gs4d/open.py` truyền `--camera-path` là việc của CC-B (ghi vào báo cáo).
-Xong khi: tests/check_path.py dựng quỹ đạo 3 mốc trên toy, kiểm camera tại 5 thời điểm khớp nội suy tính độc lập, và xuất được mp4;
-chạy tay với SC-GS `bouncingballs_sh` và `paper-windmill`, hai file mp4 đặt trong shots/path/; README ghi thời gian xuất. Báo cáo 5 dòng rồi dừng.
-```
-
-#### WP35 — vệt chuyển động và tô màu theo vận tốc
-```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Điều kiện: WP34 đã merge.
-Vấn đề: chế độ điểm (WP24) cho thấy vị trí từng thời điểm, chưa cho thấy cảnh chuyển động thế nào.
-Việc 1: ô chọn "Colour by": `colour` (như hiện tại), `speed` (độ lớn vận tốc tại thời điểm đang xem, tính từ hai keyframe kề), `displacement`
-(độ dịch so với keyframe đầu); có thang màu và giá trị lớn nhất hiển thị trong bảng điều khiển. Dùng được ở cả chế độ splats và points.
-Việc 2: ô "Trails": vẽ đường đi của M Gaussian (thanh chọn M; chọn ngẫu nhiên có hạt giống cố định, ưu tiên Gaussian dịch nhiều và đủ đục)
-trong cửa sổ thời gian ±Δ quanh thời điểm đang xem (thanh chọn Δ), cập nhật khi play. Với renderer gsplat ảnh là nền nên vệt vẽ bằng đối tượng
-đường của viser phía trên ảnh, không có che khuất theo độ sâu: ghi rõ giới hạn này.
-Chỉ áp dụng cho sequence có `interpolate=True` (các keyframe chung danh tính Gaussian); với loại còn lại thì ẩn hai ô và ghi lý do.
-Chỉ sửa viewer.py (và gs4d/format.py nếu cần hàm lấy vận tốc), thêm tests/check_trails.py, một đoạn trong README.
-Xong khi: test kiểm vận tốc và vệt trên toy với giá trị tính độc lập; ảnh chụp ở shots/trails/ cho SC-GS `bouncingballs_sh` và 4DGaussians
-`slice-banana`; README ghi thời gian một frame khi bật vệt với M = 500. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Task: write setup.sh, which creates `.venv` with the checked versions (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser, and
+the packages in requirements.txt), picks the non-CUDA branch by itself when the machine has no NVIDIA GPU (then only the client renderer is
+available), and runs a smoke test: build toy.npz, `python tests/run_all.py`, and print clearly which renderers work. Add
+`python -m gs4d.doctor`, which prints the package versions, CUDA, Chrome, and what to do when something is missing. Rewrite the
+installation section of the README as: clone, `./setup.sh`, `python -m gs4d.open <output>`.
+Step 0: `df -h .`; about 8 GB of free space is needed for a second `.venv` (the disk has about 15 GB left); if not, report and stop.
+Check with a fresh clone in a temporary folder, without reusing the existing `.venv`; write down the install time and download size.
+Only add or edit: setup.sh, gs4d/doctor.py, requirements.txt, the installation section of the README.
+Done when: on the fresh clone the three commands above run from start to end and open toy.npz with the gsplat renderer. Report in 5 lines,
+then stop.
 ```
 
-#### WP36 — chọn cảnh trong giao diện; so sánh nhiều hơn hai sequence
+#### WP34 — camera path
 ```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Điều kiện: WP35 đã merge.
-Việc 1: `python viewer.py <thư mục>` (thư mục chứa nhiều file `.npz` định dạng chung, ví dụ ../demo_scenes) hiện ô chọn "Scene" để đổi cảnh
-mà không khởi động lại; nạp lười, giải phóng cảnh cũ; camera giữ nguyên nếu hai cảnh cùng hệ tọa độ (cùng tiền tố tên), ngược lại đặt lại.
-Việc 2: `--compare` nhận nhiều file (tối đa 4): renderer gsplat chia lưới 2x2 cùng camera, tên file ở góc mỗi ô; renderer client đặt cạnh nhau.
-Ảnh gốc (`--cameras`) là một ô trong lưới khi được bật. Xuất mp4 và quỹ đạo camera (WP34) hoạt động với lưới.
-Chỉ sửa viewer.py, tests/check_compare.py, một đoạn trong README; `gs4d/open.py` nhận một thư mục chứa nhiều output thô là việc của CC-B.
-Xong khi: tests/check_compare.py qua với 3 và 4 sequence; ảnh chụp lưới bốn phương pháp trên `slice-banana` ở shots/compare/; README ghi
-thời gian một frame của lưới 2x2 ở 1280x720 và RAM / bộ nhớ GPU dùng. Báo cáo 5 dòng rồi dừng.
-```
-
-#### WP37 — chế độ xem độ sâu và độ đục
-```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Việc: ô chọn "Render" cho renderer gsplat: `colour`, `depth` (độ sâu kỳ vọng, thang màu, gần/xa tự lấy theo phân vị 2–98% của frame và hiện
-trong bảng điều khiển), `alpha` (độ đục tích luỹ). Đọc tài liệu gsplat 1.5.3 đang cài để dùng đúng `render_mode`; không tự tính lại độ sâu.
-Hoạt động khi play, với `--compare`, quỹ đạo camera và xuất mp4. Renderer client: ẩn ô này.
-Chỉ sửa viewer.py, thêm tests/check_depth.py, một đoạn trong README.
-Xong khi: test so độ sâu tại tâm ảnh của toy với khoảng cách tính độc lập; ảnh chụp ở shots/depth/ cho `paper-windmill` và một cảnh
-`slice-banana`. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Problem: the professor wants to move the camera to observe dynamic scenes; at present the camera is controlled only with the mouse and
+videos are recorded only from a fixed camera.
+Task: add a "Camera path" folder to the control panel of viewer.py: a button that adds a waypoint from the current camera, the list of
+waypoints (jump to, delete, delete all), a button that plays the path, a "Path duration (s)" slider, and a choice of scene time while
+following the path: frozen at the current time, or running from the start to the end of the sequence. Interpolate positions smoothly
+through the waypoints, view directions with slerp, fov linearly. Save and load paths as JSON (`--camera-path file.json`), in the same
+camera convention as `--cameras`. The mp4 export button gets an extra option "along the path". Works with both renderers, with `--compare`
+and with points mode. Add one built-in path: one orbit around the scene centre.
+Only edit viewer.py, add tests/check_path.py, one paragraph in the README; passing `--camera-path` through `gs4d/open.py` is CC-B's job
+(note it in the report).
+Done when: tests/check_path.py builds a 3-waypoint path on toy, checks the camera at 5 times against an independently computed
+interpolation, and exports an mp4; run by hand on SC-GS `bouncingballs_sh` and `paper-windmill`, with the two mp4 files in shots/path/;
+the README gives the export times. Report in 5 lines, then stop.
 ```
 
-#### WP38 — xem từ máy khác qua SSH (người làm)
-
-Trên máy thứ hai: `ssh -L 8080:localhost:8080 <máy này>`, mở `http://localhost:8080` bằng Chrome, chạy lại các bước đo của WP19b ở 1280×720.
-Xong khi README có số frame/giây hiển thị qua SSH cạnh số đo cùng máy, kèm loại mạng (LAN, Wi-Fi, VPN) và bitrate nếu đọc được.
-Nếu chậm rõ rệt, mở gói mới cho CC-A: giảm chất lượng JPEG hoặc độ phân giải khi camera đang di chuyển.
-
-#### WP39 — chạy test tự động khi push
+#### WP35 — motion trails and colouring by speed
 ```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Điều kiện: WP33 đã merge. Việc: thêm .github/workflows/test.yml chạy trên mỗi push và pull request: cài bản không CUDA bằng setup.sh
-(hoặc phần tương ứng của nó), chạy `python tests/run_all.py` (các mục cần CUDA, Chrome có GPU hoặc ../data_real tự bỏ qua có lý do),
-Python 3.10. Thêm huy hiệu trạng thái vào README. Không push, không tạo repo, không đổi cài đặt GitHub: chỉ thêm file; việc push là của người dùng.
-Xong khi: lệnh tương đương chạy được trong một bản clone mới không có CUDA trên máy này, và danh sách mục bị bỏ qua được ghi trong báo cáo.
-Báo cáo 5 dòng rồi dừng.
-```
-
-#### WP40 — danh sách phương pháp hỗ trợ và hướng dẫn thêm converter
-```
-Đọc CLAUDE.md và mục "Giai đoạn 4" (quy ước) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Làm trong worktree riêng.
-Việc 1: viết docs/SUPPORTED.md: bảng mọi phương pháp và biến thể đã hỗ trợ (đã kiểm với output thật nào, PSNR, giới hạn), và những biến thể
-converter dừng có thông báo. Lấy số từ README và mục Status của CLAUDE.md, không đo lại.
-Việc 2: viết docs/ADD_A_CONVERTER.md (các bước, quy ước đã ghi trong CLAUDE.md, bài học: kiểm camera của repo gốc trước khi tin số eval của nó,
-đo ở độ phân giải train) và convert_template.py + tests/test_template.py chạy được trên dữ liệu giả, dùng `Sequence4DWriter`.
-Việc 3: với các phương pháp giáo sư nêu trong bảng "Phản hồi của giáo sư sau demo" (nếu bảng trống thì dừng ở việc 2 và báo): mỗi phương pháp
-một đoạn ngắn: repo chính thức, định dạng output, thuộc dạng A/B/C/D nào, ước lượng công viết converter, có train được trên máy 12 GB GPU /
-15 GB RAM không. Tra repo thật, không viết từ trí nhớ; không viết converter trong gói này.
-Chỉ thêm: docs/, convert_template.py, tests/test_template.py, một dòng trong README.
-Xong khi: test của template qua và nằm trong `python tests/run_all.py`. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Precondition: WP34 is merged.
+Problem: points mode (WP24) shows the positions at each time, but not how the scene moves.
+Task 1: a "Colour by" dropdown: `colour` (as now), `speed` (magnitude of the velocity at the time on screen, from the two neighbouring
+keyframes), `displacement` (offset from the first keyframe); with a colour scale and the maximum value shown in the control panel. Works in
+both splats and points modes.
+Task 2: a "Trails" checkbox: draw the paths of M Gaussians (slider for M; random choice with a fixed seed, preferring Gaussians that move a
+lot and are opaque enough) in a time window ±Δ around the time on screen (slider for Δ), updated while playing. With the gsplat renderer
+the image is the background, so the trails are drawn as viser line objects on top of it, without depth occlusion: state this limit
+clearly.
+Only for sequences with `interpolate=True` (the keyframes share Gaussian identities); for the others hide both controls and say why.
+Only edit viewer.py (and gs4d/format.py if a velocity function is needed), add tests/check_trails.py, one paragraph in the README.
+Done when: the test checks speed and trails on toy against independently computed values; screenshots in shots/trails/ for SC-GS
+`bouncingballs_sh` and 4DGaussians `slice-banana`; the README gives the time per frame with trails on and M = 500. Report in 5 lines, then
+stop.
 ```
 
+#### WP36 — pick the scene in the GUI; compare more than two sequences
+```
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Precondition: WP35 is merged.
+Task 1: `python viewer.py <folder>` (a folder with several `.npz` files in the common format, e.g. ../demo_scenes) shows a "Scene"
+dropdown that switches scenes without restarting; lazy loading, the old scene is released; the camera stays if both scenes share a
+coordinate system (same name prefix), otherwise it is reset.
+Task 2: `--compare` takes several files (up to 4): the gsplat renderer splits the view into a 2x2 grid with the same camera, the file name
+in the corner of each cell; the client renderer puts them side by side. The original image (`--cameras`) is one cell of the grid when
+switched on. mp4 export and the camera path (WP34) work with the grid.
+Only edit viewer.py, tests/check_compare.py, one paragraph in the README; making `gs4d/open.py` accept a folder of several raw outputs is
+CC-B's job.
+Done when: tests/check_compare.py passes with 3 and 4 sequences; a screenshot of a grid of four methods on `slice-banana` in
+shots/compare/; the README gives the time per frame of the 2x2 grid at 1280x720 and the RAM / GPU memory used. Report in 5 lines, then
+stop.
+```
 
-## Giai đoạn 3 — trả các việc còn nợ (16/11/2026)
+#### WP37 — depth and opacity view modes
+```
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Task: a "Render" dropdown for the gsplat renderer: `colour`, `depth` (expected depth, colour scale, near/far taken from the 2–98%
+percentiles of the frame and shown in the control panel), `alpha` (accumulated opacity). Read the documentation of the installed gsplat
+1.5.3 to use `render_mode` correctly; do not recompute depth yourself.
+Works while playing, with `--compare`, the camera path and mp4 export. Client renderer: hide this control.
+Only edit viewer.py, add tests/check_depth.py, one paragraph in the README.
+Done when: the test compares the depth at the image centre of toy with an independently computed distance; screenshots in shots/depth/
+for `paper-windmill` and one `slice-banana` scene. Report in 5 lines, then stop.
+```
 
-Giai đoạn 3 không thêm tính năng mới: nó gom các việc mà giai đoạn 2 ghi là "chưa", "chưa đo" hoặc "cần phiên khác sửa".
-Một phiên làm hết, trên nhánh `cc-a/wp24-points`, chưa commit. Quy ước "mỗi phiên chỉ sửa file của mình" không áp dụng ở giai đoạn này
-vì chỉ có một phiên.
+#### WP38 — viewing from another machine over SSH (human)
 
-| WP | Việc | Trạng thái | Ghi chú |
+On a second machine: `ssh -L 8080:localhost:8080 <this machine>`, open `http://localhost:8080` in Chrome, and repeat the WP19b measurement
+steps at 1280×720. Done when the README has the frames/s shown over SSH next to the same-machine numbers, with the kind of network (LAN,
+Wi-Fi, VPN) and the bitrate if it can be read. If it is clearly slower, open a new package for CC-A: lower the JPEG quality or the
+resolution while the camera is moving.
+
+#### WP39 — run the tests automatically on push
+```
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Precondition: WP33 is merged. Task: add .github/workflows/test.yml, running on every push and pull request: install the non-CUDA build
+with setup.sh (or the matching part of it), run `python tests/run_all.py` (items that need CUDA, a GPU-accelerated Chrome or
+../data_real skip themselves with a reason), Python 3.10. Add a status badge to the README. Do not push, do not create a repository, do
+not change GitHub settings: only add the file; pushing is the user's job.
+Done when: the equivalent command runs in a fresh clone without CUDA on this machine, and the list of skipped items is in the report.
+Report in 5 lines, then stop.
+```
+
+#### WP40 — list of supported methods and a guide to adding a converter
+```
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Task 1: write docs/SUPPORTED.md: a table of every supported method and variant (which real output it was checked on, PSNR, limits), and
+the variants the converters stop on with a message. Take the numbers from the README and the Status section of CLAUDE.md, do not measure
+again.
+Task 2: write docs/ADD_A_CONVERTER.md (the steps, the conventions written in CLAUDE.md, the lessons: check the original repository's
+cameras before trusting its evaluation numbers, measure at the training resolution) and convert_template.py + tests/test_template.py,
+which run on fake data and use `Sequence4DWriter`.
+Task 3: for the methods the professor names in the table "Professor's feedback after the demo" (if the table is empty, stop after task 2
+and say so): for each method one short paragraph: official repository, output format, which type A/B/C/D it is, estimated effort to write
+the converter, whether it can be trained on a machine with a 12 GB GPU / 15 GB RAM. Look at the real repository, do not write from
+memory; do not write a converter in this package.
+Only add: docs/, convert_template.py, tests/test_template.py, one line in the README.
+Done when: the template's test passes and is part of `python tests/run_all.py`. Report in 5 lines, then stop.
+```
+
+## Phase 3 — paying back the leftover work (16/11/2026)
+
+Phase 3 adds no new features: it collects the items phase 2 marked "not done", "not measured" or "needs another session to fix".
+One session did all of it, on branch `cc-a/wp24-points`, not committed. The convention "every session edits only its own files" does not
+apply to this phase, since there was only one session.
+
+| WP | Task | Status | Notes |
 |---|---|---|---|
-| 25 | `check_points.py` trong `tests/run_all.py` | Xong | Thêm vào `NEEDS` (cần Chrome): máy không có Chrome thì báo skipped thay vì failed |
-| 26 | `estimate_bytes` tính `sh` | Xong | `gs4d/open.py`: `--sh` cộng 192 B mỗi Gaussian (native 4DGS: mỗi Gaussian mỗi keyframe); `tests/test_open.py` |
-| 27 | Danh sách camera cho dataset HyperNeRF trong `gs4d.open` | Xong | Thư mục 4DGaussians, Deformable-3DGS, SC-GS có `source_path` kiểu Nerfies: ghi `<tên>.gs4d.cameras.json` (camera giữ lại) và truyền `--cameras`. `slice-banana`: PSNR qua danh sách này của 4DGaussians 27,13 dB, bằng `check_real.py`; camera của ba model khớp loader của `check_real.py` tới 3e-7 |
-| 19c phần 2 | PSNR Spacetime lite `sear_steak` | Xong | Tải `sear_steak.zip` 1,11 GB (bản phát hành GitHub của Neural 3D Video). 105 ảnh ở 1352×1014: 26,18–33,53 dB, trung bình 31,43. Mục `spacetime_psnr`, ngưỡng min 25,68 |
-| 19c phần 1 | PSNR Shape of Motion `paper-windmill` | Xong | Tải `paper-windmill.zip` 6,61 GB từ mirror Hugging Face (vượt giới hạn 5 GB của prompt gốc, người dùng đã đồng ý). 70 ảnh 720×960 tại camera huấn luyện: keyframe 25,86 dB; giữa keyframe của `--stride 8` 24,67 dB; `--stride 1` 25,85 dB ở mọi nơi. Mục `som_psnr`, ngưỡng min 21,11 |
-| 28 | FPS hiển thị ở chế độ điểm và ở 1920×1080 | **Chưa: cần người** | Màn hình đang khoá nên Chrome bị bóp còn 1 frame/giây. Khi màn hình mở: `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, rồi thêm `--size 1920 1080`; ghi bảng vào README |
+| 25 | `check_points.py` in `tests/run_all.py` | Done | Added to `NEEDS` (needs Chrome): a machine without Chrome reports skipped instead of failed |
+| 26 | `estimate_bytes` counts `sh` | Done | `gs4d/open.py`: `--sh` adds 192 B per Gaussian (native 4DGS: per Gaussian per keyframe); `tests/test_open.py` |
+| 27 | Camera list for HyperNeRF datasets in `gs4d.open` | Done | 4DGaussians, Deformable-3DGS and SC-GS folders with a Nerfies-style `source_path`: writes `<name>.gs4d.cameras.json` (held-out cameras) and passes `--cameras`. `slice-banana`: PSNR through this list for 4DGaussians 27.13 dB, the same as `check_real.py`; the cameras of the three models match the loader of `check_real.py` to 3e-7 |
+| 19c part 2 | PSNR of Spacetime lite `sear_steak` | Done | Downloaded `sear_steak.zip`, 1.11 GB (the GitHub release of Neural 3D Video). 105 images at 1352×1014: 26.18–33.53 dB, mean 31.43. Item `spacetime_psnr`, min threshold 25.68 |
+| 19c part 1 | PSNR of Shape of Motion `paper-windmill` | Done | Downloaded `paper-windmill.zip`, 6.61 GB, from a Hugging Face mirror (over the 5 GB limit of the original prompt; the user agreed). 70 images of 720×960 at the training cameras: keyframes 25.86 dB; between keyframes of `--stride 8` 24.67 dB; `--stride 1` 25.85 dB everywhere. Item `som_psnr`, min threshold 21.11 |
+| 28 | Display FPS in points mode and at 1920×1080 | Done 17/11/2026 (table in `docs/PERFORMANCE.md`) | Needed a human: with the screen locked, Chrome was throttled to 1 frame/s. Measured with the screen unlocked: `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080` |
 
-### Giai đoạn 3, đợt 2 — ba giới hạn còn lại (16/11/2026, cùng phiên, cùng nhánh, chưa commit)
+### Phase 3, round 2 — the three remaining limits (16/11/2026, same session, same branch, not committed)
 
-| WP | Việc | Trạng thái | Ghi chú |
+| WP | Task | Status | Notes |
 |---|---|---|---|
-| 29 | Ô ảnh gốc dùng được cùng `--compare` | Xong | `viewer.py::_gt_view`: chế độ `A \| B` hiện render A \| ảnh gốc \| render B, PSNR của cả hai trong bảng; `gs4d.open` truyền `--cameras` cả khi có `--compare`. `tests/check_cameras.py`: PSNR A, B bằng viewer một file (≤ 1e-3 dB, 20 ảnh); ảnh `shots/cameras/ground_truth_compare.png` |
-| 30 | SC-GS `--pred_color` | Xong về công thức; model thật không phân biệt được | `convert_scgs.py` chạy lại đầu màu (kiểu mặc định "resnet" và kiểu một lớp linear), cộng vào hệ số SH DC, ghi `colors` (và `sh` khi `--sh`) theo keyframe; `--ignore-pred-color` giữ màu cố định; kiểu hash / theo hướng nhìn thì dừng. Test tổng hợp so với công thức độc lập. Model thật `bouncingballs` (20k vòng, 20 phút): 35,62–43,75 dB, trung bình 40,70, nhưng đầu màu của nó còn ở mức khởi tạo (\|d_color\| ≤ 2,3e-4) nên bỏ đầu màu cũng ra 40,70. Mục `scgs_predcolor` (ngưỡng 35,12) |
-| 31 | PSNR từ renderer của chính repo | Xong, và tìm ra một lỗi | `tests/repo_psnr.py` (không nằm trong `run_all.py`; clone ở `/home/cont/gs4d_train/som`, `stg`). **Shape of Motion**: repo 25,85 dB, file `--stride 1` của ta lệch 0,000 dB từng ảnh. **Spacetime lite**: repo 34,48 dB, ta 31,43 dB → nguyên nhân: converter cắt màu Gaussian về [0, 1] (30 % Gaussian có màu ngoài khoảng, repo trộn màu thô). Đã sửa `convert_spacetime.py` (giữ màu thô), `gs4d/format.py` (màu theo keyframe ngoài [0, 1] giữ float32 khi nén), `viewer.py` (client cắt màu), `gs4d/open.py` (cache cũ hơn converter thì chuyển lại): nay 34,37 dB; 0,11 dB còn lại là do `--min-peak-opacity 0.02` |
+| 29 | Original-image view usable with `--compare` | Done | `viewer.py::_gt_view`: the `A \| B` mode shows render A \| original image \| render B, with the PSNR of both in the panel; `gs4d.open` passes `--cameras` even with `--compare`. `tests/check_cameras.py`: the PSNR of A and B equals the single-file viewer's (≤ 1e-3 dB, 20 images); image `shots/cameras/ground_truth_compare.png` |
+| 30 | SC-GS `--pred_color` | Done for the formula; the real model cannot tell the difference | `convert_scgs.py` re-runs the colour head (the default "resnet" type and the single linear-layer type), adds it to the SH DC coefficient, and writes `colors` (and `sh` with `--sh`) per keyframe; `--ignore-pred-color` keeps the colour fixed; hash / view-direction types stop. Synthetic test against an independent formula. Real model `bouncingballs` (20k iterations, 20 minutes): 35.62–43.75 dB, mean 40.70, but its colour head is still at its initial values (\|d_color\| ≤ 2.3e-4), so dropping the colour head also gives 40.70. Item `scgs_predcolor` (threshold 35.12) |
+| 31 | PSNR from the repositories' own renderers | Done, and found a bug | `tests/repo_psnr.py` (not in `run_all.py`; clones in `/home/cont/gs4d_train/som`, `stg`). **Shape of Motion**: repo 25.85 dB, our `--stride 1` file differs by 0.000 dB on every image. **Spacetime lite**: repo 34.48 dB, ours 31.43 dB → cause: the converter clipped the Gaussian colours to [0, 1] (30% of the Gaussians have colours outside that range; the repo blends raw colours). Fixed `convert_spacetime.py` (keeps raw colours), `gs4d/format.py` (per-keyframe colours outside [0, 1] stay float32 when compact), `viewer.py` (the client clips colours), `gs4d/open.py` (a cache older than the converter is converted again): now 34.37 dB; the remaining 0.11 dB comes from `--min-peak-opacity 0.02` |
 
-Còn lại sau giai đoạn 3 (không phải việc của Claude Code hoặc chưa làm được):
+Left after phase 3 (not Claude Code's job, or not possible yet):
 
-1. **WP28** ở trên (5 phút, cần màn hình không khoá và GPU không train).
-2. **Commit**: nhánh `cc-a/wp24-points` chứa WP24 và cả giai đoạn 3, chưa commit.
-3. **Dọn worktree** (mục 5 của "Làm ngay") và dọn đĩa: `../data_real/som/paper-windmill_data/paper-windmill.zip` 6,6 GB chỉ cần 384 MB đã giải nén
-   (`rgb/1x/0_*`, `splits/`); `sear_steak.zip` 1,1 GB đã giải nén đủ. Ổ đĩa còn khoảng 15 GB.
-4. **Giới hạn đã ghi nhận**: Spacetime bản đầy đủ (`rgbdecoder`); SC-GS: `--use_hash` và `--skinning` đã port nhưng chỉ kiểm chứng tổng hợp (train của repo: hash không hội tụ, 6,8 dB; skinning crash sau densify do `motion_mask`), đầu màu kiểu theo hướng nhìn;
-   đầu màu `--pred_color` đã kiểm chứng trên cảnh tô màu theo thời gian (37,83 dB so với 24,48 khi bỏ qua đầu màu).
-5. Chưa đo: xem qua SSH hoặc trên máy khác; renderer client ở chế độ điểm trên GPU thật.
+1. ~~**WP28** above~~ (done 17/11/2026; 5 minutes, needs an unlocked screen and a GPU that is not training).
+2. ~~**Commit**: branch `cc-a/wp24-points` holds WP24 and all of phase 3, not committed.~~ (Done: merged into `main`.)
+3. **Clean up worktrees** (item 5 of "Do now (phase 2)") and the disk: of `../data_real/som/paper-windmill_data/paper-windmill.zip`
+   (6.6 GB) only 384 MB of extracted files is needed (`rgb/1x/0_*`, `splits/`); `sear_steak.zip` (1.1 GB) is fully extracted. About 15 GB
+   of disk left.
+4. **Known limits**: the full Spacetime model (`rgbdecoder`); SC-GS: `--use_hash` and `--skinning` are ported but only checked on
+   synthetic data (the repo's own training: hash does not converge, 6.8 dB; skinning crashes after densification because of
+   `motion_mask`), view-direction colour heads; the `--pred_color` colour head was checked on a scene tinted over time (37.83 dB against
+   24.48 when the colour head is ignored).
+5. Not measured: viewing over SSH or on another machine; the client renderer in points mode on a real GPU.
 
-## Làm ngay (giai đoạn 2)
+## Do now (phase 2)
 
-1. ~~**WP20**~~ (xong 15/11/2026) (một phiên, cần GPU trống khoảng 30 phút): train lại native 4DGS `slice-banana` với camera đúng. Con số 24,23 dB
-   hiện tại đo trên một model train với camera sai. Đây là gói duy nhất còn chặn dòng native 4DGS của WP9.
-2. **WP19b: xong 15/11/2026.** `python tests/bench_display.py --rates 20 30 40 50 60` (cửa sổ Chrome có GPU; cần màn hình không khoá và GPU không train).
-   `paper-windmill` 1280×720: trình duyệt hiện đủ mọi frame server gửi, 20,0 ở 20 Hz đến 52,9 frame/giây ở 60 Hz (server gửi 54,3). Bảng trong README.
-3. **Mở song song với WP20** (không dùng GPU lúc đang train): ~~WP22~~ (CC-B, bốn converter, xong 15/11/2026). WP21 (CC-A) đã xong 15/11/2026, chờ merge nhánh `cc-a/wp21-compact-sh`.
-4. **Sau WP20, từng gói một vì chung GPU:** ~~WP23~~ (xong 15/11/2026) → ~~WP19c phần 1~~ → ~~WP19c phần 2~~ (xong 16/11/2026, giai đoạn 3).
-5. **Dọn worktree** (người làm). Git còn đăng ký 10 worktree, kể cả `gs4d-wp19c` (đã merge) và `gs4d-wp2` từ giai đoạn 1.
+1. ~~**WP20**~~ (done 15/11/2026) (one session, needs a free GPU for about 30 minutes): retrain native 4DGS `slice-banana` with the right
+   cameras. The current 24.23 dB is measured on a model trained with wrong cameras. This is the only package still blocking the native 4DGS
+   row of WP9.
+2. **WP19b: done 15/11/2026.** `python tests/bench_display.py --rates 20 30 40 50 60` (a GPU-accelerated Chrome window; needs an unlocked
+   screen and a GPU that is not training). `paper-windmill` 1280×720: the browser shows every frame the server sends, from 20.0 at 20 Hz up
+   to 52.9 frames/s at 60 Hz (the server sends 54.3). Table in `docs/PERFORMANCE.md`.
+3. **Open in parallel with WP20** (no GPU use while it trains): ~~WP22~~ (CC-B, four converters, done 15/11/2026). WP21 (CC-A) was done
+   15/11/2026, waiting for branch `cc-a/wp21-compact-sh` to be merged.
+4. **After WP20, one package at a time because of the shared GPU:** ~~WP23~~ (done 15/11/2026) → ~~WP19c part 1~~ → ~~WP19c part 2~~
+   (done 16/11/2026, phase 3).
+5. **Clean up worktrees** (human). Git still has 10 worktrees registered, including `gs4d-wp19c` (merged) and `gs4d-wp2` from phase 1.
    ```bash
    git worktree list
-   git branch --no-merged main        # phải trống trước khi xoá
+   git branch --no-merged main        # must be empty before removing
    git worktree remove ../gs4d-wp19c && git worktree remove ../gs4d-wp2
-   git worktree remove <đường dẫn từng worktree claude/* đã merge> && git worktree prune
+   git worktree remove <path of each merged claude/* worktree> && git worktree prune
    ```
-6. ~~**Xác nhận lại một ý của giáo sư** trước khi mở WP24~~ (đã xác nhận, WP24 xong 16/11/2026): "quan sát các điểm 4DGS" có nghĩa là cần chế độ vẽ tâm Gaussian
-   thành điểm hay không (xem ghi chú dưới bảng câu trả lời).
+6. ~~**Confirm one of the professor's points** before opening WP24~~ (confirmed, WP24 done 16/11/2026): whether "observe the 4DGS points"
+   means that a mode drawing the Gaussian centres as points is needed (see the note under the answers table).
 
-## WP9 — sản phẩm: đọc và xem được mọi file 4DGS
+## WP9 — the product: read and view every 4DGS file
 
-Đổi ngày 14/11/2026: WP9 trước đây là "demo + chốt câu hỏi với giáo sư"; nay là mục tiêu của sản phẩm.
+Changed on 14/11/2026: WP9 used to be "demo + settle the questions with the professor"; it is now the product goal.
 
-**Mục tiêu.** Đưa một output 4DGS bất kỳ vào `python -m gs4d.open <output>` là xem được với thanh thời gian, không cần
-cài môi trường hay chạy code của repo gốc. WP9 không có nhánh riêng: nó xong khi mọi dòng trong bảng dưới ở trạng thái "Xong".
+**Goal.** Give any 4DGS output to `python -m gs4d.open <output>` and view it with a time slider, without installing the method's
+environment or running the original repository's code. WP9 has no branch of its own: it is done when every row of the table below is
+"Done".
 
-"Mọi file" là các loại trong bảng này. Gặp phương pháp mới thì thêm một dòng, một `convert_<method>.py` và một nhánh
-nhận dạng trong `gs4d/open.py`.
+"Every file" means the kinds in this table. A new method gets a row, a `convert_<method>.py` and a detection branch in
+`gs4d/open.py`.
 
-| Loại file | Converter | Hiện tại | Còn thiếu | Gói |
+| File kind | Converter | Now | Missing | Package |
 |---|---|---|---|---|
-| Thư mục ply 3DGS từng frame (mọi phương pháp xuất được) | `convert_per_frame.py` | Xong: `gaussian_pertimestamp/` của 4DGaussians `bouncingballs`, mục `4dgaussians_export` | — | — |
-| Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Xong (`basketball`) | — | — |
-| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Xong (`paper-windmill`): PSNR tại camera huấn luyện so với ảnh iPhone DyCheck 25,86 dB ở keyframe, 24,67 dB giữa keyframe của `--stride 8` (WP19c phần 1, 16/11/2026) | — | — |
-| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27,3–39,6 dB, trung bình 32,9 (repo gốc 33,4). Cảnh thật `slice-banana` (train lại với camera đúng, WP20): 26,31 dB (110 keyframe), repo gốc tự đo 26,30 | Xong. Gap 1,9 dB cũ là do layout cũ của `make_hypernerf_blender.py` (`FovX = FovY = -1`), đã sửa và train lại. File 330 keyframe: 19,9 → 5,8 GB từ WP21 (`sh` nén uint8) | WP20 |
-| 4DGaussians (hustvl), thư mục model | `convert_4dgaussians.py` | Converter xong: `bouncingballs` 36,7–45,9 dB, trung bình 40,8; khớp `export_perframe_3DGS.py` đến 1e-6 | Xong (WP19a): `gs4d.open` nhận thư mục này, mở có danh sách camera. Cảnh thật `slice-banana` (WP23): 22,05–30,39 dB, trung bình 27,13, khớp repo; `gs4d.open` tự ghi danh sách camera cho layout HyperNeRF (WP27) | — |
-| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Bản lite: `n3d_sear_steak` 27,76–37,81 dB, trung bình 34,37 trên 105 ảnh của video gốc (renderer của repo: 34,48; WP31, 16/11/2026; trước khi sửa lỗi cắt màu: 31,43); Technicolor `Birthday` kiểm bằng mắt. Bản đầy đủ (`rgbdecoder`): converter dừng và nêu tên, `--base-color-only` để chuyển tiếp (WP19a) | Bản đầy đủ là giới hạn đã ghi nhận: không có model công khai, train vượt 15 GB RAM | — |
-| Deformable-3DGS, thư mục model | `convert_deformable3dgs.py` | Xong: D-NeRF 37,2–43,6 dB; mặc định 35,35–43,14; 6-DoF 36,99–43,75; cảnh thật `slice-banana` 19,28–29,78 (trung bình 24,72) | — | — |
-| SC-GS, thư mục model | `convert_scgs.py` | Xong: D-NeRF 35,4–43,0 dB; motion mask 35,48–43,14; cảnh thật `slice-banana` trung bình 26,69 dB (110 keyframe), 26,87 dB (330 keyframe, RAM đỉnh 1,4 GB từ WP19d). `--use_hash`, `--skinning`, tắt `d_rot_as_res`, `--pred_color` (`--ignore-pred-color` để chuyển tiếp): dừng có thông báo | — | — |
-| File không thuộc loại nào ở trên | `gs4d/open.py` | Báo đã thử nhận dạng những gì | — | — |
+| Folder of per-frame 3DGS ply files (any method can export one) | `convert_per_frame.py` | Done: the `gaussian_pertimestamp/` of 4DGaussians `bouncingballs`, item `4dgaussians_export` | — | — |
+| Dynamic 3D Gaussians `params.npz` | `convert_per_frame.py` | Done (`basketball`) | — | — |
+| Shape of Motion `last.ckpt` | `convert_shape_of_motion.py` | Done (`paper-windmill`): PSNR at the training cameras against the DyCheck iPhone images 25.86 dB at keyframes, 24.67 dB between keyframes of `--stride 8` (WP19c part 1, 16/11/2026) | — | — |
+| Native 4DGS `chkpnt*.pth` | `convert_native4d.py` | `--sh`: `bouncingballs` 27.3–39.6 dB, mean 32.9 (original repo 33.4). Real scene `slice-banana` (retrained with the right cameras, WP20): 26.31 dB (110 keyframes), the original repo's own evaluation 26.30 | Done. The old 1.9 dB gap came from the old layout of `make_hypernerf_blender.py` (`FovX = FovY = -1`), fixed and retrained. 330-keyframe file: 19.9 → 5.8 GB since WP21 (`sh` compacted to uint8) | WP20 |
+| 4DGaussians (hustvl), model folder | `convert_4dgaussians.py` | Converter done: `bouncingballs` 36.7–45.9 dB, mean 40.8; matches `export_perframe_3DGS.py` to 1e-6 | Done (WP19a): `gs4d.open` recognises this folder and opens it with a camera list. Real scene `slice-banana` (WP23): 22.05–30.39 dB, mean 27.13, matches the repo; `gs4d.open` writes the camera list for the HyperNeRF layout by itself (WP27) | — |
+| Spacetime Gaussians `point_cloud.ply` | `convert_spacetime.py` | Lite model: `n3d_sear_steak` 27.76–37.81 dB, mean 34.37 on 105 images of the original videos (the repo's renderer: 34.48; WP31, 16/11/2026; before the colour-clipping fix: 31.43); Technicolor `Birthday` checked by eye. Full model (`rgbdecoder`): the converter stops and names it, `--base-color-only` converts anyway (WP19a) | The full model is a known limit: no public model, training needs more than 15 GB of RAM | — |
+| Deformable-3DGS, model folder | `convert_deformable3dgs.py` | Done: D-NeRF 37.2–43.6 dB; default 35.35–43.14; 6-DoF 36.99–43.75; real scene `slice-banana` 19.28–29.78 (mean 24.72) | — | — |
+| SC-GS, model folder | `convert_scgs.py` | Done: D-NeRF 35.4–43.0 dB; motion mask 35.48–43.14; real scene `slice-banana` mean 26.69 dB (110 keyframes), 26.87 dB (330 keyframes, peak RAM 1.4 GB since WP19d). `--use_hash`, `--skinning`, `d_rot_as_res` off, `--pred_color` (`--ignore-pred-color` converts anyway): stop with a message | — | — |
+| A file of none of the kinds above | `gs4d/open.py` | Reports which detections were tried | — | — |
 
-**Điều kiện xong của WP9** (thêm vào "Điều kiện xong, áp dụng cho mọi gói"):
+**WP9 done criteria** (in addition to "Done criteria for every package"):
 
-1. Mỗi dòng mở được bằng một lệnh `python -m gs4d.open <output>` trên một output thật, và có một mục trong `tests/check_real.py`.
-2. Biến thể mà converter chưa hỗ trợ phải dừng với thông báo nêu tên biến thể, không được cho ra ảnh sai mà không báo.
-3. Bảng "Dùng với output thật" trong README liệt kê đủ các dòng trên, kèm số đo.
+1. Every row opens with one command `python -m gs4d.open <output>` on a real output, and has an item in `tests/check_real.py`.
+2. A variant the converter does not support yet stops with a message that names the variant; it must never give a wrong image without a
+   word.
+3. The "Use with real outputs" table of the README (since 23/11/2026: `docs/SUPPORTED.md`) lists every row above, with measurements.
 
-Không có output thật của một dòng thì tự train trên `bouncingballs` trong `/home/cont/gs4d_train` (từng job một, 15 GB RAM),
-như đã làm với Deformable-3DGS, SC-GS và native 4DGS.
+When a row has no real output, train one on `bouncingballs` in `/home/cont/gs4d_train` (one job at a time, 15 GB RAM), as was done for
+Deformable-3DGS, SC-GS and native 4DGS.
 
-### Câu trả lời của giáo sư (15/11/2026)
+### The professor's answers (15/11/2026)
 
-| Câu hỏi | Trả lời | Ngày | Hệ quả cho kế hoạch |
+| Question | Answer | Date | Consequence for the plan |
 |---|---|---|---|
-| Lab dùng phương pháp 4DGS nào? | Tất cả | 15/11/2026 | Không bỏ phương pháp nào trong bảng WP9. Các gói trước đây ghi "khi lab dùng" đều mở: WP19c phần 1–2, WP21, WP22 |
-| File output nằm ở đâu, cảnh nào, bao nhiêu Gaussian? | Chưa có output của lab: tự chạy các phương pháp và dùng output đó | 15/11/2026 | Tiếp tục tự train trong `/home/cont/gs4d_train` và dùng checkpoint tác giả công bố. Thêm WP23 để 4DGaussians cũng có một cảnh thật như ba phương pháp kia. Spacetime bản đầy đủ vẫn là giới hạn (train vượt 15 GB RAM) |
-| Xem trên máy nào? | Tạm thời máy này (RTX 3060 12 GB, 15 GB RAM) | 15/11/2026 | Renderer `gsplat` là đường chính; WP19b đo trên Chrome của máy này. Xem qua SSH hoặc trên laptop chưa cần kiểm |
-| Cần gì thêm khi xem? | Di chuyển được camera để quan sát các điểm 4DGS | 15/11/2026 | Xem ghi chú dưới |
+| Which 4DGS methods does the lab use? | All of them | 15/11/2026 | No method of the WP9 table is dropped. The packages that used to say "when the lab uses it" are all open: WP19c parts 1–2, WP21, WP22 |
+| Where are the output files, which scenes, how many Gaussians? | The lab has no outputs yet: run the methods ourselves and use those outputs | 15/11/2026 | Keep training in `/home/cont/gs4d_train` and use the checkpoints the authors published. WP23 added so that 4DGaussians also has a real scene, like the three others. The full Spacetime model stays a limit (training needs more than 15 GB of RAM) |
+| On which machine will it be viewed? | This machine for now (RTX 3060 12 GB, 15 GB RAM) | 15/11/2026 | The `gsplat` renderer is the main path; WP19b measures in this machine's Chrome. Viewing over SSH or on a laptop does not need checking yet |
+| What else is needed when viewing? | Moving the camera to observe the 4DGS points | 15/11/2026 | See the note below |
 
-Ghi chú cho câu cuối. Viewer đã cho di chuyển camera tự do bằng chuột (xoay, kéo, zoom của viser) ngay cả khi đang play, ở cả
-hai renderer; nếu chỉ cần vậy thì không phải làm thêm. Viewer chưa có chế độ vẽ tâm Gaussian thành điểm: nếu "các điểm 4DGS"
-nghĩa là muốn nhìn thấy từng Gaussian như một đám mây điểm thì đó là WP24 (đã làm 16/11/2026: ô **Draw as** trong mục Display).
+Note on the last answer. The viewer already lets the camera move freely with the mouse (viser's orbit, pan and zoom) even while playing,
+with both renderers; if that is all, nothing more is needed. The viewer had no mode that draws the Gaussian centres as points: if "the 4DGS
+points" means seeing every Gaussian as a point cloud, that is WP24 (done 16/11/2026: the **Draw as** control in the Display folder).
 
-Dùng khi demo: `python -m gs4d.open <thư mục output>` (tự chọn renderer `gsplat` trên máy này), chế độ `--compare`,
-và bảng "Dùng với output thật" trong README.
+For the demo: `python -m gs4d.open <output folder>` (picks the `gsplat` renderer on this machine by itself), the `--compare` mode,
+and the "Use with real outputs" table of the README (since 23/11/2026: `docs/SUPPORTED.md`).
 
-## Trạng thái giai đoạn 2
+## Phase 2 status
 
-| WP | Việc | Trạng thái | Nhánh | Ghi chú |
+| WP | Task | Status | Branch | Notes |
 |---|---|---|---|---|
-| 9 | Sản phẩm: đọc và xem được mọi file 4DGS | Xong 16/11/2026, trừ giới hạn đã ghi nhận | — | Mọi dòng trong bảng WP9 có số PSNR so với ảnh gốc và một mục trong `check_real.py`. Giới hạn: Spacetime bản đầy đủ (`rgbdecoder`) không có model công khai, train vượt 15 GB RAM |
-| 10 | Lệnh mở thẳng một output | Xong | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; phiên WP10 báo mở được cả 6 output thật |
-| 11 | Tách Gaussian tĩnh và động trong định dạng | Xong | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` không sửa. Ảnh trước/sau lệch quá 1/255 ở tối đa 7 pixel giữa hai keyframe (do làm tròn của bản cũ) |
-| 12 | Kiểm tự động với output thật (PSNR có ngưỡng) | Xong | `claude/friendly-feynman-9aa271` | Mỗi model đo ở độ phân giải train; 20 ảnh test; Spacetime và Shape of Motion chỉ kiểm số Gaussian và dung lượng |
-| 13 | Native 4DGS: màu SH theo keyframe | Xong (đã merge) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26,04 → 27,28, mean 29,0 → 32,9 dB; file 1,4 GB (116k x 60 keyframe) |
-| 14 | Giải mã và nội suy trên GPU khi play | Xong | `claude/wp14-gpu-decode-559de8` (đã merge) | Lấy frame khi play 100 → 2,2 ms (500.000 × 100, nén), 214 → 3,1 ms (`paper-windmill`); ảnh lệch tối đa 1/255; PSNR check_real không đổi. FPS trong Chrome có GPU: đo ở WP19b |
-| 15 | Converter trực tiếp cho 4DGaussians (hustvl) | Xong (đã merge) | `cc-c/wp15-4dgaussians` | `bouncingballs` tự train: 36,7–45,9 dB (trung bình 40,8), khớp `export_perframe_3DGS.py` đến 1e-6. `gs4d/open.py` nhận dạng thư mục 4DGaussians từ WP19a |
-| 16 | Các biến thể chưa thử (Spacetime đầy đủ, Deformable-3DGS, SC-GS) | Xong, trừ Spacetime đầy đủ (đã merge) | `claude/wp16-variants-8fe2f3`, `claude/wp16-real-scene-5cd4d8` | `bouncingballs`: Deformable-3DGS mặc định 35,35–43,14 dB, 6-DoF 36,99–43,75, SC-GS có motion mask 35,48–43,14. Cảnh thật HyperNeRF `slice-banana` (15/11/2026, 33 ảnh giữ lại, 268 px): Deformable-3DGS trung bình 24,72 dB, SC-GS 26,69, native 4DGS 24,23 (model train với camera sai, xem WP20). Spacetime: thêm model lite `Birthday`, chưa có ảnh gốc; bản đầy đủ (`rgbdecoder`) không làm được trên máy này |
-| 17 | Cờ `--compact` cho converter, một lệnh chạy mọi test | Xong | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 file qua (check_real chạy riêng sau khi sửa dò dữ liệu trong worktree); `--compact` ở cả 6 converter, `gs4d.open` tự dùng khi ước tính > 1 GB |
-| 18 | Camera huấn luyện và ảnh gốc trong viewer | Xong 14/11/2026 (đã merge) | `claude/wp18-cameras-398403` | `--cameras`, danh sách camera, ảnh gốc + PSNR (gsplat); PSNR khớp check_real 0,0002 dB; không dùng được cùng `--compare`; `gs4d/open.py` tự truyền `--cameras` từ WP19a |
-| 19a | `open.py` nhận 4DGaussians và `--cameras`; converter dừng ở biến thể chưa hỗ trợ | Xong 15/11/2026 (đã commit) | làm thẳng trên `main` | `gs4d.open` nhận 4DGaussians và truyền `--cameras` (bỏ qua `cameras.json` kiểu 3DGS vì `load_cameras` không đọc được); SC-GS `--pred_color` và Spacetime đầy đủ dừng, có cờ chuyển tiếp |
-| 19b | Đo FPS hiển thị trong Chrome có GPU | Xong 15/11/2026 (đã commit 086a80b) | làm thẳng trên `main` | `tests/bench_display.py`; `paper-windmill` 1280×720, Chrome 157, RTX 3060: hiện 20,0 / 30,0 / 39,9 / 49,3 / 52,9 frame/giây ở 20 / 30 / 40 / 50 / 60 Hz, bằng số server gửi; chưa đo 1920×1080 |
-| 19c | PSNR cho Spacetime và Shape of Motion; nguyên nhân lệch 1,9 dB của native 4DGS trên cảnh thật | Xong: phần 3 15/11/2026 (đã merge); phần 1, 2 16/11/2026 (chưa commit) | phần 1, 2 làm trên `cc-a/wp24-points` | Phần 1: Shape of Motion `paper-windmill` so với ảnh iPhone DyCheck 1x, 70 ảnh: tại keyframe 25,86 dB, giữa keyframe của `--stride 8` 24,67 dB (`--stride 1`: 25,85 ở mọi nơi); mục `som_psnr`. Phần 2: Spacetime lite `sear_steak` so với video Neural 3D Video, 105 ảnh ở 1352×1014: 26,18–33,53, trung bình 31,43 dB; mục `spacetime_psnr`. Phần 3: lệch do model train với `FovX = FovY = -1`, không phải converter |
-| 19d | Converter ghi từng keyframe ra đĩa để không giữ cả sequence trong RAM | Xong 15/11/2026 (đã commit) | làm thẳng trên `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bằng `save` từng bit); SC-GS, native 4DGS, Deformable-3DGS dùng nó. RAM đỉnh: SC-GS 4,5 → 1,4 GB, native 4DGS 8,3 → 1,3 GB, Deformable-3DGS 7,2 → 1,0 GB; 330 keyframe của `slice-banana` chuyển được. `check_real.py` vẫn đo ở 110 keyframe |
-| 20 | Train lại native 4DGS `slice-banana` với camera đúng, đo lại | Xong 15/11/2026 (đã commit f24bd6d) | `cc-c/wp20-native4d-banana` | Train lại với `camera_angle_x` (không `fl_x` từng frame), 20.000 vòng, 20 phút: repo tự đo 26,30 dB; converter + gsplat 21,41–29,17, trung bình **26,31 dB** (trước 24,23): gap 1,9 dB hết. `make_hypernerf_blender.py` đã sửa; `check_real.py` trỏ `output/banana_fov`, ngưỡng min 20,91 |
-| 21 | Nén trường `sh` theo keyframe | Xong 15/11/2026 (đã commit 5841d10) | `cc-a/wp21-compact-sh` | `sh` theo keyframe thành uint8 trên khoảng riêng theo thời gian của từng hệ số (`sh_lo`, `sh_step`, `sh_u8`). Native 4DGS `slice-banana` 330 keyframe: 19,86 → 5,82 GB (0,29 lần), PSNR 24,2687 dB không đổi (ảnh xấu nhất −0,0002 dB); `bouncingballs`: 1412 → 453 MB, 32,9117 dB không đổi. Lấy frame đường GPU 2,2 → 1,4 ms; đường CPU 60 → 128 ms. Còn lại cho CC-B: `estimate_bytes` trong `gs4d/open.py` chưa tính `sh` theo keyframe |
-| 22 | `Sequence4DWriter` cho bốn converter còn lại | Xong 15/11/2026 (đã merge 08b0512) | `claude/wp22-writer-rest-f7db21` | 4DGaussians, Shape of Motion, Spacetime, per-frame ghi từng keyframe ra đĩa; chi tiết trong README và CLAUDE.md |
-| 23 | 4DGaussians trên cảnh thật `slice-banana` | Xong 15/11/2026 (đã commit f24bd6d) | làm thẳng trên `main` | Train 14.000 vòng (config hypernerf của repo), 18 phút, 52.741 Gaussian. PSNR 33 ảnh giữ lại: của ta 22,05–30,39, trung bình 27,13; repo tự render 27,13 (từng ảnh lệch ≤ 0,003 dB). Không sửa converter; mục `4dgaussians_banana` trong `check_real.py`. Camera của repo đã kiểm: FovX/FovY tính từ focal, đúng |
-| 24 | Chế độ vẽ tâm Gaussian thành điểm | Xong 16/11/2026 (chưa commit) | `cc-a/wp24-points` | Ô **Draw as** `splats` / `points` + thanh **Point size** trong mục Display (`--draw-as`); chạy khi play, với `--compare`, xuất mp4, cả hai renderer. gsplat: rasterize Gaussian tròn đục cỡ cố định theo pixel; client: point cloud của viser. `tests/check_points.py` qua trên toy, SC-GS `bouncingballs_sh`, `paper-windmill`; một frame khi play ở 1280×720: SC-GS 10–11 ms, `paper-windmill` 24–27 ms. README có bảng thao tác camera (đã thử thật). FPS hiển thị ở chế độ điểm: WP28 |
+| 9 | Product: read and view every 4DGS file | Done 16/11/2026, except the known limits | — | Every row of the WP9 table has a PSNR against the original images and an item in `check_real.py`. Limit: the full Spacetime model (`rgbdecoder`) has no public model, training needs more than 15 GB of RAM |
+| 10 | Command that opens an output directly | Done | `claude/practical-wiles-00a752` | `python -m gs4d.open <output>`; the WP10 session reported opening all 6 real outputs |
+| 11 | Split static and dynamic Gaussians in the format | Done | `cc-a/wp11-static` | `paper-windmill` 1271 → 147 MB; `viewer.py` unchanged. Before/after images differ by more than 1/255 on at most 7 pixels between two keyframes (from the old code's rounding) |
+| 12 | Automatic checks with real outputs (PSNR with thresholds) | Done | `claude/friendly-feynman-9aa271` | Every model measured at its training resolution; 20 test images; Spacetime and Shape of Motion only check the Gaussian count and the file size |
+| 13 | Native 4DGS: per-keyframe SH colour | Done (merged) | `cc-c/wp13-native4d-sh` | `--sh`: PSNR `bouncingballs` min 26.04 → 27.28, mean 29.0 → 32.9 dB; file 1.4 GB (116k x 60 keyframes) |
+| 14 | GPU decoding and interpolation while playing | Done | `claude/wp14-gpu-decode-559de8` (merged) | Frame fetch while playing 100 → 2.2 ms (500,000 × 100, compact), 214 → 3.1 ms (`paper-windmill`); images differ by at most 1/255; check_real PSNR unchanged. FPS in a GPU-accelerated Chrome: measured in WP19b |
+| 15 | Direct converter for 4DGaussians (hustvl) | Done (merged) | `cc-c/wp15-4dgaussians` | Self-trained `bouncingballs`: 36.7–45.9 dB (mean 40.8), matches `export_perframe_3DGS.py` to 1e-6. `gs4d/open.py` recognises 4DGaussians folders since WP19a |
+| 16 | Untried variants (full Spacetime, Deformable-3DGS, SC-GS) | Done, except full Spacetime (merged) | `claude/wp16-variants-8fe2f3`, `claude/wp16-real-scene-5cd4d8` | `bouncingballs`: Deformable-3DGS default 35.35–43.14 dB, 6-DoF 36.99–43.75, SC-GS with motion mask 35.48–43.14. Real HyperNeRF scene `slice-banana` (15/11/2026, 33 held-out images, 268 px): Deformable-3DGS mean 24.72 dB, SC-GS 26.69, native 4DGS 24.23 (model trained with wrong cameras, see WP20). Spacetime: added the lite model `Birthday`, no original images yet; the full model (`rgbdecoder`) is not possible on this machine |
+| 17 | `--compact` flag for the converters, one command that runs every test | Done | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 files pass (check_real run separately, after fixing the data lookup in worktrees); `--compact` in all 6 converters, `gs4d.open` uses it when the estimate is > 1 GB |
+| 18 | Training cameras and original images in the viewer | Done 14/11/2026 (merged) | `claude/wp18-cameras-398403` | `--cameras`, camera list, original image + PSNR (gsplat); PSNR matches check_real to 0.0002 dB; not usable with `--compare`; `gs4d/open.py` passes `--cameras` by itself since WP19a |
+| 19a | `open.py` recognises 4DGaussians and `--cameras`; converters stop on unsupported variants | Done 15/11/2026 (committed) | directly on `main` | `gs4d.open` recognises 4DGaussians and passes `--cameras` (skipping 3DGS-style `cameras.json`, which `load_cameras` cannot read); SC-GS `--pred_color` and full Spacetime stop, with a flag to convert anyway |
+| 19b | Measure display FPS in a GPU-accelerated Chrome | Done 15/11/2026 (committed 086a80b) | directly on `main` | `tests/bench_display.py`; `paper-windmill` 1280×720, Chrome 157, RTX 3060: shows 20.0 / 30.0 / 39.9 / 49.3 / 52.9 frames/s at 20 / 30 / 40 / 50 / 60 Hz, the same as the server sends; 1920×1080 not measured |
+| 19c | PSNR for Spacetime and Shape of Motion; cause of the 1.9 dB gap of native 4DGS on a real scene | Done: part 3 15/11/2026 (merged); parts 1, 2 16/11/2026 (not committed) | parts 1, 2 done on `cc-a/wp24-points` | Part 1: Shape of Motion `paper-windmill` against the DyCheck iPhone 1x images, 70 images: at keyframes 25.86 dB, between keyframes of `--stride 8` 24.67 dB (`--stride 1`: 25.85 everywhere); item `som_psnr`. Part 2: Spacetime lite `sear_steak` against the Neural 3D Video videos, 105 images at 1352×1014: 26.18–33.53, mean 31.43 dB; item `spacetime_psnr`. Part 3: the gap comes from a model trained with `FovX = FovY = -1`, not from the converter |
+| 19d | Converters write one keyframe at a time to disk instead of holding the whole sequence in memory | Done 15/11/2026 (committed) | directly on `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bit-identical to `save`); SC-GS, native 4DGS and Deformable-3DGS use it. Peak RAM: SC-GS 4.5 → 1.4 GB, native 4DGS 8.3 → 1.3 GB, Deformable-3DGS 7.2 → 1.0 GB; 330 keyframes of `slice-banana` can be converted. `check_real.py` still measures at 110 keyframes |
+| 20 | Retrain native 4DGS `slice-banana` with the right cameras, measure again | Done 15/11/2026 (committed f24bd6d) | `cc-c/wp20-native4d-banana` | Retrained with `camera_angle_x` (no per-frame `fl_x`), 20,000 iterations, 20 minutes: the repo's own evaluation 26.30 dB; converter + gsplat 21.41–29.17, mean **26.31 dB** (before: 24.23): the 1.9 dB gap is gone. `make_hypernerf_blender.py` fixed; `check_real.py` points to `output/banana_fov`, min threshold 20.91 |
+| 21 | Compact the per-keyframe `sh` field | Done 15/11/2026 (committed 5841d10) | `cc-a/wp21-compact-sh` | Per-keyframe `sh` becomes uint8 over each coefficient's own range in time (`sh_lo`, `sh_step`, `sh_u8`). Native 4DGS `slice-banana` 330 keyframes: 19.86 → 5.82 GB (0.29×), PSNR 24.2687 dB unchanged (worst image −0.0002 dB); `bouncingballs`: 1412 → 453 MB, 32.9117 dB unchanged. Frame fetch on the GPU path 2.2 → 1.4 ms; CPU path 60 → 128 ms. Left for CC-B: `estimate_bytes` in `gs4d/open.py` does not count per-keyframe `sh` yet |
+| 22 | `Sequence4DWriter` for the four remaining converters | Done 15/11/2026 (merged 08b0512) | `claude/wp22-writer-rest-f7db21` | 4DGaussians, Shape of Motion, Spacetime and per-frame write one keyframe at a time to disk; details in `docs/PERFORMANCE.md` |
+| 23 | 4DGaussians on the real scene `slice-banana` | Done 15/11/2026 (committed f24bd6d) | directly on `main` | Trained for 14,000 iterations (the repo's hypernerf config), 18 minutes, 52,741 Gaussians. PSNR on the 33 held-out images: ours 22.05–30.39, mean 27.13; the repo's own renders 27.13 (≤ 0.003 dB apart per image). No converter change; item `4dgaussians_banana` in `check_real.py`. The repo's cameras were checked: FovX/FovY computed from the focal length, correct |
+| 24 | Draw Gaussian centres as points | Done 16/11/2026 (not committed) | `cc-a/wp24-points` | **Draw as** control `splats` / `points` + **Point size** slider in the Display folder (`--draw-as`); works while playing, with `--compare`, mp4 export, both renderers. gsplat: rasterises round opaque Gaussians of a fixed pixel size; client: viser's point cloud. `tests/check_points.py` passes on toy, SC-GS `bouncingballs_sh`, `paper-windmill`; one frame while playing at 1280×720: SC-GS 10–11 ms, `paper-windmill` 24–27 ms. The README has a table of camera controls (tried for real). Display FPS in points mode: WP28 |
 
-## Phân công: 3 phiên Claude Code
+## Assignment: 3 Claude Code sessions
 
-| Phiên | Vai trò | Model | Việc, theo đúng thứ tự | File được sửa (chỉ phiên này) |
+| Session | Role | Model | Tasks, in this order | Files it may edit (this session only) |
 |---|---|---|---|---|
-| **CC-A** | Định dạng và render | mạnh (Opus/Fable) | WP11 → WP14 → (WP18) | `viewer.py`, `gs4d/format.py`, `gs4d/__main__.py`, `tests/test_compact.py`, `tests/bench_large.py`, phần thân README |
-| **CC-B** | Công cụ dùng hằng ngày | Sonnet | WP10 → WP17 | file mới `gs4d/open.py`, `tests/test_open.py`, `tests/run_all.py`; ở WP17: phần đối số dòng lệnh của các `convert_*.py` |
-| **CC-C** | Kiểm chứng và converter | Sonnet | WP12 → WP15 → WP13 → WP16 (từng biến thể) | file mới `tests/check_real.py`; `convert_native4d.py` (WP13); file mới `convert_4dgaussians.py`, `tests/test_4dgaussians.py` (WP15) |
+| **CC-A** | Format and rendering | strong (Opus/Fable) | WP11 → WP14 → (WP18) | `viewer.py`, `gs4d/format.py`, `gs4d/__main__.py`, `tests/test_compact.py`, `tests/bench_large.py`, the body of the README |
+| **CC-B** | Everyday tools | Sonnet | WP10 → WP17 | new file `gs4d/open.py`, `tests/test_open.py`, `tests/run_all.py`; in WP17: the command-line arguments of the `convert_*.py` |
+| **CC-C** | Validation and converters | Sonnet | WP12 → WP15 → WP13 → WP16 (one variant at a time) | new file `tests/check_real.py`; `convert_native4d.py` (WP13); new files `convert_4dgaussians.py`, `tests/test_4dgaussians.py` (WP15) |
 
-Quy ước chung (giữ từ giai đoạn 1, sửa chỗ đã lệch):
+Shared conventions (kept from phase 1, corrected where they had drifted):
 
-- Phiên nào chỉ sửa file trong cột của mình. Cần thay đổi ở file của phiên khác thì ghi vào báo cáo, không tự sửa.
-- Nhánh đặt theo `cc-<phiên>/wp<N>-<tên>`. CC-B và CC-C làm trong worktree riêng (`git worktree add ../gs4d-wp<N> -b <nhánh>`),
-  merge xong thì xoá worktree ngay.
-- Cả ba phiên dùng chung một GPU (RTX 3060) và 15 GB RAM: không train; lệnh render hoặc đo PSNR chạy từng lệnh một.
-- WP17 sửa các `convert_*.py`, nên chỉ chạy khi CC-C không có gói converter nào đang mở.
-- Các gói của WP9 (WP13, WP15, WP16) mở được ngay, từng gói một vì chung GPU. Ngoại lệ so với dòng "không train" ở trên:
-  gói thiếu output thật được train một model `bouncingballs` trong `/home/cont/gs4d_train`, khi không phiên nào khác dùng GPU.
+- A session edits only the files in its own column. A change needed in another session's file goes into the report, not into the file.
+- Branches are named `cc-<session>/wp<N>-<name>`. CC-B and CC-C work in their own worktrees (`git worktree add ../gs4d-wp<N> -b <branch>`),
+  and remove the worktree right after the merge.
+- All three sessions share one GPU (RTX 3060) and 15 GB of RAM: no training; render or PSNR commands run one at a time.
+- WP17 edits the `convert_*.py`, so it runs only when CC-C has no converter package open.
+- The WP9 packages (WP13, WP15, WP16) can start right away, one at a time because of the shared GPU. Exception to the "no training" line
+  above: a package without a real output may train a `bouncingballs` model in `/home/cont/gs4d_train`, when no other session uses the GPU.
 
-## Thứ tự chạy
+## Order
 
-- **Đợt 1 (song song, không chờ giáo sư):** WP10 + WP11 + WP12. Ba gói không sửa chung file nào và có ích cho mọi phương pháp.
-- **Đợt 2 (WP9, không chờ giáo sư):** CC-A làm WP14; CC-B đã xong WP17; CC-C làm WP15 → WP13 → WP16, từng gói một.
-  WP15 đi trước vì 4DGaussians là phương pháp duy nhất chưa đọc trực tiếp được; câu trả lời của giáo sư có thể đổi thứ tự này.
-- **Đợt 3 (khi được yêu cầu):** WP18 (đã làm 14/11/2026).
-- **Đợt 4 (15/11/2026):** WP19a, WP19d và WP19c phần 3 đã làm. WP19b xong 15/11/2026 (`tests/bench_display.py`).
-- **Đợt 5 (15/11/2026, sau câu trả lời của giáo sư):** WP20 trước. Song song với nó, không dùng GPU khi đang train: WP21 (`gs4d/format.py`)
-  và WP22 (bốn converter), hai gói không sửa chung file. Sau WP20, lần lượt vì chung GPU: WP23 → WP19c phần 1 → WP19c phần 2.
-  WP21 và WP22 chạy `check_real.py` ở cuối, khi không gói nào đang train. WP24 xong 16/11/2026.
+- **Round 1 (in parallel, without waiting for the professor):** WP10 + WP11 + WP12. The three packages touch no file in common and help
+  every method.
+- **Round 2 (WP9, without waiting for the professor):** CC-A does WP14; CC-B has finished WP17; CC-C does WP15 → WP13 → WP16, one package at
+  a time. WP15 goes first because 4DGaussians is the only method that cannot be read directly yet; the professor's answers may change this
+  order.
+- **Round 3 (when asked):** WP18 (done 14/11/2026).
+- **Round 4 (15/11/2026):** WP19a, WP19d and part 3 of WP19c done. WP19b done 15/11/2026 (`tests/bench_display.py`).
+- **Round 5 (15/11/2026, after the professor's answers):** WP20 first. In parallel with it, without using the GPU while it trains: WP21
+  (`gs4d/format.py`) and WP22 (four converters); the two packages touch no file in common. After WP20, one after another because of the
+  shared GPU: WP23 → WP19c part 1 → WP19c part 2. WP21 and WP22 run `check_real.py` at the end, when no package is training. WP24 done
+  16/11/2026.
 
-## Điều kiện xong, áp dụng cho mọi gói
+## Done criteria for every package
 
-Giai đoạn 1 chỉ yêu cầu test tổng hợp, nên việc chạy với output thật phải làm bù sau. Từ giờ:
+Phase 1 asked only for synthetic tests, so running on real outputs had to be caught up later. From now on:
 
-1. Gói đụng tới converter hoặc định dạng chỉ xong khi đã chạy với **ít nhất một output thật** trong `../data_real`
-   và ghi số đo (PSNR so với ảnh gốc, dung lượng, thời gian) vào README.
-2. Gói đổi định dạng hoặc renderer phải chạy lại `tests/check_real.py` (sau khi WP12 có) và không làm PSNR giảm quá 0,2 dB.
-3. Mọi test cũ vẫn qua; file `.npz` cũ vẫn đọc được.
-4. Cập nhật dòng của gói trong bảng trạng thái ở trên và mục Status của `CLAUDE.md`.
-5. Báo cáo 5 dòng rồi dừng, không tự mở rộng phạm vi. Thiếu dữ liệu hoặc GPU thì báo ngay ở lượt đầu, không đoán.
+1. A package that touches a converter or the format is done only when it has run on **at least one real output** in `../data_real`
+   and its measurements (PSNR against the original images, size, time) are written down in `docs/` (`SUPPORTED.md`, `PERFORMANCE.md`;
+   before 23/11/2026: the README).
+2. A package that changes the format or the renderer reruns `tests/check_real.py` (once WP12 exists) and must not lower any PSNR by more
+   than 0.2 dB.
+3. Every old test still passes; old `.npz` files can still be read.
+4. Update the package's row in the status table above, and add a dated entry at the end of `docs/HISTORY.md` (before 23/11/2026: the
+   Status section of `CLAUDE.md`).
+5. Report in 5 lines, then stop; do not widen the scope. Missing data or GPU: say so in the first turn, do not guess.
 
-## Prompt cho từng phiên
+## Prompts for each session
 
-Dán nguyên khối vào một phiên Claude Code mới mở trong `gs4d_viewer`.
+Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
-### WP10 — lệnh mở thẳng một output
+### WP10 — command that opens an output directly
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Việc: viết gs4d/open.py để `python -m gs4d.open <đường_dẫn_output> [đối số của viewer]` tự nhận dạng loại output,
-gọi đúng converter, rồi mở viewer. Không sửa converter hay viewer.py: gọi chúng qua subprocess.
-Nhận dạng: `params.npz` hoặc thư mục ply theo frame -> convert_per_frame; `chkpnt*.pth` -> convert_native4d;
-`last.ckpt` hoặc thư mục có `checkpoints/last.ckpt` -> convert_shape_of_motion; thư mục có `point_cloud/` và `deform/`
--> convert_scgs nếu ply có cột `fea_*`, ngược lại convert_deformable3dgs; `point_cloud.ply` có thuộc tính chuyển động
-của Spacetime Gaussians -> convert_spacetime; file `.npz` đã ở định dạng chung -> mở thẳng.
-File chuyển xong lưu cạnh output (`<tên>.gs4d.npz`) và dùng lại nếu output không đổi (so mtime). Không nhận dạng được
-thì in các dấu hiệu đã kiểm rồi thoát với mã lỗi, không đoán. Cảnh D-NeRF: tự đặt khoảng thời gian [0, 1].
-Chỉ thêm: gs4d/open.py, tests/test_open.py, một đoạn "Mở thẳng một output" ở đầu README.
-Xong khi: test dựng layout giả của từng loại và kiểm nhận dạng đúng; và cả 6 output thật trong ../data_real
-mở được bằng đúng một lệnh (liệt kê lệnh và kết quả trong báo cáo). Báo cáo 5 dòng rồi dừng.
-```
-
-### WP11 — tách Gaussian tĩnh và động
-```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Vấn đề: trường nào có trục K thì mọi Gaussian đều bị lưu ở mọi keyframe. Shape of Motion `paper-windmill` có
-71.867 Gaussian tiền cảnh động và 924.075 Gaussian nền tĩnh, file 1,27 GB.
-Việc: cho Sequence4D lưu một nhóm Gaussian tĩnh (không có trục K) bên cạnh nhóm động, trong cùng một file;
-`at(t)` trả về cả hai nhóm ghép lại nên viewer.py không phải biết. Khi lưu, tự phát hiện Gaussian không đổi qua mọi
-keyframe (mọi trường, sai khác trong ngưỡng float32) và đưa vào nhóm tĩnh; có cờ tắt. Dạng nén và nạp lười vẫn chạy.
-File cũ vẫn đọc được; `python -m gs4d in.npz out.npz` chuyển file cũ sang dạng mới.
-Chỉ sửa gs4d/format.py, gs4d/__main__.py, tests/test_compact.py (hoặc thêm tests/test_static.py); viewer.py chỉ sửa
-nếu không thể tránh, và ghi rõ lý do.
-Xong khi: test round-trip với scene giả có cả hai nhóm; README có bảng trước/sau cho ../data_real/som/paper-windmill.npz
-và ../data_real/d3dgs/bouncingballs.npz (dung lượng, RAM sau khi nạp, thời gian `at(t)`); ảnh gsplat render từ file
-trước và sau tại 3 thời điểm khác nhau không quá 1/255 mỗi kênh. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Task: write gs4d/open.py so that `python -m gs4d.open <output_path> [viewer arguments]` recognises the kind of output by itself,
+calls the right converter, then opens the viewer. Do not edit the converters or viewer.py: call them through subprocess.
+Detection: `params.npz` or a folder of per-frame ply files -> convert_per_frame; `chkpnt*.pth` -> convert_native4d;
+`last.ckpt` or a folder with `checkpoints/last.ckpt` -> convert_shape_of_motion; a folder with `point_cloud/` and `deform/`
+-> convert_scgs if the ply has `fea_*` columns, otherwise convert_deformable3dgs; a `point_cloud.ply` with the motion attributes
+of Spacetime Gaussians -> convert_spacetime; an `.npz` file already in the common format -> open it directly.
+The converted file is saved next to the output (`<name>.gs4d.npz`) and reused while the output is unchanged (compare mtimes). If nothing
+is recognised, print the signs that were checked and exit with an error code; do not guess. D-NeRF scenes: set the time range [0, 1].
+Only add: gs4d/open.py, tests/test_open.py, an "Opening an output directly" paragraph at the top of the README.
+Done when: the test builds a fake layout of every kind and checks the detection; and all 6 real outputs in ../data_real
+open with exactly one command (list the commands and results in the report). Report in 5 lines, then stop.
 ```
 
-### WP12 — kiểm tự động với output thật
+### WP11 — split static and dynamic Gaussians
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Việc: viết tests/check_real.py gom các phép so đã làm tay ngày 14/11/2026 thành một lệnh. Với mỗi output thật
-có ảnh gốc trong ../data_real (Deformable-3DGS, SC-GS, native 4DGS trên `bouncingballs`): chạy converter, render bằng
-gsplat ở camera và thời điểm của TOÀN BỘ ảnh test (không chỉ 5 ảnh), tính PSNR từng ảnh, in bảng (nhỏ nhất, trung bình,
-lớn nhất), và trả mã lỗi nếu PSNR nhỏ nhất thấp hơn ngưỡng. Ngưỡng ban đầu = số nhỏ nhất đo được lần này trừ 0,5 dB,
-ghi thành hằng số ở đầu file kèm ngày đo. Với Spacetime Gaussians và Shape of Motion (chưa có so PSNR): dùng camera
-huấn luyện trong `cameras.json` / checkpoint và ảnh gốc nếu có trong ../data_real; nếu không có ảnh gốc thì chỉ kiểm
-converter chạy được, số Gaussian và dung lượng khớp README, và ghi rõ là chưa so ảnh.
-Không có CUDA hoặc thiếu thư mục dữ liệu thì bỏ qua từng mục và in lý do, không báo qua.
-Chỉ thêm: tests/check_real.py, một dòng trong mục "Kiểm tra" của README. Không sửa converter; converter sai thì ghi
-vào báo cáo.
-Xong khi: lệnh chạy hết trên máy này, bảng PSNR dán vào báo cáo, và số trong README khớp với bảng (nếu lệch thì ghi
-số nào lệch, không tự sửa README ngoài dòng của mình). Báo cáo 5 dòng rồi dừng.
-```
-
-### WP13 — native 4DGS: màu SH theo keyframe (thuộc WP9)
-```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: WP12 đã merge.
-Vấn đề: convert_native4d.py chỉ ghi màu SH bậc 0; PSNR trên `bouncingballs` là 26,0–31,1 dB, repo gốc tự đo 33,4 dB.
-Việc: thêm cờ --sh. Đọc repo fudan-zvg/4d-gaussian-splatting để port cách màu phụ thuộc hướng nhìn và thời gian;
-tại mỗi keyframe, tính sẵn phần phụ thuộc thời gian và ghi hệ số SH 3D còn lại vào trường `sh` [K,N,S,3].
-Không import code của repo. Chỉ sửa convert_native4d.py, thêm tests/test_native4d_sh.py, sửa dòng native 4DGS
-trong README và ngưỡng tương ứng trong tests/check_real.py.
-Xong khi: test so màu tại 3 thời điểm và 3 hướng nhìn với công thức viết độc lập; tests/check_real.py cho PSNR nhỏ nhất
-trên `bouncingballs` tăng so với trước. Mục tiêu trung bình >= 32 dB; không đạt thì báo nguyên nhân còn lại
-(ví dụ lọc theo marginal_t, nội suy giữa keyframe) thay vì chỉnh cho khớp. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Problem: when a field has the K axis, every Gaussian is stored at every keyframe. Shape of Motion `paper-windmill` has
+71,867 dynamic foreground Gaussians and 924,075 static background Gaussians, file 1.27 GB.
+Task: let Sequence4D store a group of static Gaussians (without the K axis) next to the dynamic group, in the same file;
+`at(t)` returns both groups joined, so viewer.py does not have to know. When saving, find the Gaussians that do not change over the
+keyframes (every field, difference within float32 precision) and put them in the static group; with a flag to turn it off. The compact
+layout and lazy loading keep working. Old files can still be read; `python -m gs4d in.npz out.npz` converts an old file to the new layout.
+Only edit gs4d/format.py, gs4d/__main__.py, tests/test_compact.py (or add tests/test_static.py); edit viewer.py only
+if it cannot be avoided, and say why.
+Done when: a round-trip test with a fake scene that has both groups; the README has a before/after table for ../data_real/som/paper-windmill.npz
+and ../data_real/d3dgs/bouncingballs.npz (size, RAM after loading, `at(t)` time); gsplat renders of the file
+before and after at 3 different times differ by at most 1/255 per channel. Report in 5 lines, then stop.
 ```
 
-### WP14 — giải mã và nội suy trên GPU khi play
+### WP12 — automatic checks with real outputs
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: WP11 đã merge.
-Vấn đề: `at(t)` ở dạng nén mất 77 ms với 500.000 Gaussian (float32: 14 ms), nên play scene lớn chỉ được khoảng
-13 frame/giây trước cả khi rasterize.
-Bước 0: đo để biết thời gian nằm ở đâu (đọc đĩa, giải mã, nội suy, chép lên GPU) với tests/bench_large.py; ghi số.
-Việc: với renderer gsplat, giữ hai keyframe kề nhau ở dạng tensor trên GPU, giải mã và nội suy bằng torch, chỉ nạp
-keyframe mới khi thanh thời gian qua mốc; nhóm tĩnh (WP11) chép lên GPU một lần. Renderer client và đường CPU giữ nguyên.
-Chỉ sửa viewer.py, gs4d/format.py, tests/bench_large.py.
-Đo thêm tốc độ hiển thị trong trình duyệt thật (Chrome có GPU, không phải headless swiftshader) ở 1280x720 và ghi
-cạnh số phía server trong README.
-Xong khi: README có bảng trước/sau thời gian một frame khi play (500.000 Gaussian x 100 keyframe, float32 và nén)
-và với ../data_real/som/paper-windmill.npz; mục tiêu phần lấy frame <= 20 ms ở dạng nén; ảnh render không đổi quá
-1/255 mỗi kênh so với đường CPU. Báo cáo 5 dòng rồi dừng.
-```
-
-### WP15 — converter trực tiếp cho 4DGaussians (thuộc WP9)
-```
-Đọc CLAUDE.md và các mục "WP9" và "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Output thật nằm ở: <ĐƯỜNG DẪN>. Nếu chưa có: train hustvl/4DGaussians trên D-NeRF `bouncingballs` trong /home/cont/gs4d_train
-(một job, không chạy gì khác trên GPU), rồi chạy `export_perframe_3DGS.py` một lần để có ply từng frame làm đối chứng. Việc: viết convert_4dgaussians.py đọc thư mục model của 4DGaussians (hustvl/4DGaussians:
-`point_cloud/iteration_*/point_cloud.ply` + file trọng số mạng biến dạng) và xuất Sequence4D ở K mốc thời gian, để không
-phải chạy `export_perframe_3DGS.py` trong môi trường của repo gốc. Ràng buộc giống converter Deformable-3DGS: đọc repo
-để port công thức (HexPlane đa độ phân giải + MLP biến dạng vị trí/xoay/scale), viết lại forward pass bằng torch trên CPU,
-chạy theo lô, không import code của repo. Chỉ thêm: convert_4dgaussians.py, tests/test_4dgaussians.py, một dòng README,
-hai mục trong tests/check_real.py (converter mới, và thư mục ply từng frame qua convert_per_frame.py). Nhánh nhận dạng trong
-gs4d/open.py là file của CC-B: ghi vào báo cáo.
-Xong khi: test tổng hợp so với công thức viết độc lập; và với output thật ở trên, kết quả khớp với ply từng frame do
-`export_perframe_3DGS.py` xuất (nếu có sẵn) hoặc PSNR so với ảnh test được ghi vào README. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Task: write tests/check_real.py, which turns the comparisons done by hand on 14/11/2026 into one command. For every real output
+with original images in ../data_real (Deformable-3DGS, SC-GS, native 4DGS on `bouncingballs`): run the converter, render with
+gsplat at the camera and time of EVERY test image (not just 5), compute the PSNR of each image, print a table (min, mean,
+max), and return an error code if the minimum PSNR is below a threshold. Initial threshold = the minimum measured this time minus 0.5 dB,
+written as a constant at the top of the file with the date of the measurement. For Spacetime Gaussians and Shape of Motion (no PSNR
+comparison yet): use the training cameras in `cameras.json` / the checkpoint and the original images if they are in ../data_real; without
+original images only check that the converter runs and that the Gaussian count and the file size match the README, and say clearly that
+no images were compared.
+Without CUDA or without a data folder, skip that item and print why; never report it as passed.
+Only add: tests/check_real.py, one line in the "Tests" section of the README. Do not edit the converters; if a converter is wrong, say so
+in the report.
+Done when: the command runs through on this machine, the PSNR table is pasted into the report, and the numbers in the README match the
+table (if they differ, say which, and do not edit the README beyond your own line). Report in 5 lines, then stop.
 ```
 
-### WP16 — các biến thể chưa thử (thuộc WP9; mỗi biến thể một phiên)
+### WP13 — native 4DGS: per-keyframe SH colour (part of WP9)
 ```
-Đọc CLAUDE.md và các mục "WP9" và "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Phương pháp và biến thể: <MỘT trong: Spacetime Gaussians bản đầy đủ có rgbdecoder | Deformable-3DGS mặc định | Deformable-3DGS
-6-DoF | SC-GS có motion mask | SC-GS --use_hash | SC-GS --skinning | SC-GS --pred_color | SC-GS tắt d_rot_as_res |
-cảnh thật (không phải D-NeRF) cho <tên>>. Output thật nằm ở: <ĐƯỜNG DẪN>; nếu chưa có thì train biến thể đó trong
-/home/cont/gs4d_train (một job).
-Việc: chạy converter tương ứng với output này, so với ảnh gốc bằng tests/check_real.py (thêm một mục), sửa converter và
-test của nó nếu định dạng thật khác giả định. Biến thể không hỗ trợ được thì converter phải dừng với thông báo nêu tên
-biến thể. Không sửa viewer.py hay gs4d/format.py.
-Xong khi: README và mục Status của CLAUDE.md ghi PSNR đo được và chuyển biến thể này từ "NOT tested" sang "Tested".
-Báo cáo 5 dòng rồi dừng.
-```
-
-### WP17 — cờ `--compact` và một lệnh chạy mọi test
-```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: WP10 đã merge; không có gói
-converter nào của CC-C đang mở.
-Việc: (1) thêm cờ --compact vào mọi convert_*.py, chỉ truyền `compact=True` cho `Sequence4D.save`; không đổi gì khác
-trong converter. gs4d/open.py dùng --compact khi file ước tính lớn hơn 1 GB. (2) viết tests/run_all.py chạy mọi
-test_*.py và check_*.py, in một bảng qua / bỏ qua (kèm lý do: không CUDA, không Chrome, không dữ liệu) / hỏng,
-trả mã lỗi nếu có mục hỏng. Thay danh sách lệnh trong mục "Kiểm tra" của README bằng lệnh này, giữ danh sách cũ bên dưới.
-(3) Đối chiếu requirements.txt với các gói README bảo cài (viser, numpy<2, imageio, imageio-ffmpeg, pillow, playwright)
-và sửa cho khớp.
-Xong khi: `python tests/run_all.py` qua trên máy này, và một converter chạy với --compact cho file đọc được.
-Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP12 is merged.
+Problem: convert_native4d.py writes only the SH degree-0 colour; the PSNR on `bouncingballs` is 26.0–31.1 dB, the original repo's own
+evaluation gives 33.4 dB.
+Task: add a --sh flag. Read the fudan-zvg/4d-gaussian-splatting repository to port the view- and time-dependent colour;
+at every keyframe, precompute the time-dependent part and write the remaining 3D SH coefficients into the `sh` field [K,N,S,3].
+Do not import the repository's code. Only edit convert_native4d.py, add tests/test_native4d_sh.py, edit the native 4DGS row
+of the README and the matching threshold in tests/check_real.py.
+Done when: the test compares the colour at 3 times and 3 view directions with an independently written formula; tests/check_real.py gives
+a higher minimum PSNR on `bouncingballs` than before. Target mean >= 32 dB; if it is not reached, report the remaining cause
+(e.g. the marginal_t filter, interpolation between keyframes) instead of tuning until it matches. Report in 5 lines, then stop.
 ```
 
-### WP18 — camera huấn luyện và ảnh gốc trong viewer (chỉ khi được yêu cầu)
+### WP14 — GPU decoding and interpolation while playing
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: WP14 đã merge.
-Việc: thêm đối số `--cameras <cameras.json | transforms_*.json>` cho viewer.py: danh sách camera trong bảng điều khiển,
-bấm để nhảy tới camera đó (và tới thời điểm của ảnh nếu file có), và với renderer gsplat có ô bật ảnh gốc cạnh ảnh render
-kèm PSNR của frame đang xem. Quy ước camera đã ghi trong CLAUDE.md (D-NeRF là OpenGL: lật cột 1 và 2 của c2w).
-Chỉ sửa viewer.py; gs4d/open.py tự truyền --cameras khi tìm thấy file (ghi vào báo cáo cho CC-B nếu cần sửa).
-Xong khi: chạy với ../data_real/dnerf/data/bouncingballs và một model đã chuyển, có ảnh chụp trong shots/, PSNR hiển thị
-khớp tests/check_real.py trong 0,1 dB, README có một đoạn hướng dẫn. Báo cáo 5 dòng rồi dừng.
-```
-
-### WP19a — `open.py` nhận 4DGaussians và `--cameras`; dừng ở biến thể chưa hỗ trợ
-```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Việc 1: trong gs4d/open.py, thêm nhánh nhận dạng thư mục model của 4DGaussians (hustvl) và gọi convert_4dgaussians.py.
-Đọc phần đầu convert_4dgaussians.py để lấy đúng các file nó cần; phân biệt với Deformable-3DGS / SC-GS (có `deform/`)
-và Spacetime Gaussians bằng dấu hiệu trong file, không bằng tên thư mục. Thêm trường hợp này vào tests/test_open.py.
-Việc 2: gs4d/open.py tự truyền `--cameras` cho viewer khi tìm thấy `cameras.json` trong thư mục model, hoặc
-`transforms_test.json` của dataset (đọc đường dẫn dataset từ `cfg_args` nếu có); người dùng tự truyền thì giữ của người dùng.
-Không tìm thấy thì không truyền và không báo lỗi.
-Việc 3 (điều kiện 2 của WP9): biến thể chưa hỗ trợ phải dừng và nêu tên biến thể.
- - convert_scgs.py: model có đầu màu (`--pred_color`) hiện chỉ in cảnh báo. Đổi thành dừng, trừ khi có cờ `--ignore-pred-color`.
- - convert_spacetime.py: ply của bản đầy đủ (có `f_dc_3..`, hoặc có file `rgbdecoder` cạnh ply) hiện được chuyển bằng màu cơ sở
-   mà không báo. Đổi thành dừng và nêu "Spacetime Gaussians full model (rgbdecoder)", trừ khi có cờ `--base-color-only`.
-   Hai model lite đang có trong ../data_real phải vẫn chạy như cũ, không cần cờ.
- Thông báo dừng phải ghi luôn cờ để chạy tiếp. Cập nhật test của hai converter cho hai trường hợp này.
-Việc 4: sửa câu đã cũ trong mục Status của CLAUDE.md ("SH degree 0 only, so colours are mottled" sau số đo của `--sh`).
-Chỉ sửa: gs4d/open.py, tests/test_open.py, convert_scgs.py, convert_spacetime.py, tests/test_scgs.py, tests/test_spacetime.py,
-README (dòng tương ứng), CLAUDE.md, và bảng trạng thái trong PLAN.md.
-Xong khi: `python -m gs4d.open <thư mục 4DGaussians bouncingballs trong /home/cont/gs4d_train>` mở được viewer có danh sách camera;
-`python tests/run_all.py` và `python tests/check_real.py` qua, PSNR không đổi; bảng WP9 trong PLAN.md cập nhật.
-Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP11 is merged.
+Problem: `at(t)` on the compact layout takes 77 ms with 500,000 Gaussians (float32: 14 ms), so playing a large scene reaches only about
+13 frames/s even before rasterisation.
+Step 0: measure where the time goes (disk reads, decoding, interpolation, copy to the GPU) with tests/bench_large.py; write the numbers down.
+Task: for the gsplat renderer, keep the two neighbouring keyframes as tensors on the GPU, decode and interpolate with torch, and load a
+keyframe only when the time slider crosses into a new interval; copy the static group (WP11) to the GPU once. The client renderer and the
+CPU path stay as they are.
+Only edit viewer.py, gs4d/format.py, tests/bench_large.py.
+Also measure the display rate in a real browser (Chrome with a GPU, not headless swiftshader) at 1280x720 and write it
+next to the server-side numbers in the README.
+Done when: the README has a before/after table of the time per frame while playing (500,000 Gaussians x 100 keyframes, float32 and compact)
+and with ../data_real/som/paper-windmill.npz; target for fetching a frame <= 20 ms on the compact layout; renders differ by at most
+1/255 per channel from the CPU path. Report in 5 lines, then stop.
 ```
 
-### WP19b — đo FPS hiển thị trong Chrome có GPU (xong 15/11/2026)
-
-Các bước ở mục "Làm ngay", điểm 2. Xong khi README có số FPS trong trình duyệt ở 1280×720 cạnh số phía server, kèm tên GPU
-và phiên bản Chrome; xoá dòng "display FPS in a real browser" khỏi phần NOT tested của `CLAUDE.md`.
-
-### WP19c — PSNR cho Spacetime và Shape of Motion; lệch 1,9 dB của native 4DGS (phần 3 đã xong; phần 1, 2 đã mở)
+### WP15 — direct converter for 4DGaussians (part of WP9)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Mỗi phần một phiên; nêu phần nào khi dán.
-Phần 1 — Shape of Motion `paper-windmill`: lấy ảnh gốc của cảnh từ bộ iPhone của DyCheck (chỉ cảnh này), render ở camera
-huấn luyện (`Ks`, `w2cs` trong checkpoint) và thêm PSNR có ngưỡng vào mục tương ứng của tests/check_real.py.
-Báo dung lượng cần tải ở lượt đầu và dừng nếu vượt 5 GB.
-Phần 2 — Spacetime Gaussians `n3d_sear_steak` (lite): tương tự với video `sear_steak` của Neural 3D Video và `cameras.json`.
-Báo dung lượng cần tải ở lượt đầu và dừng nếu vượt 5 GB. Ảnh có người: không commit ảnh vào repo, chỉ ghi số.
-Phần 3 — native 4DGS trên `slice-banana`: của ta 24,23 dB, repo gốc tự đo 26,14 dB. Chỉ chẩn đoán, không chỉnh cho khớp.
-Thử lần lượt và ghi PSNR sau mỗi bước: (a) keyframe đặt đúng tại 33 thời điểm test thay vì nội suy; (b) ngưỡng lọc
-marginal_t và cách nhân opacity theo thời gian so với renderer gốc; (c) nền và độ phân giải dùng khi đo so với eval của repo;
-(d) SH: bậc và phần phụ thuộc thời gian có được tính đủ không. Dừng ở bước giải thích được phần lớn khoảng lệch.
-Chỉ sửa: tests/check_real.py; convert_native4d.py và tests/test_native4d_sh.py nếu phần 3 tìm ra lỗi trong converter;
-dòng tương ứng trong README, CLAUDE.md và PLAN.md.
-Xong khi: README có PSNR (phần 1, 2) hoặc bảng PSNR theo từng bước và kết luận (phần 3). Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of PLAN.md.
+The real output is at: <PATH>. If there is none: train hustvl/4DGaussians on D-NeRF `bouncingballs` in /home/cont/gs4d_train
+(one job, nothing else on the GPU), then run `export_perframe_3DGS.py` once to get per-frame ply files as a reference. Task: write
+convert_4dgaussians.py, which reads a 4DGaussians model folder (hustvl/4DGaussians: `point_cloud/iteration_*/point_cloud.ply` + the
+weights of the deformation network) and writes a Sequence4D at K times, so that `export_perframe_3DGS.py` no longer has to run in the
+original repository's environment. Same constraints as the Deformable-3DGS converter: read the repository to port the formulas
+(multi-resolution HexPlane + MLP deforming position/rotation/scale), rewrite the forward pass with torch on the CPU, run in batches, do not
+import the repository's code. Only add: convert_4dgaussians.py, tests/test_4dgaussians.py, one README row,
+two items in tests/check_real.py (the new converter, and the per-frame ply folder through convert_per_frame.py). The detection branch in
+gs4d/open.py is CC-B's file: note it in the report.
+Done when: a synthetic test against an independently written formula; and with the real output above, the result matches the per-frame
+ply files written by `export_perframe_3DGS.py` (if available), or the PSNR against the test images is written into the README. Report in 5
+lines, then stop.
 ```
 
-### WP19d — converter ghi từng keyframe ra đĩa (khi cần cảnh dài) — XONG 15/11/2026
-Kết quả: `Sequence4DWriter` trong `gs4d/format.py` (giữ cả nhóm tĩnh và dạng nén, file bằng `save` từng bit), `tests/test_writer.py`;
-`slice-banana` 330 keyframe: SC-GS RAM đỉnh 1,4 GB, 26,87 dB; native 4DGS 1,3 GB, 24,27 dB; Deformable-3DGS 7,2 → 1,0 GB.
+### WP16 — untried variants (part of WP9; one variant per session)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Vấn đề: converter dựng cả sequence [K,N,...] trong RAM rồi mới lưu. Trên `slice-banana` (392k–603k Gaussian), SC-GS và
-native 4DGS chỉ chuyển được 110 keyframe; 330 keyframe thì hết 15 GB RAM và tiến trình bị kill.
-Bước 0: đo RAM đỉnh của `convert_scgs.py --frames 110 --sh --compact` trên `slice-banana` và xác định mảng nào chiếm chỗ
-(thường là `sh` [K,N,16,3]).
-Việc: thêm vào gs4d/format.py một cách ghi tăng dần (ví dụ `Sequence4DWriter`: mở file, `add_keyframe(t, means, covs, ...)`,
-`close()`), ghi được cả dạng thường và dạng nén, RAM đỉnh không phụ thuộc K; file ra đọc được bằng `Sequence4D.load` hiện tại.
-Phát hiện nhóm tĩnh (WP11) có thể bỏ qua ở đường ghi này nếu cần hai lượt; ghi rõ nếu bỏ. Sau đó chuyển convert_scgs.py,
-convert_native4d.py và convert_deformable3dgs.py sang dùng nó; các converter khác giữ nguyên.
-Chỉ sửa: gs4d/format.py, ba converter trên, thêm tests/test_writer.py, dòng tương ứng trong README.
-Xong khi: test so file ghi tăng dần với file ghi một lần (bằng nhau từng bit ở dạng thường); SC-GS và native 4DGS chuyển được
-330 keyframe của `slice-banana` với RAM đỉnh dưới 8 GB; tests/check_real.py qua, và ghi PSNR `scgs_banana`, `native4d_banana`
-ở 330 keyframe cạnh số 110 keyframe. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of PLAN.md.
+Method and variant: <ONE of: full Spacetime Gaussians with rgbdecoder | Deformable-3DGS default | Deformable-3DGS
+6-DoF | SC-GS with motion mask | SC-GS --use_hash | SC-GS --skinning | SC-GS --pred_color | SC-GS with d_rot_as_res off |
+a real (non-D-NeRF) scene for <name>>. The real output is at: <PATH>; if there is none, train that variant in
+/home/cont/gs4d_train (one job).
+Task: run the matching converter on this output, compare with the original images through tests/check_real.py (add an item), and fix the
+converter and its test if the real format differs from what was assumed. A variant that cannot be supported must make the converter stop
+with a message naming the variant. Do not edit viewer.py or gs4d/format.py.
+Done when: the README and the Status section of CLAUDE.md give the measured PSNR and move this variant from "NOT tested" to "Tested".
+Report in 5 lines, then stop.
 ```
 
-### WP20 — train lại native 4DGS `slice-banana` với camera đúng
+### WP17 — the `--compact` flag and one command that runs every test
 ```
-Đọc CLAUDE.md (mục WP19c phần 3) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md. Điều kiện: nhánh cc-c/wp19c-psnr đã merge.
-Vấn đề: tests/make_hypernerf_blender.py ghi `fl_x/fl_y/cx/cy` theo từng frame; reader Blender của fudan-zvg/4d-gaussian-splatting
-khi đó để `FovX = FovY = -1`, nên model `slice-banana` được train với camera sai và 24,23 dB của ta (repo tự đo 26,14) không
-phản ánh chất lượng converter.
-Bước 0: `nvidia-smi`; nếu GPU còn dưới 10 GB trống thì báo và dừng (lần trước một game giữ ~3 GB và ba lần train bị CUDA OOM).
-Việc: đọc reader của repo để biết nó lấy FoV từ trường nào, sửa tests/make_hypernerf_blender.py để ghi đúng trường đó
-(không vá repo gốc), tạo lại layout, train lại trong /home/cont/gs4d_train với cùng config (20k vòng, batch_size 1,
-densify_until_num_points 250_000), rồi chạy lại eval của repo và `convert_native4d.py --frames 110 --sh --compact`.
-Chỉ sửa: tests/make_hypernerf_blender.py, mục `native4d_banana` và ngưỡng của nó trong tests/check_real.py,
-tests/diag_native4d_banana.py (bỏ bước giả lập nếu không còn cần), dòng tương ứng trong README, CLAUDE.md, PLAN.md.
-Không sửa convert_native4d.py; nếu sau khi train lại vẫn lệch quá 0,5 dB so với eval của repo thì báo số theo từng bước
-của diag script và dừng, không chỉnh cho khớp.
-Xong khi: README ghi PSNR mới của repo và của ta trên 33 ảnh giữ lại; hai số lệch không quá 0,5 dB; check_real.py qua.
-Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP10 is merged; no converter package
+of CC-C is open.
+Task: (1) add a --compact flag to every convert_*.py that only passes `compact=True` to `Sequence4D.save`; change nothing else
+in the converters. gs4d/open.py uses --compact when the estimated file is larger than 1 GB. (2) write tests/run_all.py, which runs every
+test_*.py and check_*.py and prints a table of passed / skipped (with the reason: no CUDA, no Chrome, no data) / failed,
+and returns an error code if anything failed. Replace the list of commands in the "Tests" section of the README with this command, and
+keep the old list below it.
+(3) Compare requirements.txt with the packages the README says to install (viser, numpy<2, imageio, imageio-ffmpeg, pillow, playwright)
+and make them match.
+Done when: `python tests/run_all.py` passes on this machine, and a converter run with --compact gives a file that can be read.
+Report in 5 lines, then stop.
 ```
 
-### WP21 — nén trường `sh` theo keyframe
+### WP18 — training cameras and original images in the viewer (only when asked)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Vấn đề: dạng nén (WP8) không đụng tới `sh`. Native 4DGS ghi `sh` theo từng keyframe [K,N,S,3] ở float32:
-`slice-banana` 330 keyframe ra 19,9 GB, và check_real.py không nạp nổi file đó nếu không `load(lazy=True)`.
-Bước 0: đo phân bố giá trị của `sh` trên file thật (bậc 0 so với bậc cao) để chọn cách lượng tử hóa; ghi số.
-Việc: trong dạng nén, lưu `sh` thay đổi theo thời gian ở dạng lượng tử hóa (ví dụ float16, hoặc int8 với thang riêng cho từng bậc),
-`sh` hằng theo thời gian giữ nguyên; `Sequence4DWriter`, nạp lười và `GpuFrames` đều đọc được; file cũ vẫn đọc được.
-Chỉ sửa: gs4d/format.py, tests/test_compact.py, tests/test_writer.py, tests/bench_large.py, đoạn "File lớn" trong README.
-Xong khi: README có bảng trước/sau cho native 4DGS `slice-banana` 330 keyframe và `bouncingballs --sh` (dung lượng, thời gian
-lấy frame khi play, PSNR); mục tiêu dung lượng không quá 1/3 bản float32 và PSNR giảm không quá 0,1 dB; check_real.py qua.
-Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP14 is merged.
+Task: add a `--cameras <cameras.json | transforms_*.json>` argument to viewer.py: a camera list in the control panel,
+click to jump to that camera (and to the image's time if the file has one), and with the gsplat renderer a checkbox that shows the
+original image next to the render with the PSNR of the frame on screen. The camera conventions are in CLAUDE.md (D-NeRF is OpenGL: flip
+columns 1 and 2 of c2w).
+Only edit viewer.py; gs4d/open.py passes --cameras by itself when it finds the file (note it in the report for CC-B if it needs a change).
+Done when: run with ../data_real/dnerf/data/bouncingballs and a converted model, with screenshots in shots/, the PSNR shown matches
+tests/check_real.py within 0.1 dB, and the README has a paragraph of instructions. Report in 5 lines, then stop.
 ```
 
-### WP22 — `Sequence4DWriter` cho bốn converter còn lại — XONG 15/11/2026
-
-Kết quả: bốn converter ghi bằng Writer, file ra giống code cũ từng bit ở mọi mảng trên output thật (số RAM trong README). `convert_per_frame.py` ở chế độ số Gaussian đổi theo frame giữ đường cũ (Writer cần N cố định). Shape of Motion cả 277 frame nay chuyển được (RAM đỉnh 0,88 GB).
-
-Prompt gốc:
+### WP19a — `open.py` recognises 4DGaussians and `--cameras`; stop on unsupported variants
 ```
-Đọc CLAUDE.md (mục WP19d) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Việc: chuyển convert_4dgaussians.py, convert_shape_of_motion.py, convert_spacetime.py và convert_per_frame.py sang ghi bằng
-`gs4d.Sequence4DWriter`, theo đúng cách convert_scgs.py đã làm; không đổi công thức nào. Với convert_per_frame.py ở chế độ
-số Gaussian thay đổi theo frame (`interpolate=False`): nếu Writer không hỗ trợ thì giữ đường cũ cho chế độ đó và ghi rõ.
-Chỉ sửa bốn converter trên và dòng tương ứng trong README, CLAUDE.md, PLAN.md.
-Xong khi: với mỗi converter, file ra trên output thật trong ../data_real giống file của code cũ ở mọi mảng (so bằng script, dán
-kết quả vào báo cáo); README có RAM đỉnh trước/sau; `python tests/run_all.py` và check_real.py qua. Báo cáo 5 dòng rồi dừng.
-```
-
-### WP23 — 4DGaussians trên cảnh thật `slice-banana`
-```
-Đọc CLAUDE.md (các mục WP15 và WP16 ngày 15/11/2026) và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Điều kiện: WP20 đã xong (GPU trống). Bước 0: `nvidia-smi`; GPU còn dưới 10 GB trống thì báo và dừng.
-Việc: train hustvl 4DGaussians trên HyperNeRF `slice-banana` trong /home/cont/gs4d_train/4dgaussians (clone đã vá sẵn), dùng
-reader HyperNeRF của chính repo và cùng cách chia 297 ảnh train / 33 ảnh giữ lại như ba phương pháp kia (xem
-tests/make_hypernerf_split.py), ảnh 268x480, 20k vòng hoặc config hypernerf mặc định của repo nếu vừa 12 GB GPU và 15 GB RAM.
-Sau đó `convert_4dgaussians.py --sh --compact`, mở bằng `python -m gs4d.open`, và đo PSNR trên 33 ảnh giữ lại cạnh số eval của repo.
-Kiểm trước khi tin số của repo: camera mà repo dùng khi train có đúng không (bài học WP19c phần 3: FovX/FovY).
-Chỉ sửa: convert_4dgaussians.py và tests/test_4dgaussians.py nếu định dạng thật khác giả định; thêm mục `4dgaussians_banana`
-vào tests/check_real.py; dòng tương ứng trong README, CLAUDE.md, PLAN.md.
-Xong khi: README ghi PSNR của ta và của repo trên 33 ảnh, số Gaussian, dung lượng, thời gian chuyển; lệch quá 0,5 dB thì báo
-nguyên nhân đã thử, không chỉnh cho khớp. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Task 1: in gs4d/open.py, add a detection branch for 4DGaussians (hustvl) model folders that calls convert_4dgaussians.py.
+Read the top of convert_4dgaussians.py to get exactly the files it needs; tell it apart from Deformable-3DGS / SC-GS (which have `deform/`)
+and Spacetime Gaussians by signs inside the files, not by folder names. Add this case to tests/test_open.py.
+Task 2: gs4d/open.py passes `--cameras` to the viewer by itself when it finds `cameras.json` in the model folder, or the
+dataset's `transforms_test.json` (read the dataset path from `cfg_args` if there is one); when the user passes it, keep the user's.
+When nothing is found, pass nothing and report no error.
+Task 3 (criterion 2 of WP9): an unsupported variant must stop and name the variant.
+ - convert_scgs.py: a model with a colour head (`--pred_color`) currently only prints a warning. Make it stop, unless the flag
+   `--ignore-pred-color` is given.
+ - convert_spacetime.py: the ply of the full model (with `f_dc_3..`, or with an `rgbdecoder` file next to the ply) is currently converted
+   with the base colour without a word. Make it stop and say "Spacetime Gaussians full model (rgbdecoder)", unless the flag
+   `--base-color-only` is given. The two lite models in ../data_real must still run as before, without a flag.
+ The stop message must give the flag that converts anyway. Update the tests of both converters for these two cases.
+Task 4: fix the stale sentence in the Status section of CLAUDE.md ("SH degree 0 only, so colours are mottled" after the `--sh` numbers).
+Only edit: gs4d/open.py, tests/test_open.py, convert_scgs.py, convert_spacetime.py, tests/test_scgs.py, tests/test_spacetime.py,
+the README (the matching rows), CLAUDE.md, and the status table in PLAN.md.
+Done when: `python -m gs4d.open <the 4DGaussians bouncingballs folder in /home/cont/gs4d_train>` opens the viewer with a camera list;
+`python tests/run_all.py` and `python tests/check_real.py` pass, with unchanged PSNR; the WP9 table in PLAN.md is updated.
+Report in 5 lines, then stop.
 ```
 
-### WP24 — chế độ vẽ tâm Gaussian thành điểm (xong 16/11/2026)
+### WP19b — measure display FPS in a GPU-accelerated Chrome (done 15/11/2026)
+
+The steps are in "Do now (phase 2)", item 2. Done when the README has the browser FPS at 1280×720 next to the server-side numbers, with the
+GPU name and the Chrome version; remove the line "display FPS in a real browser" from the NOT tested part of `CLAUDE.md`.
+
+### WP19c — PSNR for Spacetime and Shape of Motion; the 1.9 dB gap of native 4DGS (part 3 done; parts 1, 2 opened)
 ```
-Đọc CLAUDE.md và mục "Điều kiện xong, áp dụng cho mọi gói" trong PLAN.md.
-Việc: thêm ô chọn "Display" trong bảng điều khiển của viewer.py: `splats` (như hiện tại) hoặc `points` (mỗi Gaussian là một điểm
-tại tâm, màu của Gaussian, có thanh "Point size"), dùng được khi đang play, với `--compare`, và ở cả hai renderer
-(client: point cloud của viser; gsplat: rasterize với scale nhỏ cố định theo pixel, hoặc gửi point cloud sang client nếu đơn giản hơn;
-chọn một và ghi lý do). Thanh "Hide opacity below" vẫn áp dụng. Ghi vào README cách di chuyển camera (chuột và phím) đúng theo
-phiên bản viser đang cài, sau khi thử thật.
-Chỉ sửa viewer.py, README, CLAUDE.md, PLAN.md; thêm tests/check_points.py (ảnh chụp headless ở 3 thời điểm).
-Xong khi: chạy với `../data_real/scgs/bouncingballs_sh.npz` và `../data_real/som/paper-windmill.npz`, có ảnh chụp trong shots/points/,
-tốc độ khi play ở chế độ điểm được ghi trong README. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. One part per session; say which part when pasting.
+Part 1 — Shape of Motion `paper-windmill`: get the scene's original images from the DyCheck iPhone set (this scene only), render at the
+training cameras (`Ks`, `w2cs` in the checkpoint) and add a PSNR with a threshold to the matching item of tests/check_real.py.
+Report the download size in the first turn and stop if it exceeds 5 GB.
+Part 2 — Spacetime Gaussians `n3d_sear_steak` (lite): the same with the `sear_steak` video of Neural 3D Video and `cameras.json`.
+Report the download size in the first turn and stop if it exceeds 5 GB. The images show people: do not commit them to the repo, only the
+numbers.
+Part 3 — native 4DGS on `slice-banana`: ours 24.23 dB, the original repo's own evaluation 26.14 dB. Diagnose only, do not tune until it
+matches. Try in turn and write down the PSNR after every step: (a) keyframes placed exactly at the 33 test times instead of
+interpolating; (b) the marginal_t threshold and how opacity is multiplied over time, compared with the original renderer; (c) the
+background and resolution used for the measurement compared with the repo's evaluation; (d) SH: whether the degree and the time-dependent
+part are fully accounted for. Stop at the step that explains most of the gap.
+Only edit: tests/check_real.py; convert_native4d.py and tests/test_native4d_sh.py if part 3 finds a bug in the converter;
+the matching rows in the README, CLAUDE.md and PLAN.md.
+Done when: the README has the PSNR (parts 1, 2) or a table of PSNR per step and a conclusion (part 3). Report in 5 lines, then stop.
+```
+
+### WP19d — converters write one keyframe at a time to disk (when long scenes are needed) — DONE 15/11/2026
+Result: `Sequence4DWriter` in `gs4d/format.py` (keeps the static group and the compact layout, file bit-identical to `save`),
+`tests/test_writer.py`; `slice-banana` with 330 keyframes: SC-GS peak RAM 1.4 GB, 26.87 dB; native 4DGS 1.3 GB, 24.27 dB;
+Deformable-3DGS 7.2 → 1.0 GB.
+```
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Problem: the converters build the whole sequence [K,N,...] in memory before saving. On `slice-banana` (392k–603k Gaussians), SC-GS and
+native 4DGS can only convert 110 keyframes; with 330 keyframes the 15 GB of RAM run out and the process is killed.
+Step 0: measure the peak RAM of `convert_scgs.py --frames 110 --sh --compact` on `slice-banana` and find which array takes the space
+(usually `sh` [K,N,16,3]).
+Task: add an incremental writer to gs4d/format.py (e.g. `Sequence4DWriter`: open the file, `add_keyframe(t, means, covs, ...)`,
+`close()`) that writes both the plain and the compact layout, with peak RAM independent of K; the output must be readable by the current
+`Sequence4D.load`. Detecting the static group (WP11) may be skipped on this path if it needs two passes; say so if it is skipped. Then move
+convert_scgs.py, convert_native4d.py and convert_deformable3dgs.py to it; the other converters stay as they are.
+Only edit: gs4d/format.py, the three converters above, add tests/test_writer.py, the matching rows in the README.
+Done when: a test compares the incrementally written file with the file written at once (bit-identical in the plain layout); SC-GS and
+native 4DGS convert the 330 keyframes of `slice-banana` with peak RAM below 8 GB; tests/check_real.py passes, and the PSNR of
+`scgs_banana` and `native4d_banana` at 330 keyframes is written next to the 110-keyframe numbers. Report in 5 lines, then stop.
+```
+
+### WP20 — retrain native 4DGS `slice-banana` with the right cameras
+```
+Read CLAUDE.md (the WP19c part 3 entry) and the "Done criteria for every package" section of PLAN.md. Precondition: branch
+cc-c/wp19c-psnr is merged.
+Problem: tests/make_hypernerf_blender.py writes `fl_x/fl_y/cx/cy` per frame; the Blender reader of fudan-zvg/4d-gaussian-splatting
+then sets `FovX = FovY = -1`, so the `slice-banana` model was trained with wrong cameras, and our 24.23 dB (the repo's own evaluation 26.14)
+does not reflect the converter's quality.
+Step 0: `nvidia-smi`; if the GPU has less than 10 GB free, report and stop (last time a game held ~3 GB and three training runs hit CUDA
+OOM).
+Task: read the repo's reader to find which field it takes the FoV from, fix tests/make_hypernerf_blender.py to write exactly that field
+(do not patch the original repo), rebuild the layout, retrain in /home/cont/gs4d_train with the same config (20k iterations, batch_size 1,
+densify_until_num_points 250_000), then rerun the repo's evaluation and `convert_native4d.py --frames 110 --sh --compact`.
+Only edit: tests/make_hypernerf_blender.py, the `native4d_banana` item and its threshold in tests/check_real.py,
+tests/diag_native4d_banana.py (drop the emulation step if it is no longer needed), the matching rows in the README, CLAUDE.md, PLAN.md.
+Do not edit convert_native4d.py; if after retraining the gap to the repo's evaluation is still more than 0.5 dB, report the numbers of each
+step of the diag script and stop; do not tune until it matches.
+Done when: the README gives the new PSNR of the repo and ours on the 33 held-out images; the two differ by at most 0.5 dB; check_real.py
+passes. Report in 5 lines, then stop.
+```
+
+### WP21 — compact the per-keyframe `sh` field
+```
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Problem: the compact layout (WP8) leaves `sh` alone. Native 4DGS writes `sh` per keyframe [K,N,S,3] as float32:
+`slice-banana` with 330 keyframes gives 19.9 GB, and check_real.py cannot load that file without `load(lazy=True)`.
+Step 0: measure the distribution of the `sh` values in real files (degree 0 against the higher degrees) to choose the quantisation;
+write the numbers down.
+Task: in the compact layout, store the time-varying `sh` quantised (e.g. float16, or int8 with a scale per degree); `sh` that is constant
+over time stays as it is; `Sequence4DWriter`, lazy loading and `GpuFrames` can all read it; old files can still be read.
+Only edit: gs4d/format.py, tests/test_compact.py, tests/test_writer.py, tests/bench_large.py, the "Large files" paragraph of the README.
+Done when: the README has a before/after table for native 4DGS `slice-banana` with 330 keyframes and `bouncingballs --sh` (size, frame
+fetch time while playing, PSNR); target size at most 1/3 of the float32 file and PSNR drop at most 0.1 dB; check_real.py passes.
+Report in 5 lines, then stop.
+```
+
+### WP22 — `Sequence4DWriter` for the four remaining converters — DONE 15/11/2026
+
+Result: the four converters write through the Writer, and their output equals the old code's bit for bit in every array on real outputs
+(peak RAM now in `docs/PERFORMANCE.md`). `convert_per_frame.py` keeps the old path when the Gaussian count changes between frames (the
+Writer needs a fixed N). Shape of Motion with all 277 frames can now be converted (peak RAM 0.88 GB).
+
+Original prompt:
+```
+Read CLAUDE.md (the WP19d entry) and the "Done criteria for every package" section of PLAN.md.
+Task: move convert_4dgaussians.py, convert_shape_of_motion.py, convert_spacetime.py and convert_per_frame.py to writing through
+`gs4d.Sequence4DWriter`, exactly as convert_scgs.py does; change no formula. For convert_per_frame.py in the mode where the
+Gaussian count changes between frames (`interpolate=False`): if the Writer does not support it, keep the old path for that mode and say so.
+Only edit the four converters above and the matching rows in the README, CLAUDE.md, PLAN.md.
+Done when: for every converter, the output on a real output in ../data_real equals the old code's output in every array (compared with a
+script, results pasted into the report); the README has the peak RAM before/after; `python tests/run_all.py` and check_real.py pass.
+Report in 5 lines, then stop.
+```
+
+### WP23 — 4DGaussians on the real scene `slice-banana`
+```
+Read CLAUDE.md (the WP15 and WP16 entries of 15/11/2026) and the "Done criteria for every package" section of PLAN.md.
+Precondition: WP20 is done (GPU free). Step 0: `nvidia-smi`; if the GPU has less than 10 GB free, report and stop.
+Task: train hustvl 4DGaussians on HyperNeRF `slice-banana` in /home/cont/gs4d_train/4dgaussians (a clone that is already patched), with
+the repo's own HyperNeRF reader and the same split of 297 training / 33 held-out images as the three other methods (see
+tests/make_hypernerf_split.py), 268x480 images, 20k iterations, or the repo's default hypernerf config if it fits in a 12 GB GPU and 15 GB
+of RAM. Then `convert_4dgaussians.py --sh --compact`, open with `python -m gs4d.open`, and measure the PSNR on the 33 held-out images next
+to the repo's evaluation numbers.
+Check before trusting the repo's numbers: are the cameras the repo uses for training right (the lesson of WP19c part 3: FovX/FovY)?
+Only edit: convert_4dgaussians.py and tests/test_4dgaussians.py if the real format differs from what was assumed; add a
+`4dgaussians_banana` item to tests/check_real.py; the matching rows in the README, CLAUDE.md, PLAN.md.
+Done when: the README gives our PSNR and the repo's on the 33 images, the Gaussian count, the size and the conversion time; if they differ
+by more than 0.5 dB, report the causes tried, do not tune until it matches. Report in 5 lines, then stop.
+```
+
+### WP24 — draw Gaussian centres as points (done 16/11/2026)
+```
+Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Task: add a "Display" choice to the control panel of viewer.py: `splats` (as now) or `points` (every Gaussian is a point at its
+centre, in the Gaussian's colour, with a "Point size" slider), usable while playing, with `--compare`, and with both renderers
+(client: viser's point cloud; gsplat: rasterise with a small fixed pixel scale, or send a point cloud to the client if that is simpler;
+pick one and say why). The "Hide opacity below" slider still applies. Write in the README how to move the camera (mouse and keys) for the
+installed viser version, after trying it for real.
+Only edit viewer.py, README, CLAUDE.md, PLAN.md; add tests/check_points.py (headless screenshots at 3 times).
+Done when: run with `../data_real/scgs/bouncingballs_sh.npz` and `../data_real/som/paper-windmill.npz`, with screenshots in
+shots/points/, and the playback speed in points mode written in the README. Report in 5 lines, then stop.
 ```
 
 ---
 
-# Phụ lục: kế hoạch giai đoạn 1 (đã xong, giữ để tra cứu)
+# Appendix: the phase 1 plan (done, kept for reference)
 
-Chỗ đã lệch so với thực tế: luật 2 ghi nhánh `wp<N>-<tên>` nhưng nhánh thật là `cc-<phiên>/wp<N>-<tên>`; quy ước
-"CC-C chỉ mở sau khi giáo sư trả lời" đã không được giữ; WP7 ghi "chọn một" nhưng đã làm cả hai.
+Where it drifted from what happened: rule 2 names branches `wp<N>-<name>`, but the real branches are `cc-<session>/wp<N>-<name>`; the
+convention "CC-C opens only after the professor answers" was not kept; WP7 says "pick one", but both were done.
 
-### Trạng thái (14/11/2026)
+### Status (14/11/2026)
 
-Cả 8 gói đã đạt điều kiện xong và đã merge vào `main`. Phần còn lại của file là kế hoạch gốc, giữ để tra cứu.
+All 8 packages met their done criteria and are merged into `main`. The rest of the file is the original plan, kept for reference.
 
-| WP | Trạng thái | Nhánh | Ghi chú |
+| WP | Status | Branch | Notes |
 |---|---|---|---|
-| 1 | Xong | `cc-a/wp1-gsplat` | Bảng FPS trong README (RTX 3060) |
-| 2 | Xong | `cc-b/wp2-real-data` | Output thật `basketball` của Dynamic 3D Gaussians; ảnh ở `shots/wp2/` |
-| 3 | Xong | `cc-c/wp3-spacetime` | Đã chạy với model thật `n3d_sear_steak_lite_allcam` (bản lite, không có `rgbdecoder`) |
-| 4 | Xong | `cc-c/wp4-deformable3dgs` | 3 biến thể (mặc định, D-NeRF, 6-DoF); đã chạy biến thể D-NeRF với model thật tự train (`bouncingballs`) |
-| 5 | Xong | `cc-c/wp5-shape-of-motion`, `cc-c/wp5-scgs` | Làm cả hai phương pháp; đã chạy với checkpoint thật `paper-windmill` (Shape of Motion) và model tự train `bouncingballs` (SC-GS) |
-| 6 | Xong | `cc-a/wp6-sh` | |
-| 7 | Xong | `cc-a/wp7-video`, `cc-a/wp7-compare` | Làm cả (a) so sánh hai sequence và (b) xuất mp4 |
-| 8 | Xong | `cc-a/wp8-large` | Bảng trước/sau trong README |
+| 1 | Done | `cc-a/wp1-gsplat` | FPS table in the README, now in `docs/PERFORMANCE.md` (RTX 3060) |
+| 2 | Done | `cc-b/wp2-real-data` | Real Dynamic 3D Gaussians output `basketball`; images in `shots/wp2/` |
+| 3 | Done | `cc-c/wp3-spacetime` | Run with the real model `n3d_sear_steak_lite_allcam` (lite model, no `rgbdecoder`) |
+| 4 | Done | `cc-c/wp4-deformable3dgs` | 3 variants (default, D-NeRF, 6-DoF); the D-NeRF variant run with a real self-trained model (`bouncingballs`) |
+| 5 | Done | `cc-c/wp5-shape-of-motion`, `cc-c/wp5-scgs` | Both methods done; run with the real checkpoint `paper-windmill` (Shape of Motion) and a self-trained model `bouncingballs` (SC-GS) |
+| 6 | Done | `cc-a/wp6-sh` | |
+| 7 | Done | `cc-a/wp7-video`, `cc-a/wp7-compare` | Both (a) comparing two sequences and (b) mp4 export were done |
+| 8 | Done | `cc-a/wp8-large` | Before/after table in the README, now in `docs/PERFORMANCE.md` |
 
-Còn mở, nằm ngoài điều kiện xong của các gói:
+Still open, outside the packages' done criteria:
 
-- Đã chạy với output thật (14/11/2026): cả bốn converter của WP3–5 và native 4DGS; số đo ở bảng "Dùng với output
-  thật" trong README, ảnh so với ảnh gốc ở `shots/real/`. Chưa thử: model Spacetime Gaussians bản đầy đủ (có
-  `rgbdecoder`), Deformable-3DGS biến thể mặc định và 6-DoF, cảnh thật (không phải D-NeRF)
-  cho Deformable-3DGS, SC-GS và native 4DGS.
-- Câu hỏi cho giáo sư bên dưới chưa có câu trả lời được ghi lại; WP3–5 đã được làm mà không chờ.
-- Tốc độ hiển thị trong trình duyệt thật: đã đo ở WP19b (15/11/2026), bảng trong README.
-- Danh sách đầy đủ những gì đã và chưa kiểm nằm ở mục Status của `CLAUDE.md`.
+- Run with real outputs (14/11/2026): all four converters of WP3–5 and native 4DGS; measurements in the "Use with real outputs" table of
+  the README (now `docs/SUPPORTED.md`), images compared with the originals in `shots/real/`. Not tried: the full Spacetime Gaussians model
+  (with `rgbdecoder`), the default and 6-DoF variants of Deformable-3DGS, real (non-D-NeRF) scenes
+  for Deformable-3DGS, SC-GS and native 4DGS.
+- The question for the professor below has no recorded answer; WP3–5 were done without waiting.
+- Display rate in a real browser: measured in WP19b (15/11/2026), table in the README (now `docs/PERFORMANCE.md`).
+- The full list of what has and has not been checked is in the Status section of `CLAUDE.md` (now `docs/SUPPORTED.md` and
+  `docs/HISTORY.md`).
 
-### Phân công: 3 phiên Claude Code
+### Assignment: 3 Claude Code sessions
 
-| Phiên | Vai trò | Máy | Model | Việc, theo đúng thứ tự | File được sửa (chỉ phiên này) |
+| Session | Role | Machine | Model | Tasks, in this order | Files it may edit (this session only) |
 |---|---|---|---|---|---|
-| **CC-A** | Render và giao diện | máy có GPU NVIDIA | mạnh (Opus/Fable) | WP1 → WP6 → WP7 → WP8 | `viewer.py`, `gs4d/format.py`, `gs4d/ply.py`, `make_toy.py`, phần thân README |
-| **CC-B** | Dữ liệu thật | máy có file output | Sonnet | WP2 | `convert_per_frame.py`, `convert_native4d.py`, `tests/test_all.py` |
-| **CC-C** | Converter mới | bất kỳ, CPU là đủ | Sonnet | WP3 → WP4 → WP5, chỉ những gói lab cần | chỉ file mới: `convert_<tên>.py`, `tests/test_<tên>.py` |
+| **CC-A** | Rendering and GUI | machine with an NVIDIA GPU | strong (Opus/Fable) | WP1 → WP6 → WP7 → WP8 | `viewer.py`, `gs4d/format.py`, `gs4d/ply.py`, `make_toy.py`, the body of the README |
+| **CC-B** | Real data | machine with the output files | Sonnet | WP2 | `convert_per_frame.py`, `convert_native4d.py`, `tests/test_all.py` |
+| **CC-C** | New converters | any, a CPU is enough | Sonnet | WP3 → WP4 → WP5, only the packages the lab needs | new files only: `convert_<name>.py`, `tests/test_<name>.py` |
 
-Quy ước chung:
+Shared conventions:
 
-- Phiên nào chỉ sửa file trong cột của mình. Cần thay đổi ở file của phiên khác thì ghi vào báo cáo, không tự sửa.
-- CC-B và CC-C chỉ được thêm đúng một dòng vào bảng "Dùng với output thật" trong README cho mỗi converter.
-- CC-A và CC-B bắt đầu cùng lúc. CC-C chỉ mở sau khi giáo sư trả lời câu hỏi bên dưới.
-- CC-A giữ cùng một phiên cho cả 4 gói để không phải nạp lại bối cảnh về `viewer.py`; giữa hai gói thì merge nhánh rồi mới làm tiếp.
-- Nếu CC-B phát hiện output thật cần đổi định dạng chung (ví dụ thiếu trường), CC-B dừng và báo; thay đổi đó thuộc CC-A.
-- Nhánh git: `cc-a/wp1-gsplat`, `cc-b/wp2-real-data`, `cc-c/wp3-spacetime`, ... CC-B và CC-C làm trong worktree riêng.
+- A session edits only the files in its own column. A change needed in another session's file goes into the report, not into the file.
+- CC-B and CC-C may add exactly one row per converter to the "Use with real outputs" table of the README.
+- CC-A and CC-B start at the same time. CC-C opens only after the professor answers the question below.
+- CC-A keeps one session for all 4 packages so it does not have to reload the context about `viewer.py`; between two packages, merge the
+  branch before going on.
+- If CC-B finds that a real output needs a change to the common format (e.g. a missing field), CC-B stops and reports; that change belongs
+  to CC-A.
+- Git branches: `cc-a/wp1-gsplat`, `cc-b/wp2-real-data`, `cc-c/wp3-spacetime`, ... CC-B and CC-C work in their own worktrees.
 
-### Trước khi mở CC-C: một câu hỏi cho giáo sư
+### Before opening CC-C: one question for the professor
 
-**Lab dùng phương pháp 4DGS nào, và file output nằm ở đâu?**
+**Which 4DGS methods does the lab use, and where are the output files?**
 
-Đây là chỗ tiết kiệm lớn nhất. WP3–WP5 mỗi gói phục vụ một phương pháp; viết converter cho phương pháp
-lab không dùng là lãng phí hoàn toàn. Chỉ WP1 và WP2 là chắc chắn cần.
+This is where the most can be saved. Each of WP3–WP5 serves one method; writing a converter for a method
+the lab does not use is wasted work. Only WP1 and WP2 are certainly needed.
 
-### Bảng gói việc
+### Work packages
 
-| WP | Việc | File được sửa | Cần | Phụ thuộc | Khi nào làm |
+| WP | Task | Files edited | Needs | Depends on | When |
 |---|---|---|---|---|---|
-| 1 | Chạy và sửa renderer gsplat | `viewer.py` (chỉ phần gsplat) | GPU NVIDIA + CUDA | không | Ngay |
-| 2 | Chạy trọn vẹn với một output thật | converter tương ứng | file output thật | câu trả lời của giáo sư | Ngay khi có file |
-| 3 | Converter Spacetime Gaussians (dạng C) | `convert_spacetime.py`, test mới | CPU | không | Chỉ khi lab dùng |
-| 4 | Converter Deformable-3DGS (dạng D) | `convert_deformable3dgs.py`, test mới | CPU + torch | không | Chỉ khi lab dùng |
-| 5 | Converter Shape of Motion / SC-GS | file converter mới, test mới | CPU + torch | không | Chỉ khi lab dùng |
-| 6 | Màu SH phụ thuộc hướng nhìn | `gs4d/format.py`, `viewer.py` | GPU | WP1 xong | Sau demo đầu |
-| 7 | Tính năng demo: so sánh 2 sequence cạnh nhau, xuất video | `viewer.py` | GPU nếu dùng gsplat | WP1 xong | Khi giáo sư yêu cầu |
-| 8 | File lớn: nén float16/lượng tử hóa, đọc lười | `gs4d/format.py` | CPU | WP6 xong hoặc bỏ WP6 | Khi file > vài GB |
+| 1 | Run and fix the gsplat renderer | `viewer.py` (gsplat part only) | NVIDIA GPU + CUDA | none | Now |
+| 2 | Run end to end with one real output | the matching converter | a real output file | the professor's answer | As soon as there is a file |
+| 3 | Spacetime Gaussians converter (type C) | `convert_spacetime.py`, new test | CPU | none | Only if the lab uses it |
+| 4 | Deformable-3DGS converter (type D) | `convert_deformable3dgs.py`, new test | CPU + torch | none | Only if the lab uses it |
+| 5 | Shape of Motion / SC-GS converter | new converter file, new test | CPU + torch | none | Only if the lab uses it |
+| 6 | View-dependent SH colour | `gs4d/format.py`, `viewer.py` | GPU | WP1 done | After the first demo |
+| 7 | Demo features: two sequences side by side, video export | `viewer.py` | GPU if gsplat is used | WP1 done | When the professor asks |
+| 8 | Large files: float16/quantisation, lazy loading | `gs4d/format.py` | CPU | WP6 done or WP6 dropped | When files exceed a few GB |
 
-### Thứ tự chạy
+### Order
 
-- **Đợt 1 (song song, tối đa 3 phiên):** WP1 + WP2 + nhiều nhất một trong WP3/4/5.
-  Ba gói này không sửa chung file nào.
-- **Đợt 2 (tuần tự, từng phiên một):** WP6 → WP7 → WP8. Cả ba cùng sửa `viewer.py` hoặc `format.py`,
-  chạy song song sẽ xung đột và phải làm lại.
+- **Round 1 (in parallel, at most 3 sessions):** WP1 + WP2 + at most one of WP3/4/5.
+  These three packages touch no file in common.
+- **Round 2 (in sequence, one session at a time):** WP6 → WP7 → WP8. All three edit `viewer.py` or `format.py`;
+  running them in parallel would conflict and have to be redone.
 
-### Luật chống lãng phí
+### Rules against wasted work
 
-1. **Một file, một chủ.** `viewer.py` và `gs4d/format.py` mỗi lúc chỉ một phiên được sửa. Converter chỉ
-   thêm file mới.
-2. **Git trước.** Chạy `git init && git add -A && git commit -m "baseline"` một lần. Mỗi WP một nhánh
-   `wp<N>-<tên>`, xong thì merge. Hai phiên không dùng chung working tree: dùng `git worktree add ../gs4d-wp3 -b wp3-spacetime`.
-3. **Không nghiên cứu lại.** API của viser, gsplat và cấu trúc checkpoint đã ghi trong `CLAUDE.md`.
-4. **Chọn model theo việc.** Converter (WP3–5) là việc port công thức có test rõ ràng: dùng model rẻ hơn
-   (Sonnet). WP1, WP6, WP7 đụng tới render và giao diện: dùng model mạnh hơn.
-5. **Dừng đúng lúc.** Mỗi prompt bên dưới có điều kiện xong. Phiên đạt điều kiện thì báo cáo 5 dòng và dừng,
-   không tự mở rộng phạm vi.
-6. **Thiếu dữ liệu thì dừng, không đoán.** Nếu không có GPU hoặc không có file output thật, phiên phải báo
-   ngay ở lượt đầu thay vì viết thêm code không kiểm được.
+1. **One file, one owner.** Only one session at a time may edit `viewer.py` and `gs4d/format.py`. Converters only
+   add new files.
+2. **Git first.** Run `git init && git add -A && git commit -m "baseline"` once. One branch per WP,
+   `wp<N>-<name>`, merged when done. Two sessions never share a working tree: use `git worktree add ../gs4d-wp3 -b wp3-spacetime`.
+3. **No re-research.** The viser and gsplat APIs and the checkpoint layouts are written in `CLAUDE.md`.
+4. **Pick the model for the job.** Converters (WP3–5) are formula ports with clear tests: use a cheaper model
+   (Sonnet). WP1, WP6, WP7 touch rendering and the GUI: use a stronger model.
+5. **Stop at the right time.** Every prompt below has done criteria. A session that meets them reports in 5 lines and stops,
+   without widening the scope.
+6. **Missing data: stop, do not guess.** Without a GPU or a real output file, the session says so
+   in the first turn instead of writing more code that cannot be checked.
 
-### Prompt cho từng phiên
+### Prompts for each session
 
-Dán nguyên khối vào một phiên Claude Code mới mở trong `gs4d_viewer`.
+Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
-#### WP1 — renderer gsplat
+#### WP1 — gsplat renderer
 ```
-Đọc CLAUDE.md. Việc: làm cho `python viewer.py toy.npz --renderer gsplat` chạy đúng trên máy này.
-Bước 0: kiểm tra `nvidia-smi` và `python -c "import torch, gsplat; print(torch.cuda.is_available())"`.
-Nếu không có CUDA thì báo và dừng.
-Chỉ sửa phần gsplat trong viewer.py (_draw_gsplat và chỗ khởi tạo liên quan). Không sửa GUI, format, converter.
-Xong khi: (1) toy.npz render đúng, so bằng mắt với renderer client qua ảnh chụp headless ở cùng thời điểm t;
-(2) kéo thanh thời gian và xoay camera đều cập nhật ảnh; (3) ghi vào README số FPS đo được với toy.npz
-và độ phân giải đã đo. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Task: make `python viewer.py toy.npz --renderer gsplat` work correctly on this machine.
+Step 0: check `nvidia-smi` and `python -c "import torch, gsplat; print(torch.cuda.is_available())"`.
+Without CUDA, report and stop.
+Only edit the gsplat part of viewer.py (_draw_gsplat and the related set-up). Do not edit the GUI, the format or the converters.
+Done when: (1) toy.npz renders correctly, compared by eye with the client renderer through headless screenshots at the same time t;
+(2) dragging the time slider and orbiting the camera both update the image; (3) the README gives the FPS measured with toy.npz
+and the resolution it was measured at. Report in 5 lines, then stop.
 ```
 
-#### WP2 — chạy với output thật
+#### WP2 — run with a real output
 ```
-Đọc CLAUDE.md. Output thật nằm ở: <ĐƯỜNG DẪN>. Phương pháp: <TÊN>.
-Việc: chuyển output này sang định dạng chung bằng converter có sẵn và mở được trong viewer.
-Nếu converter báo lỗi vì định dạng thật khác với giả định trong code, sửa converter đó (và test của nó),
-không sửa viewer.py hay gs4d/format.py. Nếu phương pháp chưa có converter thì báo và dừng (đó là WP3–5).
-Xong khi: có file .npz, viewer mở được, có ảnh chụp ở 3 thời điểm, và README ghi lệnh đã dùng cùng
-dung lượng file, số Gaussian. Ghi rõ điều gì trông sai (màu, hướng trục up, tỉ lệ). Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. The real output is at: <PATH>. Method: <NAME>.
+Task: convert this output to the common format with the existing converter and open it in the viewer.
+If the converter fails because the real format differs from what the code assumes, fix that converter (and its test);
+do not edit viewer.py or gs4d/format.py. If the method has no converter yet, report and stop (that is WP3–5).
+Done when: there is an .npz file, the viewer opens it, there are screenshots at 3 times, and the README gives the command used with the
+file size and the number of Gaussians. Say clearly what looks wrong (colours, up axis, scale). Report in 5 lines, then stop.
 ```
 
 #### WP3 — Spacetime Gaussians
 ```
-Đọc CLAUDE.md. Việc: viết convert_spacetime.py đọc point_cloud.ply của Spacetime Gaussians
-(oppo-us-research/SpacetimeGaussians) và xuất Sequence4D.
-Clone repo để ĐỌC công thức (chuyển động đa thức theo thời gian, xoay theo thời gian, opacity theo RBF thời gian)
-và tên thuộc tính trong ply; không chạy code của repo. Chỉ thêm: convert_spacetime.py, tests/test_spacetime.py,
-một dòng trong bảng README. Màu: dùng thành phần màu cơ sở, bỏ phần phụ thuộc hướng nhìn và ghi rõ giới hạn này.
-Xong khi: test tạo ply giả đúng layout, chạy converter, và so vị trí/opacity tại 3 thời điểm với công thức
-viết độc lập trong test; `python tests/test_all.py` vẫn qua. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Task: write convert_spacetime.py, which reads the point_cloud.ply of Spacetime Gaussians
+(oppo-us-research/SpacetimeGaussians) and writes a Sequence4D.
+Clone the repo to READ the formulas (polynomial motion over time, rotation over time, opacity as a temporal RBF)
+and the attribute names in the ply; do not run the repo's code. Only add: convert_spacetime.py, tests/test_spacetime.py,
+one row in the README table. Colour: use the base colour component, drop the view-dependent part and state this limit clearly.
+Done when: the test builds a fake ply in the right layout, runs the converter, and compares positions/opacities at 3 times with a formula
+written independently in the test; `python tests/test_all.py` still passes. Report in 5 lines, then stop.
 ```
 
 #### WP4 — Deformable-3DGS
 ```
-Đọc CLAUDE.md. Việc: viết convert_deformable3dgs.py đọc point_cloud.ply + deform.pth của Deformable-3DGS
-(ingra14m/Deformable-3D-Gaussians) và xuất Sequence4D ở K mốc thời gian.
-Clone repo để ĐỌC kiến trúc MLP biến dạng (positional encoding, số lớp, skip, đầu ra d_xyz/d_rotation/d_scaling)
-rồi viết lại forward pass độc lập bằng torch trên CPU, nạp trọng số từ state_dict; không import code của repo.
-Chạy theo lô để không hết RAM. Chỉ thêm: convert_deformable3dgs.py, tests/test_deformable3dgs.py, một dòng README.
-Xong khi: test dựng MLP ngẫu nhiên cùng kiến trúc, lưu state_dict + ply giả, chạy converter, và so với
-forward pass tham chiếu viết trong test; `python tests/test_all.py` vẫn qua. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Task: write convert_deformable3dgs.py, which reads the point_cloud.ply + deform.pth of Deformable-3DGS
+(ingra14m/Deformable-3D-Gaussians) and writes a Sequence4D at K times.
+Clone the repo to READ the architecture of the deformation MLP (positional encoding, number of layers, skip, outputs
+d_xyz/d_rotation/d_scaling), then write an independent forward pass with torch on the CPU, loading the weights from the state_dict; do
+not import the repo's code. Run in batches so the RAM does not run out. Only add: convert_deformable3dgs.py,
+tests/test_deformable3dgs.py, one README row.
+Done when: the test builds a random MLP with the same architecture, saves the state_dict + a fake ply, runs the converter, and compares
+with a reference forward pass written in the test; `python tests/test_all.py` still passes. Report in 5 lines, then stop.
 ```
 
-#### WP5 — Shape of Motion hoặc SC-GS
+#### WP5 — Shape of Motion or SC-GS
 ```
-Đọc CLAUDE.md. Phương pháp: <Shape of Motion | SC-GS>. Việc và ràng buộc giống WP4: đọc repo để port công thức
-(motion bases SE(3) + hệ số, hoặc control node + LBS), viết convert_<tên>.py + tests/test_<tên>.py + một dòng README,
-không import code của repo, không sửa file khác. Xong khi test so khớp với công thức viết độc lập và
-`python tests/test_all.py` vẫn qua. Báo cáo 5 dòng rồi dừng.
-```
-
-#### WP6 — màu SH
-```
-Đọc CLAUDE.md. Điều kiện: WP1 đã merge. Việc: thêm trường tùy chọn `sh` [N,(d+1)^2,3] vào Sequence4D
-(file cũ không có trường này vẫn đọc được), cho renderer gsplat dùng sh_degree khi có; renderer client vẫn dùng `colors`.
-Cập nhật gs4d/ply.py và convert_per_frame.py để giữ f_rest_* khi có cờ --sh. Thêm test round-trip.
-Xong khi: toy có SH giả đổi màu theo hướng nhìn trong renderer gsplat, và mọi test cũ vẫn qua. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Method: <Shape of Motion | SC-GS>. Task and constraints as in WP4: read the repo to port the formulas
+(SE(3) motion bases + coefficients, or control nodes + LBS), write convert_<name>.py + tests/test_<name>.py + one README row,
+do not import the repo's code, do not edit other files. Done when the test matches an independently written formula and
+`python tests/test_all.py` still passes. Report in 5 lines, then stop.
 ```
 
-#### WP7 — tính năng demo
+#### WP6 — SH colour
 ```
-Đọc CLAUDE.md. Điều kiện: WP1 đã merge. Việc: <CHỌN MỘT: (a) mở 2 file .npz và bật/tắt hoặc đặt cạnh nhau,
-chung thanh thời gian; (b) nút xuất video mp4 theo quỹ đạo camera hiện tại qua toàn bộ thời gian>.
-Chỉ sửa viewer.py. Xong khi tính năng chạy với toy.npz, có ảnh chụp hoặc file video làm bằng chứng,
-và README có một đoạn hướng dẫn. Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Precondition: WP1 is merged. Task: add an optional field `sh` [N,(d+1)^2,3] to Sequence4D
+(old files without this field can still be read), and let the gsplat renderer use sh_degree when it is there; the client renderer keeps
+using `colors`. Update gs4d/ply.py and convert_per_frame.py to keep f_rest_* when the --sh flag is given. Add a round-trip test.
+Done when: toy with fake SH changes colour with the view direction in the gsplat renderer, and every old test still passes. Report in 5
+lines, then stop.
 ```
 
-#### WP8 — file lớn
+#### WP7 — demo features
 ```
-Đọc CLAUDE.md. Việc: giảm dung lượng và RAM cho sequence lớn. Đo trước: dung lượng và thời gian nạp của một
-sequence 500k Gaussian x 100 keyframe sinh ngẫu nhiên. Sau đó thêm lưu means dạng float16 theo offset so với
-keyframe đầu và covs/opacities lượng tử hóa, có cờ tắt; file cũ vẫn đọc được. Chỉ sửa gs4d/format.py và thêm test.
-Xong khi README có bảng trước/sau (dung lượng, thời gian nạp, sai số vị trí lớn nhất) và mọi test qua.
-Báo cáo 5 dòng rồi dừng.
+Read CLAUDE.md. Precondition: WP1 is merged. Task: <PICK ONE: (a) open 2 .npz files and toggle between them or put them side by side,
+with a shared time slider; (b) a button that exports an mp4 video along the current camera path over the whole time range>.
+Only edit viewer.py. Done when the feature works with toy.npz, with a screenshot or a video file as evidence,
+and the README has a paragraph of instructions. Report in 5 lines, then stop.
+```
+
+#### WP8 — large files
+```
+Read CLAUDE.md. Task: reduce the size and RAM of large sequences. Measure first: the size and load time of a random
+sequence of 500k Gaussians x 100 keyframes. Then add storing means as float16 offsets from the first keyframe and
+quantised covs/opacities, with a flag to turn it off; old files can still be read. Only edit gs4d/format.py and add tests.
+Done when the README has a before/after table (size, load time, largest position error) and every test passes.
+Report in 5 lines, then stop.
 ```
