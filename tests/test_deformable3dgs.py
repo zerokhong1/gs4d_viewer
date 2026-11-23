@@ -110,7 +110,7 @@ def run_variant(torch, blender, six_dof):
         write_ply(os.path.join(tmp, "point_cloud", "iteration_40000", "point_cloud.ply"), c)
         torch.save(net.state_dict(), os.path.join(tmp, "deform", "iteration_40000", "deform.pth"))
         out = os.path.join(tmp, "d.npz")
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_deformable3dgs.py"), tmp, "-o", out, "--frames", str(K),
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_deformable3dgs.py"), tmp, "-o", out, "--frames", str(K),
                         "--batch", "17", "--sh"], check=True, stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)
     assert seq.num_frames == K and seq.num_gaussians == N and seq.sh.shape == (N, 4, 3)

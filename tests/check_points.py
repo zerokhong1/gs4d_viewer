@@ -41,7 +41,7 @@ tmp = tempfile.mkdtemp()
 path = opt.file
 if toy:
     path = os.path.join(tmp, "toy.npz")
-    subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", path], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", path], check=True, stdout=subprocess.DEVNULL)
 W, H = 1280, 760
 SCENE_W = int(W * 0.7)  # the GUI panel covers the right edge
 FLAGS = ["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
@@ -149,7 +149,7 @@ def run(renderer, port):
 
 def run_compare(renderer, port):
     pb = os.path.join(tmp, "toy_b.npz")
-    subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", pb, "--seed", "3", "--points", "600"],
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", pb, "--seed", "3", "--points", "600"],
                    check=True, stdout=subprocess.DEVNULL)
     vw = make(renderer, port, path, pb)
     with sync_playwright() as p:

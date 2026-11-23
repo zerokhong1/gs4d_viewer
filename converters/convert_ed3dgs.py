@@ -20,7 +20,7 @@ At time t (the repo's camera time: dynerf frame / 300, technicolor frame / 50), 
 and then, as the renderer does: scale = exp(log_scale), rotation = normalize(quat), opacity = sigmoid(logit), SH as is
 (degree 3). The deltas are added BEFORE the activations (unlike Deformable-3DGS).
 
-    python convert_ed3dgs.py output/scene -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh --compact
+    python converters/convert_ed3dgs.py output/scene -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh --compact
 
 `--set key=value` overrides a ModelHiddenParams entry that cfg_args does not have (or has wrong).
 Not checked against a real model (none trained here): only against a synthetic one, see tests/test_ed3dgs.py.
@@ -32,9 +32,11 @@ import argparse
 import ast
 import os
 import re
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices

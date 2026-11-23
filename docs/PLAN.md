@@ -1,5 +1,9 @@
 # Plan for phases 2, 3 and 4 — gs4d_viewer
 
+Update 23/11/2026 (repository layout): this file moved to `docs/PLAN.md`; converters are in `converters/`, scripts that are not
+tests in `tools/`, benchmarks in `benchmarks/`. Paths in the finished work packages below are those of their time; the open
+packages (WP32, WP33, WP36–WP38) use the new layout.
+
 Update 23/11/2026: the whole repository was reviewed and polished (PR #2, branch `polish/code-and-docs`: bug fixes, new tests, the
 README rewritten as a user guide, measurements moved to `docs/`, the `Status` log of `CLAUDE.md` moved to `docs/HISTORY.md`); the same day
 all documentation was translated into English (branch `docs/english`). Every old `cc-*` branch is already in `main`. In the work-package tables below only the WP28 and WP39 rows
@@ -26,12 +30,12 @@ packaging work that appear nowhere else in this file. Numbering starts at WP32 t
    `--use_hash`, `--skinning`) were not in `main` yet.
    ```bash
    git status --short
-   git add -A && git commit -m "PLAN.md: phase 4"        # if there are uncommitted changes
+   git add -A && git commit -m "docs/PLAN.md: phase 4"        # if there are uncommitted changes
    git checkout main && git merge cc-a/wp24-points
    python tests/run_all.py && python tests/check_real.py
    ```
 2. ~~**Measure FPS in points mode and at 1920×1080**~~ (done 17/11/2026; human, unlocked screen, GPU not training; WP28 of phase 3):
-   `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080`; the table is in
+   `python benchmarks/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080`; the table is in
    `docs/PERFORMANCE.md`.
 3. **Free disk space** (about 15 GB left): delete `../data_real/som/paper-windmill_data/paper-windmill.zip` (6.6 GB) and `sear_steak.zip`
    (1.1 GB) after checking that `check_real.py` still passes; both are fully extracted.
@@ -43,7 +47,7 @@ packaging work that appear nowhere else in this file. Numbering starts at WP32 t
 
 | WP | Task | Status | Session | Notes |
 |---|---|---|---|---|
-| 32 | Demo scene set and a 10-minute demo script (`DEMO.md`) | Not started | CC-C | Preparation for the demo with the professor |
+| 32 | Demo scene set and a 10-minute demo script (`docs/DEMO.md`) | Not started | CC-C | Preparation for the demo with the professor |
 | 33 | Install on a clean machine with one command (`setup.sh`) | Not started | CC-B | Needs about 8 GB of free disk to try on a fresh clone |
 | 34 | Camera path: set waypoints, play back, export an mp4 along the path | Done 16/11/2026 (branch `cc-a/wp34-path`) | CC-A | Closest to the request "move the camera to observe" |
 | 35 | Motion trails and colouring by speed | Done 16/11/2026 (branch `cc-a/wp34-path`) | CC-A | After WP34 |
@@ -73,11 +77,11 @@ Drawn from what went wrong in phases 2 and 3:
 - **Every session works in its own worktree** (`git worktree add ../gs4d-wp<N> -b cc-<session>/wp<N>-<name>`), and never checks out a
   branch in the main folder. Phases 2–3 piled WP22, WP24 and all of phase 3 onto one branch `cc-a/wp24-points`, while `main` had not moved
   since the morning of 16/11.
-- **`PLAN.md` is edited only in the main folder, and a session edits only its own package's row** in the status table (replace that row,
+- **`docs/PLAN.md` is edited only in the main folder, and a session edits only its own package's row** in the status table (replace that row,
   never rewrite the whole file). Twice a session has overwritten someone else's part of this file. Never reuse a WP number.
 - Files each session may edit: CC-A: `viewer.py`, `gs4d/format.py`, the package's new `tests/check_*.py`; CC-B: `gs4d/open.py`,
-  `gs4d/doctor.py`, `setup.sh`, `requirements.txt`, `tests/run_all.py`, `.github/`; CC-C: `DEMO.md`, `docs/`, `tests/make_demo_scenes.py`,
-  `convert_template.py`. README: every session edits only its own package's paragraph. A change needed in another session's file goes into
+  `gs4d/doctor.py`, `setup.sh`, `requirements.txt`, `tests/run_all.py`, `.github/`; CC-C: `docs/DEMO.md`, `docs/`, `tools/make_demo_scenes.py`,
+  `converters/convert_template.py`. README: every session edits only its own package's paragraph. A change needed in another session's file goes into
   the report, not into the file.
 - A package that adds a GUI feature comes with a `tests/check_*.py` script that takes headless screenshots as evidence, and is tried on at
   least one real scene.
@@ -92,26 +96,26 @@ Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
 #### WP32 — demo scene set and demo script
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
-Task 1: write tests/make_demo_scenes.py, which builds the folder `../demo_scenes/` (outside the repo) from the real outputs already on this
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
+Task 1: write tools/make_demo_scenes.py, which builds the folder `../demo_scenes/` (outside the repo) from the real outputs already on this
 machine: one compact `.npz` per method on `bouncingballs` (or the scene that method already has), plus the four `slice-banana` files of
 Deformable-3DGS, SC-GS, native 4DGS and 4DGaussians. Each file comes with its camera file if there is one. Print a table: name, method,
 number of Gaussians, number of keyframes, size.
 Train nothing new; when an output is missing, skip it and print why.
-Task 2: write DEMO.md, one page, for a 10-minute demo with the professor: 5–6 commands in order, each with one line "what it shows"
+Task 2: write docs/DEMO.md, one page, for a 10-minute demo with the professor: 5–6 commands in order, each with one line "what it shows"
 (open an output with one command; drag the time slider and orbit the camera; points mode; compare two methods on the same scene with
 --compare; original image next to the render with PSNR; mp4 export), and one line on the known limits. Run every command for real before
 writing it down.
-Task 3: note in DEMO.md which scenes have their own terms of use (data showing people, research-only licenses: see the "License and data
+Task 3: note in docs/DEMO.md which scenes have their own terms of use (data showing people, research-only licenses: see the "License and data
 sources" section of the README) so the presenter knows which scenes must not be shown publicly. Upload nothing.
-Only add: tests/make_demo_scenes.py, DEMO.md, one line in the README pointing to DEMO.md.
-Done when: the demo folder has every file, every command in DEMO.md runs on this machine, and the total size of the folder is written down.
+Only add: tools/make_demo_scenes.py, docs/DEMO.md, one line in the README pointing to docs/DEMO.md.
+Done when: the demo folder has every file, every command in docs/DEMO.md runs on this machine, and the total size of the folder is written down.
 Report in 5 lines, then stop.
 ```
 
 #### WP33 — install on a clean machine with one command
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Task: write setup.sh, which creates `.venv` with the checked versions (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser, and
 the packages in requirements.txt), picks the non-CUDA branch by itself when the machine has no NVIDIA GPU (then only the client renderer is
 available), and runs a smoke test: build toy.npz, `python tests/run_all.py`, and print clearly which renderers work. Add
@@ -126,7 +130,7 @@ then stop.
 
 #### WP34 — camera path
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Problem: the professor wants to move the camera to observe dynamic scenes; at present the camera is controlled only with the mouse and
 videos are recorded only from a fixed camera.
 Task: add a "Camera path" folder to the control panel of viewer.py: a button that adds a waypoint from the current camera, the list of
@@ -144,7 +148,7 @@ the README gives the export times. Report in 5 lines, then stop.
 
 #### WP35 — motion trails and colouring by speed
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Precondition: WP34 is merged.
 Problem: points mode (WP24) shows the positions at each time, but not how the scene moves.
 Task 1: a "Colour by" dropdown: `colour` (as now), `speed` (magnitude of the velocity at the time on screen, from the two neighbouring
@@ -163,7 +167,7 @@ stop.
 
 #### WP36 — pick the scene in the GUI; compare more than two sequences
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Precondition: WP35 is merged.
 Task 1: `python viewer.py <folder>` (a folder with several `.npz` files in the common format, e.g. ../demo_scenes) shows a "Scene"
 dropdown that switches scenes without restarting; lazy loading, the old scene is released; the camera stays if both scenes share a
@@ -180,7 +184,7 @@ stop.
 
 #### WP37 — depth and opacity view modes
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Task: a "Render" dropdown for the gsplat renderer: `colour`, `depth` (expected depth, colour scale, near/far taken from the 2–98%
 percentiles of the frame and shown in the control panel), `alpha` (accumulated opacity). Read the documentation of the installed gsplat
 1.5.3 to use `render_mode` correctly; do not recompute depth yourself.
@@ -199,7 +203,7 @@ resolution while the camera is moving.
 
 #### WP39 — run the tests automatically on push
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Precondition: WP33 is merged. Task: add .github/workflows/test.yml, running on every push and pull request: install the non-CUDA build
 with setup.sh (or the matching part of it), run `python tests/run_all.py` (items that need CUDA, a GPU-accelerated Chrome or
 ../data_real skip themselves with a reason), Python 3.10. Add a status badge to the README. Do not push, do not create a repository, do
@@ -210,18 +214,18 @@ Report in 5 lines, then stop.
 
 #### WP40 — list of supported methods and a guide to adding a converter
 ```
-Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of PLAN.md. Work in your own worktree.
+Read CLAUDE.md, the "Phase 4" section (conventions) and the "Done criteria for every package" section of docs/PLAN.md. Work in your own worktree.
 Task 1: write docs/SUPPORTED.md: a table of every supported method and variant (which real output it was checked on, PSNR, limits), and
 the variants the converters stop on with a message. Take the numbers from the README and the Status section of CLAUDE.md, do not measure
 again.
 Task 2: write docs/ADD_A_CONVERTER.md (the steps, the conventions written in CLAUDE.md, the lessons: check the original repository's
-cameras before trusting its evaluation numbers, measure at the training resolution) and convert_template.py + tests/test_template.py,
+cameras before trusting its evaluation numbers, measure at the training resolution) and converters/convert_template.py + tests/test_template.py,
 which run on fake data and use `Sequence4DWriter`.
 Task 3: for the methods the professor names in the table "Professor's feedback after the demo" (if the table is empty, stop after task 2
 and say so): for each method one short paragraph: official repository, output format, which type A/B/C/D it is, estimated effort to write
 the converter, whether it can be trained on a machine with a 12 GB GPU / 15 GB RAM. Look at the real repository, do not write from
 memory; do not write a converter in this package.
-Only add: docs/, convert_template.py, tests/test_template.py, one line in the README.
+Only add: docs/, converters/convert_template.py, tests/test_template.py, one line in the README.
 Done when: the template's test passes and is part of `python tests/run_all.py`. Report in 5 lines, then stop.
 ```
 
@@ -238,7 +242,7 @@ apply to this phase, since there was only one session.
 | 27 | Camera list for HyperNeRF datasets in `gs4d.open` | Done | 4DGaussians, Deformable-3DGS and SC-GS folders with a Nerfies-style `source_path`: writes `<name>.gs4d.cameras.json` (held-out cameras) and passes `--cameras`. `slice-banana`: PSNR through this list for 4DGaussians 27.13 dB, the same as `check_real.py`; the cameras of the three models match the loader of `check_real.py` to 3e-7 |
 | 19c part 2 | PSNR of Spacetime lite `sear_steak` | Done | Downloaded `sear_steak.zip`, 1.11 GB (the GitHub release of Neural 3D Video). 105 images at 1352×1014: 26.18–33.53 dB, mean 31.43. Item `spacetime_psnr`, min threshold 25.68 |
 | 19c part 1 | PSNR of Shape of Motion `paper-windmill` | Done | Downloaded `paper-windmill.zip`, 6.61 GB, from a Hugging Face mirror (over the 5 GB limit of the original prompt; the user agreed). 70 images of 720×960 at the training cameras: keyframes 25.86 dB; between keyframes of `--stride 8` 24.67 dB; `--stride 1` 25.85 dB everywhere. Item `som_psnr`, min threshold 21.11 |
-| 28 | Display FPS in points mode and at 1920×1080 | Done 17/11/2026 (table in `docs/PERFORMANCE.md`) | Needed a human: with the screen locked, Chrome was throttled to 1 frame/s. Measured with the screen unlocked: `python tests/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080` |
+| 28 | Display FPS in points mode and at 1920×1080 | Done 17/11/2026 (table in `docs/PERFORMANCE.md`) | Needed a human: with the screen locked, Chrome was throttled to 1 frame/s. Measured with the screen unlocked: `python benchmarks/bench_display.py --draw-as points --rates 20 30 40 50 60`, then again with `--size 1920 1080` |
 
 ### Phase 3, round 2 — the three remaining limits (16/11/2026, same session, same branch, not committed)
 
@@ -246,7 +250,7 @@ apply to this phase, since there was only one session.
 |---|---|---|---|
 | 29 | Original-image view usable with `--compare` | Done | `viewer.py::_gt_view`: the `A \| B` mode shows render A \| original image \| render B, with the PSNR of both in the panel; `gs4d.open` passes `--cameras` even with `--compare`. `tests/check_cameras.py`: the PSNR of A and B equals the single-file viewer's (≤ 1e-3 dB, 20 images); image `shots/cameras/ground_truth_compare.png` |
 | 30 | SC-GS `--pred_color` | Done for the formula; the real model cannot tell the difference | `convert_scgs.py` re-runs the colour head (the default "resnet" type and the single linear-layer type), adds it to the SH DC coefficient, and writes `colors` (and `sh` with `--sh`) per keyframe; `--ignore-pred-color` keeps the colour fixed; hash / view-direction types stop. Synthetic test against an independent formula. Real model `bouncingballs` (20k iterations, 20 minutes): 35.62–43.75 dB, mean 40.70, but its colour head is still at its initial values (\|d_color\| ≤ 2.3e-4), so dropping the colour head also gives 40.70. Item `scgs_predcolor` (threshold 35.12) |
-| 31 | PSNR from the repositories' own renderers | Done, and found a bug | `tests/repo_psnr.py` (not in `run_all.py`; clones in `/home/cont/gs4d_train/som`, `stg`). **Shape of Motion**: repo 25.85 dB, our `--stride 1` file differs by 0.000 dB on every image. **Spacetime lite**: repo 34.48 dB, ours 31.43 dB → cause: the converter clipped the Gaussian colours to [0, 1] (30% of the Gaussians have colours outside that range; the repo blends raw colours). Fixed `convert_spacetime.py` (keeps raw colours), `gs4d/format.py` (per-keyframe colours outside [0, 1] stay float32 when compact), `viewer.py` (the client clips colours), `gs4d/open.py` (a cache older than the converter is converted again): now 34.37 dB; the remaining 0.11 dB comes from `--min-peak-opacity 0.02` |
+| 31 | PSNR from the repositories' own renderers | Done, and found a bug | `tools/repo_psnr.py` (not in `run_all.py`; clones in `/home/cont/gs4d_train/som`, `stg`). **Shape of Motion**: repo 25.85 dB, our `--stride 1` file differs by 0.000 dB on every image. **Spacetime lite**: repo 34.48 dB, ours 31.43 dB → cause: the converter clipped the Gaussian colours to [0, 1] (30% of the Gaussians have colours outside that range; the repo blends raw colours). Fixed `convert_spacetime.py` (keeps raw colours), `gs4d/format.py` (per-keyframe colours outside [0, 1] stay float32 when compact), `viewer.py` (the client clips colours), `gs4d/open.py` (a cache older than the converter is converted again): now 34.37 dB; the remaining 0.11 dB comes from `--min-peak-opacity 0.02` |
 
 Left after phase 3 (not Claude Code's job, or not possible yet):
 
@@ -266,7 +270,7 @@ Left after phase 3 (not Claude Code's job, or not possible yet):
 1. ~~**WP20**~~ (done 15/11/2026) (one session, needs a free GPU for about 30 minutes): retrain native 4DGS `slice-banana` with the right
    cameras. The current 24.23 dB is measured on a model trained with wrong cameras. This is the only package still blocking the native 4DGS
    row of WP9.
-2. **WP19b: done 15/11/2026.** `python tests/bench_display.py --rates 20 30 40 50 60` (a GPU-accelerated Chrome window; needs an unlocked
+2. **WP19b: done 15/11/2026.** `python benchmarks/bench_display.py --rates 20 30 40 50 60` (a GPU-accelerated Chrome window; needs an unlocked
    screen and a GPU that is not training). `paper-windmill` 1280×720: the browser shows every frame the server sends, from 20.0 at 20 Hz up
    to 52.9 frames/s at 60 Hz (the server sends 54.3). Table in `docs/PERFORMANCE.md`.
 3. **Open in parallel with WP20** (no GPU use while it trains): ~~WP22~~ (CC-B, four converters, done 15/11/2026). WP21 (CC-A) was done
@@ -347,7 +351,7 @@ and the "Use with real outputs" table of the README (since 23/11/2026: `docs/SUP
 | 17 | `--compact` flag for the converters, one command that runs every test | Done | `claude/wp17-housekeeping-56ac95` | `python tests/run_all.py`: 13 files pass (check_real run separately, after fixing the data lookup in worktrees); `--compact` in all 6 converters, `gs4d.open` uses it when the estimate is > 1 GB |
 | 18 | Training cameras and original images in the viewer | Done 14/11/2026 (merged) | `claude/wp18-cameras-398403` | `--cameras`, camera list, original image + PSNR (gsplat); PSNR matches check_real to 0.0002 dB; not usable with `--compare`; `gs4d/open.py` passes `--cameras` by itself since WP19a |
 | 19a | `open.py` recognises 4DGaussians and `--cameras`; converters stop on unsupported variants | Done 15/11/2026 (committed) | directly on `main` | `gs4d.open` recognises 4DGaussians and passes `--cameras` (skipping 3DGS-style `cameras.json`, which `load_cameras` cannot read); SC-GS `--pred_color` and full Spacetime stop, with a flag to convert anyway |
-| 19b | Measure display FPS in a GPU-accelerated Chrome | Done 15/11/2026 (committed 086a80b) | directly on `main` | `tests/bench_display.py`; `paper-windmill` 1280×720, Chrome 157, RTX 3060: shows 20.0 / 30.0 / 39.9 / 49.3 / 52.9 frames/s at 20 / 30 / 40 / 50 / 60 Hz, the same as the server sends; 1920×1080 not measured |
+| 19b | Measure display FPS in a GPU-accelerated Chrome | Done 15/11/2026 (committed 086a80b) | directly on `main` | `benchmarks/bench_display.py`; `paper-windmill` 1280×720, Chrome 157, RTX 3060: shows 20.0 / 30.0 / 39.9 / 49.3 / 52.9 frames/s at 20 / 30 / 40 / 50 / 60 Hz, the same as the server sends; 1920×1080 not measured |
 | 19c | PSNR for Spacetime and Shape of Motion; cause of the 1.9 dB gap of native 4DGS on a real scene | Done: part 3 15/11/2026 (merged); parts 1, 2 16/11/2026 (not committed) | parts 1, 2 done on `cc-a/wp24-points` | Part 1: Shape of Motion `paper-windmill` against the DyCheck iPhone 1x images, 70 images: at keyframes 25.86 dB, between keyframes of `--stride 8` 24.67 dB (`--stride 1`: 25.85 everywhere); item `som_psnr`. Part 2: Spacetime lite `sear_steak` against the Neural 3D Video videos, 105 images at 1352×1014: 26.18–33.53, mean 31.43 dB; item `spacetime_psnr`. Part 3: the gap comes from a model trained with `FovX = FovY = -1`, not from the converter |
 | 19d | Converters write one keyframe at a time to disk instead of holding the whole sequence in memory | Done 15/11/2026 (committed) | directly on `main` | `gs4d.Sequence4DWriter`, `tests/test_writer.py` (bit-identical to `save`); SC-GS, native 4DGS and Deformable-3DGS use it. Peak RAM: SC-GS 4.5 → 1.4 GB, native 4DGS 8.3 → 1.3 GB, Deformable-3DGS 7.2 → 1.0 GB; 330 keyframes of `slice-banana` can be converted. `check_real.py` still measures at 110 keyframes |
 | 20 | Retrain native 4DGS `slice-banana` with the right cameras, measure again | Done 15/11/2026 (committed f24bd6d) | `cc-c/wp20-native4d-banana` | Retrained with `camera_angle_x` (no per-frame `fl_x`), 20,000 iterations, 20 minutes: the repo's own evaluation 26.30 dB; converter + gsplat 21.41–29.17, mean **26.31 dB** (before: 24.23): the 1.9 dB gap is gone. `make_hypernerf_blender.py` fixed; `check_real.py` points to `output/banana_fov`, min threshold 20.91 |
@@ -360,7 +364,7 @@ and the "Use with real outputs" table of the README (since 23/11/2026: `docs/SUP
 
 | Session | Role | Model | Tasks, in this order | Files it may edit (this session only) |
 |---|---|---|---|---|
-| **CC-A** | Format and rendering | strong (Opus/Fable) | WP11 → WP14 → (WP18) | `viewer.py`, `gs4d/format.py`, `gs4d/__main__.py`, `tests/test_compact.py`, `tests/bench_large.py`, the body of the README |
+| **CC-A** | Format and rendering | strong (Opus/Fable) | WP11 → WP14 → (WP18) | `viewer.py`, `gs4d/format.py`, `gs4d/__main__.py`, `tests/test_compact.py`, `benchmarks/bench_large.py`, the body of the README |
 | **CC-B** | Everyday tools | Sonnet | WP10 → WP17 | new file `gs4d/open.py`, `tests/test_open.py`, `tests/run_all.py`; in WP17: the command-line arguments of the `convert_*.py` |
 | **CC-C** | Validation and converters | Sonnet | WP12 → WP15 → WP13 → WP16 (one variant at a time) | new file `tests/check_real.py`; `convert_native4d.py` (WP13); new files `convert_4dgaussians.py`, `tests/test_4dgaussians.py` (WP15) |
 
@@ -382,7 +386,7 @@ Shared conventions (kept from phase 1, corrected where they had drifted):
   a time. WP15 goes first because 4DGaussians is the only method that cannot be read directly yet; the professor's answers may change this
   order.
 - **Round 3 (when asked):** WP18 (done 14/11/2026).
-- **Round 4 (15/11/2026):** WP19a, WP19d and part 3 of WP19c done. WP19b done 15/11/2026 (`tests/bench_display.py`).
+- **Round 4 (15/11/2026):** WP19a, WP19d and part 3 of WP19c done. WP19b done 15/11/2026 (`benchmarks/bench_display.py`).
 - **Round 5 (15/11/2026, after the professor's answers):** WP20 first. In parallel with it, without using the GPU while it trains: WP21
   (`gs4d/format.py`) and WP22 (four converters); the two packages touch no file in common. After WP20, one after another because of the
   shared GPU: WP23 → WP19c part 1 → WP19c part 2. WP21 and WP22 run `check_real.py` at the end, when no package is training. WP24 done
@@ -408,7 +412,7 @@ Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
 ### WP10 — command that opens an output directly
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Task: write gs4d/open.py so that `python -m gs4d.open <output_path> [viewer arguments]` recognises the kind of output by itself,
 calls the right converter, then opens the viewer. Do not edit the converters or viewer.py: call them through subprocess.
 Detection: `params.npz` or a folder of per-frame ply files -> convert_per_frame; `chkpnt*.pth` -> convert_native4d;
@@ -424,7 +428,7 @@ open with exactly one command (list the commands and results in the report). Rep
 
 ### WP11 — split static and dynamic Gaussians
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Problem: when a field has the K axis, every Gaussian is stored at every keyframe. Shape of Motion `paper-windmill` has
 71,867 dynamic foreground Gaussians and 924,075 static background Gaussians, file 1.27 GB.
 Task: let Sequence4D store a group of static Gaussians (without the K axis) next to the dynamic group, in the same file;
@@ -440,7 +444,7 @@ before and after at 3 different times differ by at most 1/255 per channel. Repor
 
 ### WP12 — automatic checks with real outputs
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Task: write tests/check_real.py, which turns the comparisons done by hand on 14/11/2026 into one command. For every real output
 with original images in ../data_real (Deformable-3DGS, SC-GS, native 4DGS on `bouncingballs`): run the converter, render with
 gsplat at the camera and time of EVERY test image (not just 5), compute the PSNR of each image, print a table (min, mean,
@@ -458,7 +462,7 @@ table (if they differ, say which, and do not edit the README beyond your own lin
 
 ### WP13 — native 4DGS: per-keyframe SH colour (part of WP9)
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP12 is merged.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md. Precondition: WP12 is merged.
 Problem: convert_native4d.py writes only the SH degree-0 colour; the PSNR on `bouncingballs` is 26.0–31.1 dB, the original repo's own
 evaluation gives 33.4 dB.
 Task: add a --sh flag. Read the fudan-zvg/4d-gaussian-splatting repository to port the view- and time-dependent colour;
@@ -472,14 +476,14 @@ a higher minimum PSNR on `bouncingballs` than before. Target mean >= 32 dB; if i
 
 ### WP14 — GPU decoding and interpolation while playing
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP11 is merged.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md. Precondition: WP11 is merged.
 Problem: `at(t)` on the compact layout takes 77 ms with 500,000 Gaussians (float32: 14 ms), so playing a large scene reaches only about
 13 frames/s even before rasterisation.
-Step 0: measure where the time goes (disk reads, decoding, interpolation, copy to the GPU) with tests/bench_large.py; write the numbers down.
+Step 0: measure where the time goes (disk reads, decoding, interpolation, copy to the GPU) with benchmarks/bench_large.py; write the numbers down.
 Task: for the gsplat renderer, keep the two neighbouring keyframes as tensors on the GPU, decode and interpolate with torch, and load a
 keyframe only when the time slider crosses into a new interval; copy the static group (WP11) to the GPU once. The client renderer and the
 CPU path stay as they are.
-Only edit viewer.py, gs4d/format.py, tests/bench_large.py.
+Only edit viewer.py, gs4d/format.py, benchmarks/bench_large.py.
 Also measure the display rate in a real browser (Chrome with a GPU, not headless swiftshader) at 1280x720 and write it
 next to the server-side numbers in the README.
 Done when: the README has a before/after table of the time per frame while playing (500,000 Gaussians x 100 keyframes, float32 and compact)
@@ -489,7 +493,7 @@ and with ../data_real/som/paper-windmill.npz; target for fetching a frame <= 20 
 
 ### WP15 — direct converter for 4DGaussians (part of WP9)
 ```
-Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of PLAN.md.
+Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of docs/PLAN.md.
 The real output is at: <PATH>. If there is none: train hustvl/4DGaussians on D-NeRF `bouncingballs` in /home/cont/gs4d_train
 (one job, nothing else on the GPU), then run `export_perframe_3DGS.py` once to get per-frame ply files as a reference. Task: write
 convert_4dgaussians.py, which reads a 4DGaussians model folder (hustvl/4DGaussians: `point_cloud/iteration_*/point_cloud.ply` + the
@@ -506,7 +510,7 @@ lines, then stop.
 
 ### WP16 — untried variants (part of WP9; one variant per session)
 ```
-Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of PLAN.md.
+Read CLAUDE.md and the "WP9" and "Done criteria for every package" sections of docs/PLAN.md.
 Method and variant: <ONE of: full Spacetime Gaussians with rgbdecoder | Deformable-3DGS default | Deformable-3DGS
 6-DoF | SC-GS with motion mask | SC-GS --use_hash | SC-GS --skinning | SC-GS --pred_color | SC-GS with d_rot_as_res off |
 a real (non-D-NeRF) scene for <name>>. The real output is at: <PATH>; if there is none, train that variant in
@@ -520,7 +524,7 @@ Report in 5 lines, then stop.
 
 ### WP17 — the `--compact` flag and one command that runs every test
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP10 is merged; no converter package
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md. Precondition: WP10 is merged; no converter package
 of CC-C is open.
 Task: (1) add a --compact flag to every convert_*.py that only passes `compact=True` to `Sequence4D.save`; change nothing else
 in the converters. gs4d/open.py uses --compact when the estimated file is larger than 1 GB. (2) write tests/run_all.py, which runs every
@@ -535,7 +539,7 @@ Report in 5 lines, then stop.
 
 ### WP18 — training cameras and original images in the viewer (only when asked)
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. Precondition: WP14 is merged.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md. Precondition: WP14 is merged.
 Task: add a `--cameras <cameras.json | transforms_*.json>` argument to viewer.py: a camera list in the control panel,
 click to jump to that camera (and to the image's time if the file has one), and with the gsplat renderer a checkbox that shows the
 original image next to the render with the PSNR of the frame on screen. The camera conventions are in CLAUDE.md (D-NeRF is OpenGL: flip
@@ -547,7 +551,7 @@ tests/check_real.py within 0.1 dB, and the README has a paragraph of instruction
 
 ### WP19a — `open.py` recognises 4DGaussians and `--cameras`; stop on unsupported variants
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Task 1: in gs4d/open.py, add a detection branch for 4DGaussians (hustvl) model folders that calls convert_4dgaussians.py.
 Read the top of convert_4dgaussians.py to get exactly the files it needs; tell it apart from Deformable-3DGS / SC-GS (which have `deform/`)
 and Spacetime Gaussians by signs inside the files, not by folder names. Add this case to tests/test_open.py.
@@ -563,9 +567,9 @@ Task 3 (criterion 2 of WP9): an unsupported variant must stop and name the varia
  The stop message must give the flag that converts anyway. Update the tests of both converters for these two cases.
 Task 4: fix the stale sentence in the Status section of CLAUDE.md ("SH degree 0 only, so colours are mottled" after the `--sh` numbers).
 Only edit: gs4d/open.py, tests/test_open.py, convert_scgs.py, convert_spacetime.py, tests/test_scgs.py, tests/test_spacetime.py,
-the README (the matching rows), CLAUDE.md, and the status table in PLAN.md.
+the README (the matching rows), CLAUDE.md, and the status table in docs/PLAN.md.
 Done when: `python -m gs4d.open <the 4DGaussians bouncingballs folder in /home/cont/gs4d_train>` opens the viewer with a camera list;
-`python tests/run_all.py` and `python tests/check_real.py` pass, with unchanged PSNR; the WP9 table in PLAN.md is updated.
+`python tests/run_all.py` and `python tests/check_real.py` pass, with unchanged PSNR; the WP9 table in docs/PLAN.md is updated.
 Report in 5 lines, then stop.
 ```
 
@@ -576,7 +580,7 @@ GPU name and the Chrome version; remove the line "display FPS in a real browser"
 
 ### WP19c — PSNR for Spacetime and Shape of Motion; the 1.9 dB gap of native 4DGS (part 3 done; parts 1, 2 opened)
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md. One part per session; say which part when pasting.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md. One part per session; say which part when pasting.
 Part 1 — Shape of Motion `paper-windmill`: get the scene's original images from the DyCheck iPhone set (this scene only), render at the
 training cameras (`Ks`, `w2cs` in the checkpoint) and add a PSNR with a threshold to the matching item of tests/check_real.py.
 Report the download size in the first turn and stop if it exceeds 5 GB.
@@ -589,7 +593,7 @@ interpolating; (b) the marginal_t threshold and how opacity is multiplied over t
 background and resolution used for the measurement compared with the repo's evaluation; (d) SH: whether the degree and the time-dependent
 part are fully accounted for. Stop at the step that explains most of the gap.
 Only edit: tests/check_real.py; convert_native4d.py and tests/test_native4d_sh.py if part 3 finds a bug in the converter;
-the matching rows in the README, CLAUDE.md and PLAN.md.
+the matching rows in the README, CLAUDE.md and docs/PLAN.md.
 Done when: the README has the PSNR (parts 1, 2) or a table of PSNR per step and a conclusion (part 3). Report in 5 lines, then stop.
 ```
 
@@ -598,7 +602,7 @@ Result: `Sequence4DWriter` in `gs4d/format.py` (keeps the static group and the c
 `tests/test_writer.py`; `slice-banana` with 330 keyframes: SC-GS peak RAM 1.4 GB, 26.87 dB; native 4DGS 1.3 GB, 24.27 dB;
 Deformable-3DGS 7.2 → 1.0 GB.
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Problem: the converters build the whole sequence [K,N,...] in memory before saving. On `slice-banana` (392k–603k Gaussians), SC-GS and
 native 4DGS can only convert 110 keyframes; with 330 keyframes the 15 GB of RAM run out and the process is killed.
 Step 0: measure the peak RAM of `convert_scgs.py --frames 110 --sh --compact` on `slice-banana` and find which array takes the space
@@ -615,18 +619,18 @@ native 4DGS convert the 330 keyframes of `slice-banana` with peak RAM below 8 GB
 
 ### WP20 — retrain native 4DGS `slice-banana` with the right cameras
 ```
-Read CLAUDE.md (the WP19c part 3 entry) and the "Done criteria for every package" section of PLAN.md. Precondition: branch
+Read CLAUDE.md (the WP19c part 3 entry) and the "Done criteria for every package" section of docs/PLAN.md. Precondition: branch
 cc-c/wp19c-psnr is merged.
-Problem: tests/make_hypernerf_blender.py writes `fl_x/fl_y/cx/cy` per frame; the Blender reader of fudan-zvg/4d-gaussian-splatting
+Problem: tools/make_hypernerf_blender.py writes `fl_x/fl_y/cx/cy` per frame; the Blender reader of fudan-zvg/4d-gaussian-splatting
 then sets `FovX = FovY = -1`, so the `slice-banana` model was trained with wrong cameras, and our 24.23 dB (the repo's own evaluation 26.14)
 does not reflect the converter's quality.
 Step 0: `nvidia-smi`; if the GPU has less than 10 GB free, report and stop (last time a game held ~3 GB and three training runs hit CUDA
 OOM).
-Task: read the repo's reader to find which field it takes the FoV from, fix tests/make_hypernerf_blender.py to write exactly that field
+Task: read the repo's reader to find which field it takes the FoV from, fix tools/make_hypernerf_blender.py to write exactly that field
 (do not patch the original repo), rebuild the layout, retrain in /home/cont/gs4d_train with the same config (20k iterations, batch_size 1,
 densify_until_num_points 250_000), then rerun the repo's evaluation and `convert_native4d.py --frames 110 --sh --compact`.
-Only edit: tests/make_hypernerf_blender.py, the `native4d_banana` item and its threshold in tests/check_real.py,
-tests/diag_native4d_banana.py (drop the emulation step if it is no longer needed), the matching rows in the README, CLAUDE.md, PLAN.md.
+Only edit: tools/make_hypernerf_blender.py, the `native4d_banana` item and its threshold in tests/check_real.py,
+tools/diag_native4d_banana.py (drop the emulation step if it is no longer needed), the matching rows in the README, CLAUDE.md, docs/PLAN.md.
 Do not edit convert_native4d.py; if after retraining the gap to the repo's evaluation is still more than 0.5 dB, report the numbers of each
 step of the diag script and stop; do not tune until it matches.
 Done when: the README gives the new PSNR of the repo and ours on the 33 held-out images; the two differ by at most 0.5 dB; check_real.py
@@ -635,14 +639,14 @@ passes. Report in 5 lines, then stop.
 
 ### WP21 — compact the per-keyframe `sh` field
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Problem: the compact layout (WP8) leaves `sh` alone. Native 4DGS writes `sh` per keyframe [K,N,S,3] as float32:
 `slice-banana` with 330 keyframes gives 19.9 GB, and check_real.py cannot load that file without `load(lazy=True)`.
 Step 0: measure the distribution of the `sh` values in real files (degree 0 against the higher degrees) to choose the quantisation;
 write the numbers down.
 Task: in the compact layout, store the time-varying `sh` quantised (e.g. float16, or int8 with a scale per degree); `sh` that is constant
 over time stays as it is; `Sequence4DWriter`, lazy loading and `GpuFrames` can all read it; old files can still be read.
-Only edit: gs4d/format.py, tests/test_compact.py, tests/test_writer.py, tests/bench_large.py, the "Large files" paragraph of the README.
+Only edit: gs4d/format.py, tests/test_compact.py, tests/test_writer.py, benchmarks/bench_large.py, the "Large files" paragraph of the README.
 Done when: the README has a before/after table for native 4DGS `slice-banana` with 330 keyframes and `bouncingballs --sh` (size, frame
 fetch time while playing, PSNR); target size at most 1/3 of the float32 file and PSNR drop at most 0.1 dB; check_real.py passes.
 Report in 5 lines, then stop.
@@ -656,11 +660,11 @@ Writer needs a fixed N). Shape of Motion with all 277 frames can now be converte
 
 Original prompt:
 ```
-Read CLAUDE.md (the WP19d entry) and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md (the WP19d entry) and the "Done criteria for every package" section of docs/PLAN.md.
 Task: move convert_4dgaussians.py, convert_shape_of_motion.py, convert_spacetime.py and convert_per_frame.py to writing through
 `gs4d.Sequence4DWriter`, exactly as convert_scgs.py does; change no formula. For convert_per_frame.py in the mode where the
 Gaussian count changes between frames (`interpolate=False`): if the Writer does not support it, keep the old path for that mode and say so.
-Only edit the four converters above and the matching rows in the README, CLAUDE.md, PLAN.md.
+Only edit the four converters above and the matching rows in the README, CLAUDE.md, docs/PLAN.md.
 Done when: for every converter, the output on a real output in ../data_real equals the old code's output in every array (compared with a
 script, results pasted into the report); the README has the peak RAM before/after; `python tests/run_all.py` and check_real.py pass.
 Report in 5 lines, then stop.
@@ -668,29 +672,29 @@ Report in 5 lines, then stop.
 
 ### WP23 — 4DGaussians on the real scene `slice-banana`
 ```
-Read CLAUDE.md (the WP15 and WP16 entries of 15/11/2026) and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md (the WP15 and WP16 entries of 15/11/2026) and the "Done criteria for every package" section of docs/PLAN.md.
 Precondition: WP20 is done (GPU free). Step 0: `nvidia-smi`; if the GPU has less than 10 GB free, report and stop.
 Task: train hustvl 4DGaussians on HyperNeRF `slice-banana` in /home/cont/gs4d_train/4dgaussians (a clone that is already patched), with
 the repo's own HyperNeRF reader and the same split of 297 training / 33 held-out images as the three other methods (see
-tests/make_hypernerf_split.py), 268x480 images, 20k iterations, or the repo's default hypernerf config if it fits in a 12 GB GPU and 15 GB
+tools/make_hypernerf_split.py), 268x480 images, 20k iterations, or the repo's default hypernerf config if it fits in a 12 GB GPU and 15 GB
 of RAM. Then `convert_4dgaussians.py --sh --compact`, open with `python -m gs4d.open`, and measure the PSNR on the 33 held-out images next
 to the repo's evaluation numbers.
 Check before trusting the repo's numbers: are the cameras the repo uses for training right (the lesson of WP19c part 3: FovX/FovY)?
 Only edit: convert_4dgaussians.py and tests/test_4dgaussians.py if the real format differs from what was assumed; add a
-`4dgaussians_banana` item to tests/check_real.py; the matching rows in the README, CLAUDE.md, PLAN.md.
+`4dgaussians_banana` item to tests/check_real.py; the matching rows in the README, CLAUDE.md, docs/PLAN.md.
 Done when: the README gives our PSNR and the repo's on the 33 images, the Gaussian count, the size and the conversion time; if they differ
 by more than 0.5 dB, report the causes tried, do not tune until it matches. Report in 5 lines, then stop.
 ```
 
 ### WP24 — draw Gaussian centres as points (done 16/11/2026)
 ```
-Read CLAUDE.md and the "Done criteria for every package" section of PLAN.md.
+Read CLAUDE.md and the "Done criteria for every package" section of docs/PLAN.md.
 Task: add a "Display" choice to the control panel of viewer.py: `splats` (as now) or `points` (every Gaussian is a point at its
 centre, in the Gaussian's colour, with a "Point size" slider), usable while playing, with `--compare`, and with both renderers
 (client: viser's point cloud; gsplat: rasterise with a small fixed pixel scale, or send a point cloud to the client if that is simpler;
 pick one and say why). The "Hide opacity below" slider still applies. Write in the README how to move the camera (mouse and keys) for the
 installed viser version, after trying it for real.
-Only edit viewer.py, README, CLAUDE.md, PLAN.md; add tests/check_points.py (headless screenshots at 3 times).
+Only edit viewer.py, README, CLAUDE.md, docs/PLAN.md; add tests/check_points.py (headless screenshots at 3 times).
 Done when: run with `../data_real/scgs/bouncingballs_sh.npz` and `../data_real/som/paper-windmill.npz`, with screenshots in
 shots/points/, and the playback speed in points mode written in the README. Report in 5 lines, then stop.
 ```
@@ -709,7 +713,7 @@ All 8 packages met their done criteria and are merged into `main`. The rest of t
 | WP | Status | Branch | Notes |
 |---|---|---|---|
 | 1 | Done | `cc-a/wp1-gsplat` | FPS table in the README, now in `docs/PERFORMANCE.md` (RTX 3060) |
-| 2 | Done | `cc-b/wp2-real-data` | Real Dynamic 3D Gaussians output `basketball`; images in `shots/wp2/` |
+| 2 | Done | `cc-b/wp2-real-data` | Real Dynamic 3D Gaussians output `basketball`; images in `shots/wp2/` (now `shots/dynamic3dgs/`) |
 | 3 | Done | `cc-c/wp3-spacetime` | Run with the real model `n3d_sear_steak_lite_allcam` (lite model, no `rgbdecoder`) |
 | 4 | Done | `cc-c/wp4-deformable3dgs` | 3 variants (default, D-NeRF, 6-DoF); the D-NeRF variant run with a real self-trained model (`bouncingballs`) |
 | 5 | Done | `cc-c/wp5-shape-of-motion`, `cc-c/wp5-scgs` | Both methods done; run with the real checkpoint `paper-windmill` (Shape of Motion) and a self-trained model `bouncingballs` (SC-GS) |

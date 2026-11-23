@@ -13,6 +13,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 from gs4d import Sequence4D  # noqa: E402
 from gs4d.format import cov_from_quat_scale, unpack_cov  # noqa: E402
@@ -91,7 +92,7 @@ def run_case(name, cfg, D, it):
         with open(os.path.join(tmp, "cfg_args"), "w") as f:
             f.write("Namespace(" + ", ".join(f"{k}={v!r}" for k, v in cfg.items()) + ", source_path='/x')")
         out = os.path.join(tmp, "s.npz")
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_ed3dgs.py"), tmp, "-o", out, "--frames", "4", "--t0", "0.1", "--t1", "0.9", "--sh"],
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_ed3dgs.py"), tmp, "-o", out, "--frames", "4", "--t0", "0.1", "--t1", "0.9", "--sh"],
                        check=True, capture_output=True)
         seq = Sequence4D.load(out)
     f = lambda a: torch.from_numpy(np.asarray(a, np.float32))   # noqa: E731

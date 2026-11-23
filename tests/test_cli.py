@@ -54,7 +54,7 @@ def test_ctrl_c(tmp):
         print("skip  Ctrl+C check: POSIX only")
         return
     toy = os.path.join(tmp, "toy.npz")
-    subprocess.run([sys.executable, "make_toy.py", "-o", toy, "--frames", "8", "--points", "300"], cwd=ROOT, check=True,
+    subprocess.run([sys.executable, os.path.join("tools", "make_toy.py"), "-o", toy, "--frames", "8", "--points", "300"], cwd=ROOT, check=True,
                    capture_output=True)
     port = free_port()
     # what a terminal does on Ctrl+C: SIGINT to the whole foreground process group (here: gs4d.open and its viewer)

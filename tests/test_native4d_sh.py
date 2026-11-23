@@ -50,7 +50,7 @@ def test_native4d_sh():
     with tempfile.TemporaryDirectory() as tmp:
         ck, out = os.path.join(tmp, "chkpnt_best.pth"), os.path.join(tmp, "n4d_sh.npz")
         torch.save((cap, 20000), ck)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_native4d.py"), ck, "-o", out, "--frames", "5",
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_native4d.py"), ck, "-o", out, "--frames", "5",
                         "--t0", "0", "--t1", "1", "--sh", "--min-peak-opacity", "-1"], check=True,
                        stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)

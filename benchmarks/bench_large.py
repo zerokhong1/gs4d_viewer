@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Size, load time, memory and error of plain vs compact storage on a large random sequence.
 
-    python tests/bench_large.py [--gaussians 500000] [--frames 100] [--dir /tmp]
+    python benchmarks/bench_large.py [--gaussians 500000] [--frames 100] [--dir /tmp]
 
 Needs about 2x the plain file size in free RAM and 1.5x on disk (files are deleted at the end).
 
-    python tests/bench_large.py --file ../data_real/som/paper-windmill.npz     # play-frame timing of an existing file only
+    python benchmarks/bench_large.py --file ../data_real/som/paper-windmill.npz     # play-frame timing of an existing file only
 
 Play-frame timing (needs CUDA): where the time of one frame goes on the CPU path (read from disk / decode /
 interpolate / upload), and the time to get the gsplat inputs for one frame while playing, CPU path vs GPU path

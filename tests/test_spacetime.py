@@ -66,7 +66,7 @@ def test_spacetime():
     with tempfile.TemporaryDirectory() as tmp:
         ply, out = os.path.join(tmp, "point_cloud.ply"), os.path.join(tmp, "st.npz")
         write_ply(ply, c)
-        subprocess.run([sys.executable, os.path.join(ROOT, "convert_spacetime.py"), ply, "-o", out, "--frames", "5",
+        subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_spacetime.py"), ply, "-o", out, "--frames", "5",
                         "--min-peak-opacity", "-1"], check=True, stdout=subprocess.DEVNULL)
         seq = Sequence4D.load(out)
     assert seq.num_frames == 5 and seq.num_gaussians == N
@@ -84,7 +84,7 @@ def test_spacetime():
 
 def test_full_model_stops(c):
     """The full model (f_dc_3.. in the ply, or an rgbdecoder file beside it) is refused unless --base-color-only."""
-    script = os.path.join(ROOT, "convert_spacetime.py")
+    script = os.path.join(ROOT, "converters", "convert_spacetime.py")
     for how in ("f_dc_3", "rgbdecoder"):
         with tempfile.TemporaryDirectory() as tmp:
             ply, out = os.path.join(tmp, "point_cloud.ply"), os.path.join(tmp, "st.npz")

@@ -32,7 +32,7 @@ checkpoint or re-runs a small MLP). `python -m gs4d.open <output>` recognises al
 ### A — Folder of per-frame ply files (`convert_per_frame.py`)
 
 ```bash
-python convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--stride 2] [--sh] [--compact]
+python converters/convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--stride 2] [--sh] [--compact]
 ```
 
 - Input: a folder of standard 3DGS `.ply` files, one per frame, in natural order (`time_2` before `time_10`): per-frame output of a
@@ -47,19 +47,19 @@ python convert_per_frame.py <ply_folder> -o scene.npz --fps 30 [--stride 2] [--s
 ### A — Dynamic 3D Gaussians (`convert_per_frame.py`, `params.npz`)
 
 ```bash
-python convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only
+python converters/convert_per_frame.py params.npz -o scene.npz --stride 5 --fps 30 --fg-only
 python viewer.py scene.npz --up -y
 ```
 
 - Real output `basketball` (375,870 Gaussians × 150 original frames): `--fg-only` gives 112,592 Gaussians × 30 keyframes, 163 MB; without
   `--fg-only`: 375,870 Gaussians, 543 MB, but the scene is hidden behind background and floaters. The up axis is `-y`; screenshots in
-  `shots/wp2/`.
+  `shots/dynamic3dgs/`.
 - ~14% of the original colours lie outside [0,1] and are clipped; the client renderer was not compared with the original `visualize.py`.
 
 ### B — Native 4DGS, Yang et al. (`convert_native4d.py`)
 
 ```bash
-python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 [--sh] [--compact]
+python converters/convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 1 [--sh] [--compact]
 ```
 
 - `--t0/--t1` are the `time_duration` of the training config (D-NeRF scenes: [0, 1]); without them the script guesses the range from the
@@ -71,18 +71,18 @@ python convert_native4d.py chkpnt_best.pth -o scene.npz --frames 60 --t0 0 --t1 
   colour, the higher SH degrees are dropped); with `--sh` 27.3–39.6 dB, mean 32.9 dB, file 1.4 GB (453 MB with `--compact`), 8 seconds.
   The repo's own evaluation gives 33.4 dB; the remaining 0.5 dB has not been traced. Image: `shots/real/native4d_bouncingballs.png`.
 - HyperNeRF `slice-banana` (297 training images, 33 held-out images, 4x images = 268×480; the repo has no Nerfies loader, so the data is
-  written in the D-NeRF layout by `tests/make_hypernerf_blender.py`; config `resolution: 1`, `batch_size: 1`,
+  written in the D-NeRF layout by `tools/make_hypernerf_blender.py`; config `resolution: 1`, `batch_size: 1`,
   `densify_until_num_points: 250_000`, 20,000 iterations, 20 minutes): `--frames 110 --sh --compact` gives 21.41–29.17 dB,
   **mean 26.31 dB**; the repo's own evaluation 26.30 dB.
 - Lesson from the first training run (WP19c, WP20): the old layout wrote `fl_x/fl_y/cx/cy` for every frame, which makes the repo set
   `FovX = FovY = -1`; the CUDA rasteriser then uses a wrong focal length and the model learned to compensate. That model gives 24.23 dB in
-  the viewer (repo 26.14 dB); reproducing the wrong rendering with gsplat (`tests/diag_native4d_banana.py`) gives 26.13 dB, so the
+  the viewer (repo 26.14 dB); reproducing the wrong rendering with gsplat (`tools/diag_native4d_banana.py`) gives 26.13 dB, so the
   converter was not at fault. The new layout writes `camera_angle_x`; the 26.31 dB above is the retrained model.
 
 ### B — 4D-Rotor Gaussian Splatting (`convert_4drotor.py`)
 
 ```bash
-python convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1
+python converters/convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz --frames 60 --t0 0 --t1 1
 ```
 
 - Input: a Nerfstudio checkpoint `step-*.ckpt` (`pipeline` state dict, keys `gauss_params.*`); needs torch.
@@ -93,7 +93,7 @@ python convert_4drotor.py nerfstudio_models/step-000019999.ckpt -o scene.npz --f
 ### C — Spacetime Gaussians, lite model (`convert_spacetime.py`)
 
 ```bash
-python convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1
+python converters/convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50 --t0 0 --t1 1
 ```
 
 - Base colour `f_dc_0..2` only; the `rgbdecoder` MLP of the full model is not reproduced. For a full model (a ply with `f_dc_3..` or an
@@ -105,7 +105,7 @@ python convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene
 - `n3d_sear_steak_lite_allcam` (published by the authors): 108,317 Gaussians in the ply, 98,993 kept × 50 keyframes, 199 MB, 3 seconds.
   Against the original `sear_steak` videos of Neural 3D Video (21 cameras × frames 0, 12, 25, 37, 49 = 105 images, 1352×1014,
   time = frame/50): 27.76–37.81 dB, **mean 34.37 dB**. The repo's own renderer (`test_ours_lite` + the `forward_lite` rasteriser,
-  `tests/repo_psnr.py spacetime`) on the same 105 images: 27.79–38.20 dB, mean 34.48 dB; the 0.11 dB gap comes from
+  `tools/repo_psnr.py spacetime`) on the same 105 images: 27.79–38.20 dB, mean 34.48 dB; the 0.11 dB gap comes from
   `--min-peak-opacity 0.02` (with 0 the match is within 0.01 dB).
 - Technicolor `Birthday` (`ours_lite`, 658,999 Gaussians): `--frames 50 --compact` keeps 596,601 Gaussians, 583 MB, 20 seconds; renders from
   camera 0 of `cameras.json` at t = 0, 0.5, 1 show the right scene with the person moving; no original images, so no PSNR.
@@ -113,7 +113,7 @@ python convert_spacetime.py point_cloud/iteration_25000/point_cloud.ply -o scene
 ### C — Shape of Motion (`convert_shape_of_motion.py`)
 
 ```bash
-python convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz --fps 30 [--stride 8] [--fg-only]
+python converters/convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz --fps 30 [--stride 8] [--fg-only]
 ```
 
 - SE(3) motion bases + per-Gaussian coefficients, static background (stored only once in the file); needs torch to read the checkpoint.
@@ -125,13 +125,13 @@ python convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt -o scene.npz 
   **25.86 dB** (min 24.28); at frames half way between two `--stride 8` keyframes 24.67 dB (min 21.61). With `--stride 1` (every frame a
   keyframe, 416 MB with `--compact`) 25.85 dB everywhere: the 1.2 dB drop is the linear interpolation between sparse keyframes of the
   spinning windmill.
-- The repo's own renderer (`SceneModel.render`, `tests/repo_psnr.py som`) on the same 70 images: 24.28–27.66 dB, mean 25.85 dB; the
+- The repo's own renderer (`SceneModel.render`, `tools/repo_psnr.py som`) on the same 70 images: 24.28–27.66 dB, mean 25.85 dB; the
   `--stride 1` file differs by 0.000 dB on every image.
 
 ### C/D — MoSca (`convert_mosca.py`)
 
 ```bash
-python convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2
+python converters/convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2
 ```
 
 - Scaffold nodes + skinning over the K nearest nodes, dual-quaternion blending (or LBS); needs torch. Time = frame / `--fps`.
@@ -142,7 +142,7 @@ python convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 3
 ### D — E-D3DGS (`convert_ed3dgs.py`)
 
 ```bash
-python convert_ed3dgs.py <model_folder> -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh
+python converters/convert_ed3dgs.py <model_folder> -o scene.npz --frames 60 --t0 0 --t1 0.9967 --sh
 ```
 
 - A model folder with `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` and `cfg_args`. Per-Gaussian embeddings + a temporal
@@ -154,7 +154,7 @@ python convert_ed3dgs.py <model_folder> -o scene.npz --frames 60 --t0 0 --t1 0.9
 ### D — 4DGaussians, hustvl (`convert_4dgaussians.py`)
 
 ```bash
-python convert_4dgaussians.py <model_folder> -o scene.npz --frames 60 [--sh]
+python converters/convert_4dgaussians.py <model_folder> -o scene.npz --frames 60 [--sh]
 ```
 
 - A model folder with `point_cloud/iteration_*/{point_cloud.ply,deformation.pth}` and `cfg_args`. The HexPlane + deformation MLP are
@@ -173,7 +173,7 @@ python convert_4dgaussians.py <model_folder> -o scene.npz --frames 60 [--sh]
 ### D — Deformable-3DGS (`convert_deformable3dgs.py`)
 
 ```bash
-python convert_deformable3dgs.py <model_folder> -o scene.npz --frames 60 [--sh]
+python converters/convert_deformable3dgs.py <model_folder> -o scene.npz --frames 60 [--sh]
 ```
 
 - A model folder with `point_cloud/` and `deform/`; the deformation MLP is re-run on the CPU (needs torch). The D-NeRF (timenet), default
@@ -184,13 +184,13 @@ python convert_deformable3dgs.py <model_folder> -o scene.npz --frames 60 [--sh]
 - Default variant (no `--is_blender`): 35.35–43.14 dB, mean 39.62 dB. 6-DoF variant (`--is_6dof`, 27 minutes): 36.99–43.75 dB,
   mean 40.34 dB. Neither needed a converter change.
 - HyperNeRF `slice-banana` (single-camera video, 297 training / 33 held-out images, 4x images 268×480, 20,000 iterations, 73 minutes,
-  392,000 Gaussians; data built with `tests/make_hypernerf_split.py`): `--frames 330 --sh --compact` (exactly the 330 times of the video),
+  392,000 Gaussians; data built with `tools/make_hypernerf_split.py`): `--frames 330 --sh --compact` (exactly the 330 times of the video),
   33 held-out images at 268 px: 19.28–29.78 dB, mean 24.72 dB (lens distortion ignored, as in the repo's loader).
 
 ### D — SC-GS (`convert_scgs.py`)
 
 ```bash
-python convert_scgs.py <model_folder>_node -o scene.npz --frames 60 [--knn 3] [--sh]
+python converters/convert_scgs.py <model_folder>_node -o scene.npz --frames 60 [--knn 3] [--sh]
 ```
 
 - A model folder with `point_cloud/` and `deform/`; control nodes + MLP + blending over the K nearest nodes, run on the CPU (needs torch).

@@ -4,14 +4,17 @@
 A static ground disc, a ball orbiting on a circle, a ball bouncing up and down,
 and a cloud that fades in and out (appearance / disappearance).
 
-    python make_toy.py -o toy.npz
+    python tools/make_toy.py -o toy.npz
 """
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, cov_from_quat_scale
 
 

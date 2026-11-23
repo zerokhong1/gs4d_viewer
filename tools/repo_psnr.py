@@ -4,9 +4,9 @@
 This is the one script in the repo that executes a method's code (the converters only port formulas). It needs a clone
 of the method's repo and is not run by tests/run_all.py.
 
-    python tests/repo_psnr.py som        [--repo /home/cont/gs4d_train/som] [--site /home/cont/gs4d_train/site_som]
-    /home/cont/gs4d_train/env/bin/python tests/repo_psnr.py spacetime   [--repo /home/cont/gs4d_train/stg]   (training env, CUDA toolkit libs)
-    python tests/repo_psnr.py spacetime_ours [--frames 50]              (this repo's .venv; compares with the npy of the line above)
+    python tools/repo_psnr.py som        [--repo /home/cont/gs4d_train/som] [--site /home/cont/gs4d_train/site_som]
+    /home/cont/gs4d_train/env/bin/python tools/repo_psnr.py spacetime   [--repo /home/cont/gs4d_train/stg]   (training env, CUDA toolkit libs)
+    python tools/repo_psnr.py spacetime_ours [--frames 50]              (this repo's .venv; compares with the npy of the line above)
 
 som:        vye16/shape-of-motion `flow3d.scene_model.SceneModel.render` (gsplat) on the `paper-windmill` checkpoint, the
             training cameras stored in the checkpoint, every 4th DyCheck 1x image (item `som_psnr` of check_real.py).
@@ -25,6 +25,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "converters"))
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 

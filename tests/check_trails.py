@@ -184,7 +184,7 @@ if opt.file:
 part1_2()
 tmp = tempfile.mkdtemp()
 toy = os.path.join(tmp, "toy.npz")
-subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", toy], check=True, stdout=subprocess.DEVNULL)
+subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", toy], check=True, stdout=subprocess.DEVNULL)
 for k, r in enumerate(["client"] + (["gsplat"] if V.pick_renderer("auto") == "gsplat" else [])):
     drive(r, opt.port + k, toy, "toy", "+z", opt.shots, expect_colours=True)
 print("motion colour and trails verified" if ok else "motion colour and trails MISMATCH")

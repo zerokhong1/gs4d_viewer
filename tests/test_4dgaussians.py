@@ -138,7 +138,7 @@ def run_case(flags, tmp, name):
     with open(os.path.join(tmp, name, "cfg_args"), "w") as f:
         f.write("Namespace(" + ", ".join(f"{k}={v}" for k, v in flags.items()) + ", net_width=8)")
     out = os.path.join(tmp, name + ".npz")
-    subprocess.run([sys.executable, os.path.join(ROOT, "convert_4dgaussians.py"), os.path.join(tmp, name), "-o", out,
+    subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_4dgaussians.py"), os.path.join(tmp, name), "-o", out,
                     "--frames", "5"], check=True, stdout=subprocess.DEVNULL)
     seq = Sequence4D.load(out)
     assert seq.num_frames == 5 and seq.num_gaussians == N
@@ -169,7 +169,7 @@ def test_4dgaussians():
         w1 = run_case(base, tmp, "default")
         w2 = run_case(dict(base, no_do=False, apply_rotation=True), tmp, "opacity_rotmul")
         w3 = run_case(dict(base, no_ds=True, no_dr=True), tmp, "position_only")
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "convert_4dgaussians.py"), os.path.join(tmp, "default"),
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "converters", "convert_4dgaussians.py"), os.path.join(tmp, "default"),
                             "-o", os.path.join(tmp, "x.npz"), "--flag", "static_mlp=True"], capture_output=True, text=True)
         assert r.returncode != 0 and "static_mlp" in (r.stderr + r.stdout)
     print(f"ok  4DGaussians hexplane + MLP matches the independent formulas at 3 times "

@@ -68,17 +68,17 @@ published code, which is read but never executed by the converters. The four typ
 
 | Type | Method | Evaluated by the converter at time $`t`$ | Checked on |
 |---|---|---|---|
-| A | [Per-frame 3DGS ply files](../convert_per_frame.py), e.g. the per-frame export of 4DGaussians [12] | nothing (frames are keyframes) | real output |
-| A | [Dynamic 3D Gaussians](../convert_per_frame.py) [4] | nothing (frames are keyframes) | real output, no ground truth |
-| B | [4DGS, Yang et al.](../convert_native4d.py) [5] | slice of a 4D Gaussian; SH with a cosine series in time | real output |
-| B | [4D-Rotor GS](../convert_4drotor.py) [6] | slice of a 4D Gaussian whose rotation is given by two rotors | synthetic test only |
-| C | [Spacetime Gaussians](../convert_spacetime.py), lite model [7] | cubic polynomial motion, linear quaternion motion, temporal RBF opacity | real output |
-| C | [Shape of Motion](../convert_shape_of_motion.py) [8] | blend of shared SE(3) motion bases | real output |
-| C/D | [MoSca](../convert_mosca.py), dynamic Gaussians [9] | dual-quaternion blending on a 4D motion scaffold | synthetic test only |
-| D | [Deformable-3DGS](../convert_deformable3dgs.py) [10] | MLP on positional encodings of position and time (default, D-NeRF and 6-DoF variants) | real output |
-| D | [SC-GS](../convert_scgs.py) [11] | MLP on sparse control nodes, blended over the K nearest nodes; optional colour head | real output |
-| D | [4DGaussians](../convert_4dgaussians.py) [12] | multi-resolution HexPlane features and MLP heads | real output |
-| D | [E-D3DGS](../convert_ed3dgs.py) [13] | per-Gaussian and temporal embeddings, coarse and fine MLPs | synthetic test only |
+| A | [Per-frame 3DGS ply files](../converters/convert_per_frame.py), e.g. the per-frame export of 4DGaussians [12] | nothing (frames are keyframes) | real output |
+| A | [Dynamic 3D Gaussians](../converters/convert_per_frame.py) [4] | nothing (frames are keyframes) | real output, no ground truth |
+| B | [4DGS, Yang et al.](../converters/convert_native4d.py) [5] | slice of a 4D Gaussian; SH with a cosine series in time | real output |
+| B | [4D-Rotor GS](../converters/convert_4drotor.py) [6] | slice of a 4D Gaussian whose rotation is given by two rotors | synthetic test only |
+| C | [Spacetime Gaussians](../converters/convert_spacetime.py), lite model [7] | cubic polynomial motion, linear quaternion motion, temporal RBF opacity | real output |
+| C | [Shape of Motion](../converters/convert_shape_of_motion.py) [8] | blend of shared SE(3) motion bases | real output |
+| C/D | [MoSca](../converters/convert_mosca.py), dynamic Gaussians [9] | dual-quaternion blending on a 4D motion scaffold | synthetic test only |
+| D | [Deformable-3DGS](../converters/convert_deformable3dgs.py) [10] | MLP on positional encodings of position and time (default, D-NeRF and 6-DoF variants) | real output |
+| D | [SC-GS](../converters/convert_scgs.py) [11] | MLP on sparse control nodes, blended over the K nearest nodes; optional colour head | real output |
+| D | [4DGaussians](../converters/convert_4dgaussians.py) [12] | multi-resolution HexPlane features and MLP heads | real output |
+| D | [E-D3DGS](../converters/convert_ed3dgs.py) [13] | per-Gaussian and temporal embeddings, coarse and fine MLPs | synthetic test only |
 
 A variant whose appearance or motion model is not reproduced makes the converter stop with a message that names it, instead of
 producing a wrong scene ([list](SUPPORTED.md#stops-with-a-message-the-converters-never-guess)).
@@ -109,7 +109,7 @@ with gsplat at the camera and time of every evaluation image, at the resolution 
 another resolution loses several dB), and $`\mathrm{PSNR} = 10\log_{10}(1/\mathrm{MSE})`$ is computed per image on RGB values in
 $`[0, 1]`$; tables give the mean over the images, and the range where useful. D-NeRF ground truth is resized with Lanczos filtering
 and composited on black (on white for 4DGaussians, which was trained on a white background). Where the method's own renderer could
-be run on the same images (`tests/repo_psnr.py`), or the method's own evaluation or renders were available, the two numbers are
+be run on the same images (`tools/repo_psnr.py`), or the method's own evaluation or renders were available, the two numbers are
 compared directly (Table 2). Data: D-NeRF `bouncingballs` [14] (20 test views), HyperNeRF `slice-banana` [15] (297 training and 33
 held-out views), Neural 3D Video `sear_steak` [16] and DyCheck iPhone `paper-windmill` [17]; Technicolor `Birthday` [18] and CMU
 Panoptic `basketball` [19] (through Dynamic 3D Gaussians) have no ground truth here and were checked visually. Hardware: one NVIDIA
@@ -208,9 +208,9 @@ check with a threshold in `tests/check_real.py`; per-method details are in [SUPP
 ```bash
 python tests/run_all.py        # every test and browser check (pass / skipped / failed)
 python tests/check_real.py     # Tables 2 and 4: PSNR of every real output (CUDA + data)
-python tests/repo_psnr.py som  # Table 2: the method's own renderer (needs its repository)
-python tests/bench_large.py    # Tables 3 and 5: compact layout, decoding speed
-python tests/bench_display.py --rates 20 30 40 50 60    # Table 5: frames shown by Chrome
+python tools/repo_psnr.py som  # Table 2: the method's own renderer (needs its repository)
+python benchmarks/bench_large.py    # Tables 3 and 5: compact layout, decoding speed
+python benchmarks/bench_display.py --rates 20 30 40 50 60    # Table 5: frames shown by Chrome
 ```
 
 The data paths of `tests/check_real.py` are set at the top of the file.
@@ -268,7 +268,7 @@ method, are in [SUPPORTED.md](SUPPORTED.md). Every measurement is logged with it
 The code in this repository is under the MIT license (see `LICENSE`). Some images in `shots/` contain data of other parties and are
 **not** under the MIT license:
 
-- `shots/wp2/basketball_fg_up-y_t*.png` are rendered from the `basketball` model of Dynamic 3D Gaussians [4], built from CMU Panoptic
+- `shots/dynamic3dgs/basketball_fg_up-y_t*.png` are rendered from the `basketball` model of Dynamic 3D Gaussians [4], built from CMU Panoptic
   Studio recordings [19]. The CMU Panoptic Studio dataset may be used for non-commercial research only; these three images may only be
   used under the same terms.
 - `shots/real/shape_of_motion_paper-windmill.png` combines renders with the `paper-windmill` scene of the DyCheck iPhone set [17]. The

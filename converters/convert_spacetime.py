@@ -10,22 +10,24 @@ scene/oursfull.py (save_ply), at time t (the repo's camera timestamp, normally f
     scale     = exp(scale_0..2)                             (constant in time)
     colour    = f_dc_0..2 used directly as RGB (NOT SH0) and NOT clipped: the repo blends the raw values (in a real
                 model 30 % of the Gaussians lie outside [0,1], from -5 to 7) and clamps only the final pixel.
-                Clipping per Gaussian costs 2.9 dB on n3d_sear_steak (tests/repo_psnr.py).
+                Clipping per Gaussian costs 2.9 dB on n3d_sear_steak (tools/repo_psnr.py).
 
 Known limit: the real renderer feeds the rasterised features (f_dc_3..8, f_t_* * dt) through a small MLP
 (`rgbdecoder`, the .pt next to the ply) that adds view- and time-dependent colour. That is not reproduced:
 only the base RGB is used, so colours can look flatter or slightly off compared with the paper's renders.
 
 Example:
-    python convert_spacetime.py log/scene/point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50
+    python converters/convert_spacetime.py log/scene/point_cloud/iteration_25000/point_cloud.ply -o scene.npz --frames 50
 """
 from __future__ import annotations
 
 import argparse
 import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.ply import read_ply_vertices
 

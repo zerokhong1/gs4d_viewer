@@ -3,14 +3,14 @@
 
 That repo only has Colmap and `transforms_train.json` (D-NeRF) readers, not the HyperNeRF/Nerfies one. This writes
 <out>/transforms_train.json, transforms_test.json (frames of the dataset.json train_ids / val_ids written by
-tests/make_hypernerf_split.py) and points3d.ply, next to symlinks to rgb/4x. Per frame: file_path, time = time_id /
+tools/make_hypernerf_split.py) and points3d.ply, next to symlinks to rgb/4x. Per frame: file_path, time = time_id /
 max(time_id) in [0, 1] and an OpenGL c2w matrix. Intrinsics go in a top-level `camera_angle_x` (4x images, one focal for
 the whole scene, principal point at the image centre, no lens distortion: the same simplifications as the other two repos'
 Nerfies readers). Do NOT write per-frame fl_x/fl_y/cx/cy: that repo then leaves FovX = FovY = -1 and its rasteriser
 uses a wrong focal (WP19c part 3; the model trained on that layout scored 24.2 dB, 1.9 dB under the repo's own eval). World coordinates are
 (x - scene.center) * scene.scale, as in those readers.
 
-    python tests/make_hypernerf_blender.py <split>/vrig_slice-banana/slice-banana <out_dir>
+    python tools/make_hypernerf_blender.py <split>/vrig_slice-banana/slice-banana <out_dir>
 """
 import json
 import os

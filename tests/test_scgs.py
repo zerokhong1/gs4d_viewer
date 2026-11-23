@@ -123,7 +123,7 @@ def run_variant(torch, blender, local_frame, H, motion_mask, pred_opacity, K, ma
         write_ply(os.path.join(tmp, "point_cloud", "iteration_80000", "point_cloud.ply"), c, attrs)
         torch.save(sd, os.path.join(tmp, "deform", "iteration_80000", "deform.pth"))
         out = os.path.join(tmp, "s.npz")
-        cmd = [sys.executable, os.path.join(ROOT, "convert_scgs.py"), tmp, "-o", out, "--frames", str(F), "--knn", str(K)]
+        cmd = [sys.executable, os.path.join(ROOT, "converters", "convert_scgs.py"), tmp, "-o", out, "--frames", str(F), "--knn", str(K)]
         if max_d_scale > 0:
             cmd += ["--max-d-scale", str(max_d_scale)]
         if sh:
@@ -222,7 +222,7 @@ def test_pred_color_stops():
         write_ply(os.path.join(tmp, "point_cloud", "iteration_1", "point_cloud.ply"), c, attrs)
         torch.save(sd, os.path.join(tmp, "deform", "iteration_1", "deform.pth"))
         out = os.path.join(tmp, "s.npz")
-        cmd = [sys.executable, os.path.join(ROOT, "convert_scgs.py"), tmp, "-o", out, "--frames", "2"]
+        cmd = [sys.executable, os.path.join(ROOT, "converters", "convert_scgs.py"), tmp, "-o", out, "--frames", "2"]
         r = subprocess.run(cmd, capture_output=True, text=True)
         assert r.returncode != 0 and "not supported" in r.stderr and "--pred_color" in r.stderr and "--ignore-pred-color" in r.stderr, r.stderr
         assert not os.path.exists(out)

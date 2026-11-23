@@ -22,14 +22,17 @@ pytorch3d (real part >= 0), which dual-quaternion blending depends on. The scale
 (cov = R S S^T R^T); that renderer (lib_render, third party) was not read. NOT checked against a real model (none trained here),
 only against a synthetic one: tests/test_mosca.py.
 
-    python convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2 [--compact]
+    python converters/convert_mosca.py photometric_d_model_native_add3.pth -o scene.npz --fps 30 --stride 2 [--compact]
 """
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter, pack_cov
 from gs4d.checkpoint import import_torch, torch_load
 

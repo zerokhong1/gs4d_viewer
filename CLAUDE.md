@@ -1,50 +1,57 @@
 # gs4d_viewer — context for Claude Code sessions
 
-Read this instead of re-deriving it. Work packages and ownership rules are in `PLAN.md`; the dated log of every check and
+Read this instead of re-deriving it. Work packages and ownership rules are in `docs/PLAN.md`; the dated log of every check and
 measurement is `docs/HISTORY.md` (read the part you need, add new entries at its end).
 
 ## What this is
 Browser viewer (viser) for 4D Gaussian Splatting results with a time slider. The viewer reads ONE
 common `.npz` ("Gaussians per keyframe", `gs4d/format.py`, class `Sequence4D`). Every 4DGS method gets
-its own `convert_<method>.py` that writes that format. The viewer never imports a method's code.
+its own `converters/convert_<method>.py` that writes that format. The viewer never imports a method's code.
 
 ## Layout
-- `gs4d/format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`;
-  compact storage (also per-keyframe `sh`) and the static group (Gaussians that never change are stored once, `save(split_static=True)`);
-  `Sequence4DWriter` writes the same file one keyframe at a time (every converter uses it); `GpuFrames` decodes and
-  interpolates with torch for the gsplat renderer (any torch device; pinned memory only on CUDA)
-- `gs4d/ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
-- `gs4d/checkpoint.py`  `import_torch(script)`, `torch_load(path, script, weights_only)`: torch on demand, one-line errors
-- `gs4d/open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it
-  (`<name>.gs4d.npz`, reused while the output and the converter are unchanged) and opens the viewer
-- `gs4d/__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
+Root: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CLAUDE.md`, `viewer.py`,
+`requirements.txt`, `ruff.toml` (lint rules; CI runs `ruff check .`), `.github/` (CI workflow `test.yml`: lint + tests without /
+with CPU torch; issue and pull-request templates). Everything else lives in one of the folders below.
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
   `--compare b.npz` (second sequence on the same time slider), `--cameras` (training cameras, ground truth + PSNR),
   `--camera-path`, Draw as points, Motion (colour by speed / displacement, trails), mp4 export
-- `convert_per_frame.py`  type A: folder of per-frame ply, Dynamic 3D Gaussians `params.npz`
-- `convert_native4d.py`   type B: Yang et al. `chkpnt*.pth` (`--sh`: view- and time-dependent SH per keyframe)
-- `convert_4drotor.py`    type B: 4D-Rotor GS Nerfstudio `step-*.ckpt`; synthetic test only
-- `convert_spacetime.py`  type C: Spacetime Gaussians `point_cloud.ply` (lite model; base colour only)
-- `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
-- `convert_mosca.py`      type C/D: MoSca `photometric_d_model_*.pth`, dynamic Gaussians only; synthetic test only
-- `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
-- `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending; hash grid, skinning, colour head)
-- `convert_4dgaussians.py`  type D: hustvl 4DGaussians model folder (HexPlane + MLP re-run on CPU)
-- `convert_ed3dgs.py`     type D: E-D3DGS model folder (per-Gaussian `embedding_*` + MLP re-run on CPU); synthetic test only
-- `convert_template.py`   working template for a new converter (`docs/ADD_A_CONVERTER.md`, `tests/test_template.py`)
-- `make_toy.py`     synthetic scene (`--sh` adds fake SH)
-- `tests/run_all.py` runs every `test_*.py` / `check_*.py` one at a time: pass / skipped (reason) / failed, exit 1 on failure;
-  `NEEDS` says what a file needs (torch, cuda, chrome, data); screenshots go to a temp folder unless `--keep-shots`
-- `tests/test_*.py` CPU checks (converters on synthetic files in the real layout, format, writer, GpuFrames on the CPU device,
-  `gs4d.open`, CLI errors); the converter ones need torch. `tests/check_*.py` drive the viewer in headless Chrome;
-  `check_gsplat.py` and `check_cameras.py` need CUDA, `check_real.py` and `check_cameras.py` the real data
-  (`../data_real`, `/home/cont/gs4d_train`). `bench_large.py`, `bench_display.py` measure; `repo_psnr.py` runs the methods'
-  own renderers; `make_hypernerf_*.py`, `diag_native4d_banana.py` are one-off tools of WP16 / WP19c.
+- `gs4d/` the library
+  - `format.py`  container, interpolation (`Sequence4D.at(t)`), `cov_from_quat_scale`, `pack_cov/unpack_cov`;
+    compact storage (also per-keyframe `sh`) and the static group (Gaussians that never change are stored once, `save(split_static=True)`);
+    `Sequence4DWriter` writes the same file one keyframe at a time (every converter uses it); `GpuFrames` decodes and
+    interpolates with torch for the gsplat renderer (any torch device; pinned memory only on CUDA)
+  - `ply.py`     standard 3DGS ply reader (exp on scale, sigmoid on opacity, SH0 colour)
+  - `checkpoint.py`  `import_torch(script)`, `torch_load(path, script, weights_only)`: torch on demand, one-line errors
+  - `open.py`     `python -m gs4d.open <output> [viewer args]` recognises the output, converts it next to it with the script in
+    `converters/` (`<name>.gs4d.npz`, reused while the output and the converter are unchanged) and opens the viewer
+  - `__main__.py`  `python -m gs4d in.npz out.npz [--float32] [--no-split]` re-saves compact / plain
+- `converters/` one script per method; each puts the repository root on `sys.path` before `import gs4d`, so it runs from anywhere
+  - `convert_per_frame.py`  type A: folder of per-frame ply, Dynamic 3D Gaussians `params.npz`
+  - `convert_native4d.py`   type B: Yang et al. `chkpnt*.pth` (`--sh`: view- and time-dependent SH per keyframe)
+  - `convert_4drotor.py`    type B: 4D-Rotor GS Nerfstudio `step-*.ckpt`; synthetic test only
+  - `convert_spacetime.py`  type C: Spacetime Gaussians `point_cloud.ply` (lite model; base colour only)
+  - `convert_shape_of_motion.py`  type C: Shape of Motion `checkpoints/last.ckpt` (SE(3) motion bases)
+  - `convert_mosca.py`      type C/D: MoSca `photometric_d_model_*.pth`, dynamic Gaussians only; synthetic test only
+  - `convert_deformable3dgs.py`  type D: Deformable-3DGS model folder (deformation MLP re-run on CPU)
+  - `convert_scgs.py`       type D: SC-GS model folder (control nodes + MLP + K-nearest-node blending; hash grid, skinning, colour head)
+  - `convert_4dgaussians.py`  type D: hustvl 4DGaussians model folder (HexPlane + MLP re-run on CPU)
+  - `convert_ed3dgs.py`     type D: E-D3DGS model folder (per-Gaussian `embedding_*` + MLP re-run on CPU); synthetic test only
+  - `convert_template.py`   working template for a new converter (`docs/ADD_A_CONVERTER.md`, `tests/test_template.py`)
+- `tests/` only tests, run by `tests/run_all.py`
+  - `run_all.py` runs every `test_*.py` / `check_*.py` one at a time: pass / skipped (reason) / failed, exit 1 on failure;
+    `NEEDS` says what a file needs (torch, cuda, chrome, data); screenshots go to a temp folder unless `--keep-shots`
+  - `test_*.py` CPU checks (converters on synthetic files in the real layout, format, writer, GpuFrames on the CPU device,
+    `gs4d.open`, CLI errors); the converter ones need torch
+  - `check_*.py` drive the viewer in headless Chrome; `check_gsplat.py` and `check_cameras.py` need CUDA, `check_real.py`
+    and `check_cameras.py` the real data (`../data_real`, `/home/cont/gs4d_train`)
+- `tools/` scripts that are not tests: `make_toy.py` synthetic scene (`--sh` adds fake SH); `repo_psnr.py` runs the methods'
+  own renderers; `make_hypernerf_*.py`, `diag_native4d_banana.py` one-off data and diagnosis tools of WP16 / WP19c
+- `benchmarks/` `bench_large.py` (storage, decoding), `bench_display.py` (frames shown by a GPU-accelerated Chrome)
 - `docs/` `USAGE.md` (user guide), `METHOD.md` (method, validation tables, limitations, references), `SUPPORTED.md` (methods,
-  real outputs checked, PSNR), `FORMAT.md` (file format, compact
-  layout, static group, writer), `PERFORMANCE.md` (speed and memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the log);
-  `shots/` screenshots and mp4s; `CITATION.cff` (citation metadata read by GitHub)
-- `ruff.toml` lint rules (CI runs `ruff check .`); `.github/workflows/test.yml` lint + tests without / with CPU torch
+  real outputs checked, PSNR), `FORMAT.md` (file format, compact layout, static group, writer), `PERFORMANCE.md` (speed and
+  memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the dated log), `PLAN.md` (work packages)
+- `shots/` screenshots and mp4s used as evidence, one folder per feature (`renderers/`, `points/`, `trails/`, `compare/`,
+  `cameras/`, `path/`, `video/`, `sh/`, `compact/`, `real/`, `dynamic3dgs/`), plus `readme_hero.png`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
@@ -76,15 +83,15 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   Per method (real output checked or synthetic test only, PSNR, limits): `docs/SUPPORTED.md`.
 - Every viewer feature has a headless-Chrome check script and was tried on real outputs (details in `docs/HISTORY.md`).
 - Checks with real data run only on Thai's machine (RTX 3060 12 GB, 15 GB RAM): `tests/check_real.py`, `tests/check_cameras.py`,
-  `tests/bench_display.py`. GitHub Actions runs lint, the tests without and with CPU torch, and the client-renderer browser checks.
+  `benchmarks/bench_display.py`. GitHub Actions runs lint, the tests without and with CPU torch, and the client-renderer browser checks.
 - Synthetic test only (no real model): 4D-Rotor GS, E-D3DGS, MoSca, SC-GS `--use_hash` / `--skinning`. The SC-GS colour head
   (`--pred_color`) is checked on a self-trained time-tinted `bouncingballs` (37.83 dB with the head, 24.48 without).
   Not supported: Spacetime full model (`rgbdecoder`), view-direction colour heads, SC-GS with `d_rot_as_res` off.
 - Not measured: a browser on another machine over SSH (WP38). `GpuFrames` changes of 23/11 checked on the CPU device only.
-- Open work packages: WP32 (demo scenes), WP33 (`setup.sh`), WP36, WP37, WP38; see `PLAN.md`.
+- Open work packages: WP32 (demo scenes), WP33 (`setup.sh`), WP36, WP37, WP38; see `docs/PLAN.md`.
 
 ## Conventions
-- A converter is a new file `convert_<method>.py` + a new `tests/test_<method>.py` + one row in `docs/SUPPORTED.md`
+- A converter is a new file `converters/convert_<method>.py` + a new `tests/test_<method>.py` + one row in `docs/SUPPORTED.md`
   (and the methods tables of the README, `docs/METHOD.md` and `docs/USAGE.md`). It must not edit `viewer.py`, `gs4d/format.py` or other converters.
 - Converters run on CPU with numpy (torch only to unpickle weights or run a small MLP, imported through `gs4d.checkpoint`).
   Read reference repos to port formulas; do not execute their code and do not add them as dependencies.
@@ -96,7 +103,11 @@ its own `convert_<method>.py` that writes that format. The viewer never imports 
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
 - Measurements go to `docs/` (per-method results: `SUPPORTED.md`, speed and memory: `PERFORMANCE.md`, file format: `FORMAT.md`)
   plus a dated entry at the end of `docs/HISTORY.md`. The README stays short, like a normal code repository (description,
-  installation, quick start, supported methods, one results table, citation, license); method, validation and references are in
+  installation, quick start, supported methods, one results table, repository layout, contributing, citation, license); method, validation and references are in
   `docs/METHOD.md`, the user guide in `docs/USAGE.md`. A number in the README must also be in `docs/`.
-- Everything in the repository is written in English (docs, `PLAN.md`, comments, messages), with English number separators.
+- Everything in the repository is written in English (docs, `docs/PLAN.md`, comments, messages), with English number separators.
+- Keep the repository organised (Thai's standing request): every file goes into the folder of its kind (see Layout);
+  nothing new at the root; one topic per document, linked from the README instead of copied; every result states how it
+  was measured (data, views, resolution, hardware) and gets a dated entry in `docs/HISTORY.md`; work on a branch, merge
+  through a pull request with green CI.
 - Finish with a 5-line report: what changed, what was run, what is untested, files touched.

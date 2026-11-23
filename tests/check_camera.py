@@ -24,7 +24,7 @@ from playwright.sync_api import sync_playwright
 chrome = sys.argv[1] if len(sys.argv) > 1 else "/usr/bin/google-chrome"
 tmp = tempfile.mkdtemp()
 toy = os.path.join(tmp, "toy.npz")
-os.system(f'"{sys.executable}" "{os.path.join(ROOT, "make_toy.py")}" -o "{toy}" > /dev/null')
+os.system(f'"{sys.executable}" "{os.path.join(ROOT, "tools", "make_toy.py")}" -o "{toy}" > /dev/null')
 args = argparse.Namespace(renderer="client", host="127.0.0.1", port=8131, up="+z", max_splats=300_000, max_res=1080)
 vw = V.Viewer(Sequence4D.load(toy), args)
 threading.Thread(target=vw.run, daemon=True).start()

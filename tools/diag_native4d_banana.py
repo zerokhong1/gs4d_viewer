@@ -2,7 +2,7 @@
 """WP19c part 3: why is native 4DGS on HyperNeRF slice-banana 24.23 dB (ours) vs 26.14-26.18 dB (the repo's own eval)?
 Diagnosis only. Each step changes one thing and prints PSNR on the 33 held-out frames. Needs CUDA, the banana split and
 the self-trained checkpoint (same paths as tests/check_real.py).
-    python tests/diag_native4d_banana.py [--steps a,b,...]
+    python tools/diag_native4d_banana.py [--steps a,b,...]
 """
 import argparse
 import os
@@ -10,7 +10,8 @@ import sys
 import tempfile
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "converters"))
 import check_real as cr
 import convert_native4d as cn
 from gs4d import SH_C0, Sequence4D

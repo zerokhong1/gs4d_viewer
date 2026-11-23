@@ -12,7 +12,7 @@ presses play and counts, per "Update rate":
 The first pass runs without the wrapper and reports `sent` and `browser` only, as a control.
 (Copying the canvas in every frame to compare pixels was tried first: it halves the browser rate, so it is not used.)
 
-    python tests/bench_display.py [file.npz] [--seconds 10] [--rates 20 60] [--size 1280 720] [--draw-as points]
+    python benchmarks/bench_display.py [file.npz] [--seconds 10] [--rates 20 60] [--size 1280 720] [--draw-as points]
 
 Needs CUDA, gsplat, an X display and Chrome. Not part of tests/run_all.py (opens a window, takes about a minute).
 """

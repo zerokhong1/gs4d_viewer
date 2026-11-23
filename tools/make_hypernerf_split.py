@@ -6,7 +6,7 @@ and the official `slice-banana` dataset.json lists all 330 frames as train and n
 <out>/vrig_<scene>/<scene>/ with symlinks to the original files and a dataset.json whose val_ids are every 10th frame
 (offset 3). Nothing is copied or downloaded.
 
-    python tests/make_hypernerf_split.py <path>/slice-banana /home/cont/gs4d_train/data
+    python tools/make_hypernerf_split.py <path>/slice-banana /home/cont/gs4d_train/data
 """
 import json
 import os

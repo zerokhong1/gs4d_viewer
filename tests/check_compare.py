@@ -31,7 +31,7 @@ os.makedirs(opt.out, exist_ok=True)
 tmp = tempfile.mkdtemp()
 pa, pb = os.path.join(tmp, "toy_a.npz"), os.path.join(tmp, "toy_b.npz")
 for p, extra in ((pa, []), (pb, ["--seed", "3", "--points", "600"])):
-    subprocess.run([sys.executable, os.path.join(ROOT, "make_toy.py"), "-o", p, *extra], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "make_toy.py"), "-o", p, *extra], check=True, stdout=subprocess.DEVNULL)
 W, H = 1280, 760
 SCENE_W = int(W * 0.7)  # the GUI panel covers the right edge
 FLAGS = ["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]

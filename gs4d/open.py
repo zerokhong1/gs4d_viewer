@@ -40,6 +40,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
+CONVERTER_DIR = ROOT / "converters"
 COMMON_KEYS = ("times", "means", "covs", "opacities", "colors")
 
 
@@ -438,9 +439,9 @@ def main(argv=None):
         cmd_conv = None
     else:
         target = cache_path(path, info)
-        fresh = is_fresh(target, info["src"], ROOT / info["converter"]) and not a.reconvert
+        fresh = is_fresh(target, info["src"], CONVERTER_DIR / info["converter"]) and not a.reconvert
         conv_args = a.convert_args.split()
-        cmd_conv = None if fresh else [sys.executable, str(ROOT / info["converter"]), str(info["src"]),
+        cmd_conv = None if fresh else [sys.executable, str(CONVERTER_DIR / info["converter"]), str(info["src"]),
                                        "-o", str(target), *info["extra"], *conv_args]
         if cmd_conv and "--compact" not in conv_args:
             est = estimate_bytes(info, [*info["extra"], *conv_args])

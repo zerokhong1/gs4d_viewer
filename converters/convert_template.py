@@ -6,7 +6,7 @@ This one reads a made-up "method" with the simplest possible motion (a type C pa
     logit_opacity [N]                  rgb [N,3]  colour in [0, 1]
 and writes the common format (see docs/ADD_A_CONVERTER.md). Position at time t is xyz + vel * t.
 
-    python convert_template.py model.npz -o scene.npz --frames 30 --t0 0 --t1 1 [--compact]
+    python converters/convert_template.py model.npz -o scene.npz --frames 30 --t0 0 --t1 1 [--compact]
 
 Rules (CLAUDE.md): run on CPU with numpy, port formulas from the method's repo instead of importing it, stop with a
 message (SystemExit) on variants that are not supported, write through Sequence4DWriter so that memory stays small.
@@ -14,9 +14,12 @@ message (SystemExit) on variants that are not supported, write through Sequence4
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import Sequence4D, Sequence4DWriter, cov_from_quat_scale
 
 REQUIRED = ("xyz", "vel", "quat", "log_scale", "logit_opacity", "rgb")   # TODO: the method's own names

@@ -43,16 +43,18 @@ trained with d_rot_as_res off, colour heads other than the default (hash colour,
 --max_d_scale must be repeated here.
 
 Example:
-    python convert_scgs.py outputs/jumpingjacks_node -o scene.npz --frames 60
+    python converters/convert_scgs.py outputs/jumpingjacks_node -o scene.npz --frames 60
 """
 from __future__ import annotations
 
 import argparse
 import os
 import re
+import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repository root, for `import gs4d`
 from gs4d import SH_C0, Sequence4D, Sequence4DWriter, cov_from_quat_scale
 from gs4d.checkpoint import import_torch, torch_load
 from gs4d.ply import gaussians_from_ply, read_ply_vertices
