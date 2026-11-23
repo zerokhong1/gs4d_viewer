@@ -217,3 +217,17 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   than the page (README "Supported methods": converter name only, full commands in `docs/SUPPORTED.md`; the summary table
   of `docs/SUPPORTED.md`; the WP9 table of `PLAN.md`) and long code comments that were cut off. Still scrolling sideways:
   the gsplat install line, a few long converter commands and the prompt blocks of `PLAN.md` (kept on one line to copy).
+
+## 23/11/2026 — README as a research overview (branch `docs/research-readme`)
+- README rewritten as a research overview: abstract; method (the common representation and its interpolation, the four types of
+  4DGS output with the formulas evaluated at time t, rendering, storage); validation (protocol; Table 2, agreement with the methods'
+  own renderers; Table 3, numerical checks; Table 4, PSNR against ground truth with the kind of views and the number of keyframes;
+  Table 5, speed and memory); limitations; how to reproduce each table; references [1]–[19] for the methods, tools and datasets
+  (new entries checked against the publishers' pages); citation as BibTeX and in `CITATION.cff` (author Thai Cong Luu; validated
+  with cffconvert against schema 1.2.0).
+- The user guide (opening an output, inputs table, viewer, file format, tests) moved unchanged to `docs/USAGE.md`.
+- Every number in the README text was traced by script to `docs/`, the converters or `tests/check_real.py`; the two that were not
+  (the PSNR of one view in Figure 1, "CUDA 12.4") were removed or written as in `docs/`.
+- Made explicit: Shape of Motion is evaluated at its training cameras and the published Spacetime model (`allcam`) was presumably
+  trained on all 21 cameras, so those two rows measure fit to training views; the Spacetime converter drops Gaussians whose peak
+  opacity is at most 0.02 by default (`--min-peak-opacity`).

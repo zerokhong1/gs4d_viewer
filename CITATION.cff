@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, together with the 4DGS methods whose outputs you view."
+title: "gs4d_viewer: One Representation and One Viewer for the Outputs of 4D Gaussian Splatting Methods"
+type: software
+authors:
+  - family-names: Luu
+    given-names: Thai Cong
+repository-code: "https://github.com/zerokhong1/gs4d_viewer"
+license: MIT
+abstract: >-
+  gs4d_viewer converts the trained output of 4D Gaussian Splatting methods (per-frame Gaussians, 4D Gaussians sliced in time,
+  parametric motion functions and neural deformation fields) into one representation, the Gaussians at a set of keyframes with
+  linear interpolation in between, by re-implementing each method's evaluation at time t on the CPU. One renderer then displays
+  every method under the same camera and time controls. The conversion is validated against the methods' own renderers on the
+  same images.
+keywords:
+  - 4D Gaussian Splatting
+  - dynamic scenes
+  - novel view synthesis
+  - visualization
