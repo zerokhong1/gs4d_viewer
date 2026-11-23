@@ -52,7 +52,7 @@ The converters of methods that save torch checkpoints also need torch (the CPU b
 ## Quick start
 
 ```bash
-# synthetic dynamic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
+# synthetic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
 python make_toy.py -o toy.npz
 python viewer.py toy.npz             # then open http://localhost:8080
 ```
@@ -263,12 +263,13 @@ ruff check .                       # lint, as in CI
 ```
 viewer.py                  the viewer (GUI, two renderers)
 gs4d/format.py             the common format: Sequence4D, Sequence4DWriter, GpuFrames
-gs4d/open.py               python -m gs4d.open: recognise an output, convert it, open the viewer
+gs4d/open.py               python -m gs4d.open: recognise, convert and open an output
 gs4d/ply.py, checkpoint.py 3DGS ply reader; loading torch / checkpoints for the converters
 convert_<method>.py        one converter per method; convert_template.py is the template
 make_toy.py                synthetic scene to try the viewer
 tests/                     tests (run_all.py runs them all) and benchmarks
-docs/                      SUPPORTED.md, FORMAT.md, PERFORMANCE.md, ADD_A_CONVERTER.md, HISTORY.md
+docs/                      SUPPORTED.md, FORMAT.md, PERFORMANCE.md,
+                           ADD_A_CONVERTER.md, HISTORY.md
 shots/                     screenshots and videos, the evidence for each feature
 CLAUDE.md, PLAN.md         context and plan for the Claude Code sessions
 ```
