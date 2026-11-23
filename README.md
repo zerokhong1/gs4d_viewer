@@ -224,12 +224,14 @@ check with a threshold in `tests/check_real.py`; per-method details are in [docs
 ## 4. Reproducing the results
 
 ```bash
-python tests/run_all.py          # every test and browser check; reports pass / skipped (with the reason) / failed
-python tests/check_real.py       # Tables 2 and 4: PSNR of every real output (CUDA and the data; paths at the top of the file)
-python tests/repo_psnr.py som    # Table 2: the method's own renderer (needs a clone of the method's repository)
-python tests/bench_large.py      # Tables 3 and 5: compact layout, decoding speed
-python tests/bench_display.py --rates 20 30 40 50 60    # Table 5: frames shown by a GPU-accelerated Chrome
+python tests/run_all.py        # every test and browser check (pass / skipped / failed)
+python tests/check_real.py     # Tables 2 and 4: PSNR of every real output (CUDA + data)
+python tests/repo_psnr.py som  # Table 2: the method's own renderer (needs its repository)
+python tests/bench_large.py    # Tables 3 and 5: compact layout, decoding speed
+python tests/bench_display.py --rates 20 30 40 50 60    # Table 5: frames shown by Chrome
 ```
+
+The data paths of `tests/check_real.py` are set at the top of the file.
 
 GitHub Actions runs the lint and the tests without and with CPU PyTorch on every push. The checks with real data need the trained
 models and datasets of Table 4 and run on the development machine; how each model was trained, and the conversion command for each
@@ -262,8 +264,8 @@ The converters of methods that save PyTorch checkpoints also need PyTorch (the C
 ```bash
 # synthetic scene: static disc, orbiting ball, bouncing ball, cloud that fades in and out
 python make_toy.py -o toy.npz
-python viewer.py toy.npz                          # then open http://localhost:8080
-python -m gs4d.open output/dnerf/bouncingballs    # the output of a method: recognise, convert, open
+python viewer.py toy.npz                        # then open http://localhost:8080
+python -m gs4d.open output/dnerf/bouncingballs  # open the output of a method
 ```
 
 The viewer has a time slider, two renderers, side-by-side comparison of two results on one time slider (`--compare`), the training
@@ -338,7 +340,8 @@ repository" button reads the same information from [CITATION.cff](CITATION.cff).
 ```bibtex
 @misc{luu2026gs4dviewer,
   author       = {Luu, Thai Cong},
-  title        = {gs4d\_viewer: One Representation and One Viewer for the Outputs of 4D Gaussian Splatting Methods},
+  title        = {gs4d\_viewer: One Representation and One Viewer for the Outputs
+                  of 4D Gaussian Splatting Methods},
   year         = {2026},
   howpublished = {\url{https://github.com/zerokhong1/gs4d_viewer}},
   note         = {Software, MIT license}
