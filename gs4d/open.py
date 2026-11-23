@@ -366,7 +366,7 @@ def is_fresh(cache: Path, src: Path, converter: Path | None = None) -> bool:
 
 COMPACT_OVER = 1 << 30   # estimated size above which --compact is passed to the converter
 PLY_BYTES = 248          # one Gaussian in a 3DGS ply with SH degree 3 (62 float32)
-OUT_BYTES = 40           # one Gaussian at one keyframe in the plain format (see README)
+OUT_BYTES = 40           # one Gaussian at one keyframe in the plain format (see docs/FORMAT.md)
 SH_BYTES = 192           # SH degree 3 of one Gaussian as float32 (16 x 3 x 4), what --sh adds
 
 
