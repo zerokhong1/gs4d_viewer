@@ -265,17 +265,17 @@ method, are in [SUPPORTED.md](SUPPORTED.md). Every measurement is logged with it
 
 ## License and data sources
 
-The code in this repository is under the MIT license (see `LICENSE`). Some images in `shots/` contain data of other parties and are
-**not** under the MIT license:
+The code in this repository is under the MIT license (see `LICENSE`). Some images in `docs/images/` contain data of other parties and
+are **not** under the MIT license:
 
-- `shots/dynamic3dgs/basketball_fg_up-y_t*.png` are rendered from the `basketball` model of Dynamic 3D Gaussians [4], built from CMU Panoptic
-  Studio recordings [19]. The CMU Panoptic Studio dataset may be used for non-commercial research only; these three images may only be
+- `docs/images/dynamic3dgs/basketball_fg_up-y_t*.png` are rendered from the `basketball` model of Dynamic 3D Gaussians [4], built from
+  CMU Panoptic Studio recordings [19]. The CMU Panoptic Studio dataset may be used for non-commercial research only; these three images may only be
   used under the same terms.
-- `shots/real/shape_of_motion_paper-windmill.png` combines renders with the `paper-windmill` scene of the DyCheck iPhone set [17]. The
+- `docs/images/real/shape_of_motion_paper-windmill.png` combines renders with the `paper-windmill` scene of the DyCheck iPhone set [17]. The
   DyCheck repository releases both code and dataset under Apache 2.0; the checkpoint was published by the Shape of Motion authors [8]
   (MIT repository).
-- `shots/real/deformable3dgs_bouncingballs.png`, `scgs_bouncingballs.png` and `native4d_bouncingballs.png` (top row render, bottom row
-  original image), the original-image panels of `shots/cameras/ground_truth*.png` and the right-hand panel of `shots/readme_hero.png`
-  contain test images of the synthetic D-NeRF `bouncingballs` scene [14]. The D-NeRF repository is MIT-licensed and states no separate
+- `docs/images/real/deformable3dgs_bouncingballs.png`, `scgs_bouncingballs.png` and `native4d_bouncingballs.png` (top row render,
+  bottom row original image), the middle panel of `docs/images/cameras/ground_truth_compare.png` and the right-hand panel of
+  `docs/images/readme_hero.png` contain test images of the synthetic D-NeRF `bouncingballs` scene [14]. The D-NeRF repository is MIT-licensed and states no separate
   terms for the dataset. The models were trained by us with the code of Deformable-3DGS [10], SC-GS [11] and 4DGS [5] (all three
   repositories are MIT).

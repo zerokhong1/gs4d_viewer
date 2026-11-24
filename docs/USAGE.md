@@ -102,8 +102,9 @@ python viewer.py ours.npz --compare baseline.npz
 Both files share the time slider, the play button and the camera. **Show** selects `A`, `B` or `A | B` (side by side, the default);
 switch between `A` and `B` from the same viewpoint to spot differences. The gsplat renderer splits the screen, each half drawing one file
 from the same camera; the client renderer places B to the right of A in the same scene, with a file-name label. The time slider spans
-from the earliest to the latest keyframe of both files; both files must share the coordinate frame and the up axis. Screenshots:
-`shots/compare/`.
+from the earliest to the latest keyframe of both files; both files must share the coordinate frame and the up axis.
+
+![--compare with the gsplat renderer: two toy scenes side by side, seen from the same camera](images/compare/gsplat_side_t0.png)
 
 ### Training cameras and original images: `--cameras`
 
@@ -120,7 +121,9 @@ With the gsplat renderer, **Ground truth beside render** shows the render next t
 **PSNR** (same recipe as `tests/check_real.py`; the two Display sliders do not apply, so the number is the model's own). Set **Max render
 height** to the resolution the model was trained at (for example 400 for SC-GS and native 4DGS on D-NeRF), and **Image background** to
 white for models trained on a white background (4DGaussians): a different resolution costs several dB of PSNR. With `--compare` it shows
-three panels, **render A | original image | render B**, with the PSNR of both. Screenshots: `shots/cameras/`.
+three panels, **render A | original image | render B**, with the PSNR of both.
+
+![--cameras with --compare: render A, original image and render B, with the PSNR of both (SC-GS and Deformable-3DGS on bouncingballs)](images/cameras/ground_truth_compare.png)
 
 ### Points
 
@@ -128,7 +131,9 @@ three panels, **render A | original image | render B**, with the PSNR of both. S
 and the **Point size** slider. Open directly in points mode: `--draw-as points`. Works while playing, with `--compare`, during video
 export, in both renderers; **Hide opacity below** still applies. The gsplat renderer draws every point as an opaque round Gaussian whose
 diameter is **Point size** pixels at any depth (near points hide far ones in the right order, view-dependent colour stays correct); the
-client renderer uses viser's point cloud (point size in scene units). Screenshots: `shots/points/`.
+client renderer uses viser's point cloud (point size in scene units).
+
+![Points mode with the gsplat renderer on the toy scene](images/points/toy_gsplat_points_t1.png)
 
 ### Speed and motion trails
 
@@ -139,7 +144,9 @@ The **Motion** folder (only when the keyframes share Gaussian identities):
   in the panel (99th percentile over the whole sequence × "Scale maximum (%)").
 - **Trails**: the paths of "Number of trails" Gaussians over a window of ± "Window" around the current time (blue = past, red = future),
   drawn at random with a weight that grows with path length, among Gaussians that are opaque enough. Trails are lines drawn over the
-  picture: with the gsplat renderer they are not hidden by depth. Screenshots: `shots/trails/`.
+  picture: with the gsplat renderer they are not hidden by depth.
+
+![Motion trails on the toy scene, gsplat renderer (blue = past, red = future)](images/trails/toy_gsplat_trails.png)
 
 ### Camera path
 
@@ -195,7 +202,8 @@ ruff check .                       # lint, as in CI
   formulation (needs torch); the format, compact storage, the static group, `Sequence4DWriter`, `GpuFrames`, `gs4d.open`, the error
   messages of the commands.
 - `tests/check_*.py`: open the viewer in headless Chrome and check screenshots (needs Playwright + Chrome; the gsplat parts need CUDA). The
-  screenshots of a `run_all.py` run go to a temporary folder; run a script on its own (or `run_all.py --keep-shots`) to refresh `shots/`.
+  screenshots of a `run_all.py` run go to a temporary folder; run a script on its own (or `run_all.py --keep-shots`) to keep them
+  in `shots/`, which git ignores; the images shown in these docs are in `docs/images/`.
 - `tests/check_real.py`: PSNR with thresholds on real outputs of every method (needs CUDA and the real data, see the top of the file).
 - A file that lacks what it needs (torch, CUDA, Chrome, data) is reported as "skipped" with the reason, not as failed. GitHub Actions runs
   the lint, the tests without torch and the tests with CPU torch on every push.

@@ -4,13 +4,14 @@
     python tests/run_all.py               # everything
     python tests/run_all.py sh static     # only files whose name contains one of the words
     python tests/run_all.py --list        # what would run, and what is missing for each
-    python tests/run_all.py --keep-shots  # let the check_*.py scripts overwrite the screenshots in shots/
+    python tests/run_all.py --keep-shots  # keep the screenshots of the check_*.py scripts in shots/ (ignored by git)
 
 A file is "skipped" (not failed) when the machine lacks what it needs: CUDA, Chrome (Playwright), torch, or the
 real data (../data_real, /home/cont/gs4d_train).
 The browser checks need Playwright and Google Chrome at /usr/bin/google-chrome. Exit code 1 if any file failed. Use the same Python as for the
 viewer (.venv); one GPU and 15 GB RAM are assumed, so files run sequentially. The screenshots the check_*.py
-scripts take go to a temporary folder unless --keep-shots is given (run a script on its own to refresh shots/).
+scripts take go to a temporary folder unless --keep-shots is given (then to shots/, which git ignores; the images
+the docs show are in docs/images/).
 """
 import importlib.util
 import os
@@ -45,7 +46,7 @@ NEEDS = {
     "test_scgs.py": ("torch",),
     "test_shape_of_motion.py": ("torch",),
 }
-# option that sends a check script's screenshots elsewhere (by default they overwrite shots/, which a test run should not touch)
+# option that sends a check script's screenshots elsewhere (by default they write into shots/)
 SHOTS_ARG = {"check_gsplat.py": "--out", "check_compare.py": "--out", "check_points.py": "--out", "check_cameras.py": "--out",
              "check_trails.py": "--shots"}
 

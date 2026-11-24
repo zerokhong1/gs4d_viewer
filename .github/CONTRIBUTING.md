@@ -7,10 +7,10 @@ that it works: a test, a measurement, or a screenshot.
 
 - **Report a bug**, or a scene that renders wrongly: open an issue with the command, the full message and, if you can, a screenshot.
 - **Ask for a method**: open an issue with the paper, the official repository and the files its training writes.
-- **Add a method**: write a converter, following [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md) and its working template.
+- **Add a method**: write a converter, following [docs/ADD_A_CONVERTER.md](../docs/ADD_A_CONVERTER.md) and its working template.
 - **Validate a converter on real data**: 4D-Rotor GS, MoSca and E-D3DGS (and SC-GS with `--use_hash` or `--skinning`) are tested
   on synthetic data only. A trained model with the PSNR of the converted file and of the method's own renderer on the same images
-  (protocol: [docs/METHOD.md](docs/METHOD.md#21-protocol)) is a valuable contribution.
+  (protocol: [docs/METHOD.md](../docs/METHOD.md#21-protocol)) is a valuable contribution.
 - **Improve the viewer or the documentation.**
 
 ## Set up
@@ -22,7 +22,7 @@ pip install -r requirements.txt   # viewer, mp4 export and Playwright (browser c
 pip install torch ruff==0.16.9    # converter tests (CPU PyTorch is enough), CI linter
 ```
 
-The gsplat (GPU) renderer is installed as described in the [README](README.md#installation).
+The gsplat (GPU) renderer is installed as described in the [README](../README.md#installation).
 
 ## Before opening a pull request
 
@@ -37,9 +37,9 @@ checks included, on every push and pull request.
 
 ## Rules
 
-- **Where files go** ([README](README.md#repository-layout)): library code in `gs4d/`, converters in `converters/`, tests in
-  `tests/`, other scripts in `tools/`, measurements in `benchmarks/`, documents in `docs/`, screenshots in `shots/<feature>/`.
-  Nothing new at the root.
+- **Where files go** ([README](../README.md#repository-layout)): library code in `gs4d/`, converters in `converters/`, tests in
+  `tests/`, other scripts in `tools/`, measurements in `benchmarks/`, documents in `docs/`, the images they show in
+  `docs/images/<feature>/` (the check scripts write their screenshots to `shots/`, which git ignores). Nothing new at the root.
 - **Converters port, they do not import.** A converter re-implements the method's formulas from its published code and runs on
   the CPU (NumPy; PyTorch only to unpickle weights or to run a small network). It never imports or runs the method's code, and its
   docstring states the formulas and the files they were ported from.
@@ -50,7 +50,7 @@ checks included, on every push and pull request.
   plus a dated entry at the end of `docs/HISTORY.md`. A number in the README must also be in `docs/`.
 - **English** everywhere, with English number separators (98,993; 26.31 dB).
 - **Data licenses.** Do not commit datasets, trained models, or images whose terms do not allow it; note the terms of any dataset
-  image added to `shots/`.
+  image added to `docs/images/`.
 - **One topic per pull request.** Describe what changed, how it was checked, and what is not tested.
 
 ## Code of conduct

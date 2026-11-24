@@ -6,7 +6,7 @@ One representation and one viewer for the outputs of 4D Gaussian Splatting (4DGS
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](#installation)
 
-![Toy scene over time, motion trails, and an SC-GS render next to the ground-truth image](shots/readme_hero.png)
+![Toy scene over time, motion trails, and an SC-GS render next to the ground-truth image](docs/images/readme_hero.png)
 
 gs4d_viewer converts the trained output of a 4DGS method into one format, the Gaussians at a set of keyframes with linear
 interpolation in between, and plays it in the browser with a time slider. Each converter re-implements its method's evaluation at
@@ -88,14 +88,14 @@ viewer.py     the viewer
 tools/        toy scene, data preparation, the methods' own renderers for validation
 tests/        unit tests and browser checks (python tests/run_all.py)
 benchmarks/   speed and memory measurements
-docs/         user guide, method and validation, results, file format, history
-shots/        screenshots and videos used as evidence in the docs
+docs/         user guide, method and validation, results, file format, history, images
+.github/      CI, contributing guide, code of conduct, issue and pull-request templates
 ```
 
 ## Contributing
 
 Contributions are welcome: support for a new 4DGS method, a check of a converter on a real model (4D-Rotor GS, MoSca and E-D3DGS
-are tested on synthetic data only), viewer features, fixes and documentation. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; to
+are tested on synthetic data only), viewer features, fixes and documentation. Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) first; to
 add a method, follow [docs/ADD_A_CONVERTER.md](docs/ADD_A_CONVERTER.md). Bugs and questions:
 [issues](https://github.com/zerokhong1/gs4d_viewer/issues).
 
@@ -115,5 +115,5 @@ Please also cite the methods whose outputs you view.
 
 ## License and data sources
 
-Code: MIT (see `LICENSE`). Some images in `shots/` contain images of the CMU Panoptic, DyCheck and D-NeRF datasets and are not
+Code: MIT (see `LICENSE`). Some images in `docs/images/` contain images of the CMU Panoptic, DyCheck and D-NeRF datasets and are not
 under the MIT license; their terms are listed in [docs/METHOD.md](docs/METHOD.md#license-and-data-sources).
