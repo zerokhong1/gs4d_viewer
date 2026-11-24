@@ -267,3 +267,6 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
   the finished packages are in this log, their plans in the git history (`docs/PLAN.md` at `a455a04`). WP33's script is planned as
   `tools/setup.sh`, so that nothing new lands at the root.
 - `.gitignore`: personal Claude Code files (`.claude/settings.local.json`, `.claude/worktrees/`, `CLAUDE.local.md`).
+- After the merge (PR #7) GitHub's community profile finds the contributing guide, the code of conduct and the pull-request
+  template in `.github/`. In the "Contributing" tab of the repository page GitHub resolves relative links as if the file were at
+  the root (`../docs/X.md` became `blob/docs/X.md`), so `.github/CONTRIBUTING.md` now links repository files with absolute URLs.

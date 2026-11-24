@@ -78,6 +78,8 @@ without / with CPU torch), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pu
   for `torch.load(weights_only=True)`.
 - D-NeRF scenes (Deformable-3DGS `--is_blender`, SC-GS, native 4DGS `configs/dnerf/*`) use time in [0, 1]; cameras
   in `transforms_test.json` are OpenGL (flip c2w columns 1 and 2 for viser/gsplat).
+- GitHub shows `.github/CONTRIBUTING.md` and `.github/CODE_OF_CONDUCT.md` in tabs of the repository page, where it resolves
+  relative links as if the file were at the root: link repository files from `.github/*.md` with absolute URLs.
 - Dynamic 3D Gaussians: `params.npz` keys `means3D[T,N,3]`, `unnorm_rotations[T,N,4]` (wxyz),
   `rgb_colors[T,N,3]`, `logit_opacities[N,1]`, `log_scales[N,3]`, `seg_colors[N,3]`.
 
@@ -95,7 +97,8 @@ without / with CPU torch), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pu
 
 ## Conventions
 - A converter is a new file `converters/convert_<method>.py` + a new `tests/test_<method>.py` + one row in `docs/SUPPORTED.md`
-  (and the methods tables of the README, `docs/METHOD.md` and `docs/USAGE.md`). It must not edit `viewer.py`, `gs4d/format.py` or other converters.
+  (and the methods tables of the README, `docs/METHOD.md` and `docs/USAGE.md`). It must not edit `viewer.py`, `gs4d/format.py`
+  or other converters.
 - Converters run on CPU with numpy (torch only to unpickle weights or run a small MLP, imported through `gs4d.checkpoint`).
   Read reference repos to port formulas; do not execute their code and do not add them as dependencies.
 - Every converter test builds synthetic inputs in the method's real file layout and checks the maths
@@ -106,8 +109,9 @@ without / with CPU torch), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pu
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
 - Measurements go to `docs/` (per-method results: `SUPPORTED.md`, speed and memory: `PERFORMANCE.md`, file format: `FORMAT.md`)
   plus a dated entry at the end of `docs/HISTORY.md`. The README stays short, like a normal code repository (description,
-  installation, quick start, supported methods, one results table, repository layout, contributing, citation, license); method, validation and references are in
-  `docs/METHOD.md`, the user guide in `docs/USAGE.md`. A number in the README must also be in `docs/`.
+  installation, quick start, supported methods, one results table, repository layout, contributing, citation, license);
+  method, validation and references are in `docs/METHOD.md`, the user guide in `docs/USAGE.md`. A number in the README must
+  also be in `docs/`.
 - Everything in the repository is written in English (docs, `docs/PLAN.md`, comments, messages), with English number separators.
 - Keep the repository organised (Thai's standing request): every file goes into the folder of its kind (see Layout);
   nothing new at the root; images only when a document shows them (`docs/images/`); one topic per document, linked from
