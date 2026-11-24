@@ -252,3 +252,18 @@ Updated 14/11/2026. Phase 1 (WP1-WP8) and phase 2 wave 1 (WP10, WP11, WP12) are 
 - `tests/run_all.py` counted Chrome as present when only Playwright's own Chromium was installed, while the `check_*.py`
   scripts start `/usr/bin/google-chrome`; on such a machine the browser checks failed instead of being skipped. It now checks
   that path. Commands longer than 90 characters in the README and `docs/` are wrapped, so GitHub shows them without scrolling.
+
+## 24/11/2026 — root and images tidied (branch `chore/tidy-root-and-images`)
+- `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` moved to `.github/` (GitHub reads community files from `.github/`, the root or `docs/`),
+  `CLAUDE.md` to `.claude/CLAUDE.md` (Claude Code reads a project CLAUDE.md from either place). The README is the only Markdown file left
+  at the root; `LICENSE` and `CITATION.cff` stay there because GitHub reads them from the root.
+- Images: `shots/` held 106 files, 26.9 MB of the 27.6 MB tree, and the docs named 11 of them. The images the docs use are now in
+  `docs/images/<feature>/`: 9 of the 11 (the README figure, the four real-output comparisons, the three `basketball` frames, the
+  ground-truth view with `--compare`, now shown in `docs/USAGE.md`), plus one toy-scene screenshot each for `--compare`, points and
+  trails in `docs/USAGE.md`: 12 files, 3.5 MB. The other 94 files are removed from the tree and remain in the git history (commit
+  `a455a04`), among them `shots/cameras/ground_truth.png` and `ground_truth_13.png`, which only the license note named. `shots/` is now
+  ignored by git: the check scripts still write there by default.
+- `docs/PLAN.md` (875 lines) keeps only the open work (WP32, WP33, WP36–WP38, task 3 of WP40), the conventions and the done criteria;
+  the finished packages are in this log, their plans in the git history (`docs/PLAN.md` at `a455a04`). WP33's script is planned as
+  `tools/setup.sh`, so that nothing new lands at the root.
+- `.gitignore`: personal Claude Code files (`.claude/settings.local.json`, `.claude/worktrees/`, `CLAUDE.local.md`).

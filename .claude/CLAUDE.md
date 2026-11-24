@@ -9,9 +9,10 @@ common `.npz` ("Gaussians per keyframe", `gs4d/format.py`, class `Sequence4D`). 
 its own `converters/convert_<method>.py` that writes that format. The viewer never imports a method's code.
 
 ## Layout
-Root: `README.md`, `LICENSE`, `CITATION.cff`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CLAUDE.md`, `viewer.py`,
-`requirements.txt`, `ruff.toml` (lint rules; CI runs `ruff check .`), `.github/` (CI workflow `test.yml`: lint + tests without /
-with CPU torch; issue and pull-request templates). Everything else lives in one of the folders below.
+Root: `README.md` (the only Markdown file there), `LICENSE` and `CITATION.cff` (GitHub reads both from the root), `viewer.py`,
+`requirements.txt`, `ruff.toml` (lint rules; CI runs `ruff check .`), `.gitignore`. `.github/`: CI workflow `test.yml` (lint + tests
+without / with CPU torch), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pull-request templates. `.claude/CLAUDE.md`: this file
+(Claude Code reads it there). Everything else lives in one of the folders below.
 - `viewer.py`       GUI + two renderers: `client` (viser WebGL splats) and `gsplat` (CUDA, image streamed);
   `--compare b.npz` (second sequence on the same time slider), `--cameras` (training cameras, ground truth + PSNR),
   `--camera-path`, Draw as points, Motion (colour by speed / displacement, trails), mp4 export
@@ -39,7 +40,8 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
   - `convert_template.py`   working template for a new converter (`docs/ADD_A_CONVERTER.md`, `tests/test_template.py`)
 - `tests/` only tests, run by `tests/run_all.py`
   - `run_all.py` runs every `test_*.py` / `check_*.py` one at a time: pass / skipped (reason) / failed, exit 1 on failure;
-    `NEEDS` says what a file needs (torch, cuda, chrome = Playwright + `/usr/bin/google-chrome`, data); screenshots go to a temp folder unless `--keep-shots`
+    `NEEDS` says what a file needs (torch, cuda, chrome = Playwright + `/usr/bin/google-chrome`, data); screenshots go to a
+    temp folder unless `--keep-shots` (then `shots/`)
   - `test_*.py` CPU checks (converters on synthetic files in the real layout, format, writer, GpuFrames on the CPU device,
     `gs4d.open`, CLI errors); the converter ones need torch
   - `check_*.py` drive the viewer in headless Chrome; `check_gsplat.py` and `check_cameras.py` need CUDA, `check_real.py`
@@ -49,9 +51,10 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
 - `benchmarks/` `bench_large.py` (storage, decoding), `bench_display.py` (frames shown by a GPU-accelerated Chrome)
 - `docs/` `USAGE.md` (user guide), `METHOD.md` (method, validation tables, limitations, references), `SUPPORTED.md` (methods,
   real outputs checked, PSNR), `FORMAT.md` (file format, compact layout, static group, writer), `PERFORMANCE.md` (speed and
-  memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the dated log), `PLAN.md` (work packages)
-- `shots/` screenshots and mp4s used as evidence, one folder per feature (`renderers/`, `points/`, `trails/`, `compare/`,
-  `cameras/`, `path/`, `video/`, `sh/`, `compact/`, `real/`, `dynamic3dgs/`), plus `readme_hero.png`
+  memory), `ADD_A_CONVERTER.md`, `HISTORY.md` (the dated log), `PLAN.md` (open work packages); `images/` the images the docs
+  show, one folder per feature (`real/`, `dynamic3dgs/`, `cameras/`, `compare/`, `points/`, `trails/`), plus `readme_hero.png`
+- `shots/` (ignored by git) screenshots and mp4s the check scripts write by default; copy the one a document needs into
+  `docs/images/<feature>/`
 - Environment: `.venv` (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3); system `python3` has no torch.
   Install commands are in the README.
 
@@ -78,7 +81,7 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
 - Dynamic 3D Gaussians: `params.npz` keys `means3D[T,N,3]`, `unnorm_rotations[T,N,4]` (wxyz),
   `rgb_colors[T,N,3]`, `logit_opacities[N,1]`, `log_scales[N,3]`, `seg_colors[N,3]`.
 
-## Status (23/11/2026)
+## Status (24/11/2026)
 - Product goal (WP9) reached for every known output type: `python -m gs4d.open <output>` recognises, converts and opens it.
   Per method (real output checked or synthetic test only, PSNR, limits): `docs/SUPPORTED.md`.
 - Every viewer feature has a headless-Chrome check script and was tried on real outputs (details in `docs/HISTORY.md`).
@@ -88,7 +91,7 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
   (`--pred_color`) is checked on a self-trained time-tinted `bouncingballs` (37.83 dB with the head, 24.48 without).
   Not supported: Spacetime full model (`rgbdecoder`), view-direction colour heads, SC-GS with `d_rot_as_res` off.
 - Not measured: a browser on another machine over SSH (WP38). `GpuFrames` changes of 23/11 checked on the CPU device only.
-- Open work packages: WP32 (demo scenes), WP33 (`setup.sh`), WP36, WP37, WP38; see `docs/PLAN.md`.
+- Open work packages: WP32 (demo scenes), WP33 (`tools/setup.sh`), WP36, WP37, WP38, task 3 of WP40; see `docs/PLAN.md`.
 
 ## Conventions
 - A converter is a new file `converters/convert_<method>.py` + a new `tests/test_<method>.py` + one row in `docs/SUPPORTED.md`
@@ -107,7 +110,7 @@ with CPU torch; issue and pull-request templates). Everything else lives in one 
   `docs/METHOD.md`, the user guide in `docs/USAGE.md`. A number in the README must also be in `docs/`.
 - Everything in the repository is written in English (docs, `docs/PLAN.md`, comments, messages), with English number separators.
 - Keep the repository organised (Thai's standing request): every file goes into the folder of its kind (see Layout);
-  nothing new at the root; one topic per document, linked from the README instead of copied; every result states how it
-  was measured (data, views, resolution, hardware) and gets a dated entry in `docs/HISTORY.md`; work on a branch, merge
-  through a pull request with green CI.
+  nothing new at the root; images only when a document shows them (`docs/images/`); one topic per document, linked from
+  the README instead of copied; every result states how it was measured (data, views, resolution, hardware) and gets a
+  dated entry in `docs/HISTORY.md`; work on a branch, merge through a pull request with green CI.
 - Finish with a 5-line report: what changed, what was run, what is untested, files touched.

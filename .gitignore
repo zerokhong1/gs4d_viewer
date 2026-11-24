@@ -7,9 +7,16 @@ __pycache__/
 *.npz
 *.mp4
 *.bundle
-!shots/**/*.mp4
 *.gs4d.cameras.json
 .gs4d_writer_*/
 
 # written by the viewer's "Save path" button when --camera-path is not given
 /camera_path.json
+
+# screenshots and videos written by the check scripts (the images the docs show are in docs/images/)
+/shots/
+
+# personal Claude Code files (.claude/CLAUDE.md is the shared one)
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md

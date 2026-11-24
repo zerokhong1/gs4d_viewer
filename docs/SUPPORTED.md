@@ -54,8 +54,8 @@ python viewer.py scene.npz --up -y
 ```
 
 - Real output `basketball` (375,870 Gaussians × 150 original frames): `--fg-only` gives 112,592 Gaussians × 30 keyframes, 163 MB; without
-  `--fg-only`: 375,870 Gaussians, 543 MB, but the scene is hidden behind background and floaters. The up axis is `-y`; screenshots in
-  `shots/dynamic3dgs/`.
+  `--fg-only`: 375,870 Gaussians, 543 MB, but the scene is hidden behind background and floaters. The up axis is `-y`; screenshots at three times:
+  [t0](images/dynamic3dgs/basketball_fg_up-y_t0.png), [t1](images/dynamic3dgs/basketball_fg_up-y_t1.png), [t2](images/dynamic3dgs/basketball_fg_up-y_t2.png).
 - ~14% of the original colours lie outside [0,1] and are clipped; the client renderer was not compared with the original `visualize.py`.
 
 ### B — Native 4DGS, Yang et al. (`convert_native4d.py`)
@@ -72,7 +72,7 @@ python converters/convert_native4d.py chkpnt_best.pth -o scene.npz \
 - D-NeRF `bouncingballs`, self-trained for 20,000 iterations (38 minutes on an RTX 3060, 400 px): 134,260 Gaussians in the checkpoint,
   116,193 kept × 60 keyframes, 116 MB, converted in 2 seconds. 20 test images at 400 px: 26.0–31.9 dB, mean 29.0 dB (slightly mottled
   colour, the higher SH degrees are dropped); with `--sh` 27.3–39.6 dB, mean 32.9 dB, file 1.4 GB (453 MB with `--compact`), 8 seconds.
-  The repo's own evaluation gives 33.4 dB; the remaining 0.5 dB has not been traced. Image: `shots/real/native4d_bouncingballs.png`.
+  The repo's own evaluation gives 33.4 dB; the remaining 0.5 dB has not been traced. Image: [native4d_bouncingballs.png](images/real/native4d_bouncingballs.png).
 - HyperNeRF `slice-banana` (297 training images, 33 held-out images, 4x images = 268×480; the repo has no Nerfies loader, so the data is
   written in the D-NeRF layout by `tools/make_hypernerf_blender.py`; config `resolution: 1`, `batch_size: 1`,
   `densify_until_num_points: 250_000`, 20,000 iterations, 20 minutes): `--frames 110 --sh --compact` gives 21.41–29.17 dB,
@@ -126,7 +126,7 @@ python converters/convert_shape_of_motion.py <work_dir>/checkpoints/last.ckpt \
   Time = frame / `--fps`.
 - `paper-windmill` (published by the authors), `--stride 8`: 71,867 foreground + 924,075 background Gaussians × 35 keyframes (277
   original frames), 147 MB (1.27 GB before the static group), 10 seconds. Renders from the training cameras (`Ks`, `w2cs` in the
-  checkpoint) match the scene; images in `shots/real/`.
+  checkpoint) match the scene; image: [shape_of_motion_paper-windmill.png](images/real/shape_of_motion_paper-windmill.png).
 - Against the 1x images (720×960) of the DyCheck iPhone set at the training cameras, every 4th frame (70 images): at keyframes
   **25.86 dB** (min 24.28); at frames half way between two `--stride 8` keyframes 24.67 dB (min 21.61). With `--stride 1` (every frame a
   keyframe, 416 MB with `--compact`) 25.85 dB everywhere: the 1.2 dB drop is the linear interpolation between sparse keyframes of the
@@ -188,7 +188,8 @@ python converters/convert_deformable3dgs.py <model_folder> -o scene.npz --frames
   and 6-DoF variants are read from the state dict.
 - `bouncingballs` (D-NeRF variant, self-trained for 20,000 iterations, 34 minutes, 800 px): `--sh` gives 64,571 Gaussians × 60 keyframes,
   SH degree 3, 153 MB (84 MB with `--compact`), 49 seconds. 20 test images at 800 px: 37.2–43.6 dB, mean 40.3 dB (at 400 px only
-  29.3–33.2 dB, because the model was trained at 800 px). Image (400 px): `shots/real/deformable3dgs_bouncingballs.png`.
+  29.3–33.2 dB, because the model was trained at 800 px). Image (400 px):
+  [deformable3dgs_bouncingballs.png](images/real/deformable3dgs_bouncingballs.png).
 - Default variant (no `--is_blender`): 35.35–43.14 dB, mean 39.62 dB. 6-DoF variant (`--is_6dof`, 27 minutes): 36.99–43.75 dB,
   mean 40.34 dB. Neither needed a converter change.
 - HyperNeRF `slice-banana` (single-camera video, 297 training / 33 held-out images, 4x images 268×480, 20,000 iterations, 73 minutes,
@@ -206,7 +207,7 @@ python converters/convert_scgs.py <model_folder>_node -o scene.npz \
   `--knn` = the `--K` used for training when it was not 3; `--max-d-scale` = the training `--max_d_scale`, if any.
 - `bouncingballs` (512 nodes, `--local_frame`, 20,000 iterations after 10,000 node-initialisation steps, 19 minutes, 400 px): 165,900
   Gaussians × 60 keyframes, 10 seconds, 361 MB (393 MB with `--sh`). 20 test images at 400 px: 35.4–43.0 dB, mean 40.3 dB with `--sh`;
-  27.8–33.5 dB (5 images) with the base colour only. Image: `shots/real/scgs_bouncingballs.png`.
+  27.8–33.5 dB (5 images) with the base colour only. Image: [scgs_bouncingballs.png](images/real/scgs_bouncingballs.png).
 - With motion mask (`--gs_with_motion_mask --gt_alpha_mask_as_dynamic_mask`, ply with `fea_0..8`, 20,000 iterations, 20 minutes, 170,091
   Gaussians): 35.48–43.14 dB, mean 40.14 dB; the converter recognises the mask by itself.
 - Colour head `--pred_color`: the per-node d_color is re-run and added to the SH DC coefficient, so the colours (and `sh` with `--sh`) are

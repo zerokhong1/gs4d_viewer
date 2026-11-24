@@ -8,7 +8,7 @@ and writes the common format (see docs/ADD_A_CONVERTER.md). Position at time t i
 
     python converters/convert_template.py model.npz -o scene.npz --frames 30 --t0 0 --t1 1 [--compact]
 
-Rules (CLAUDE.md): run on CPU with numpy, port formulas from the method's repo instead of importing it, stop with a
+Rules (.claude/CLAUDE.md): run on CPU with numpy, port formulas from the method's repo instead of importing it, stop with a
 message (SystemExit) on variants that are not supported, write through Sequence4DWriter so that memory stays small.
 """
 from __future__ import annotations
