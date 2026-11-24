@@ -73,64 +73,87 @@ Paste the whole block into a new Claude Code session opened in `gs4d_viewer`.
 
 #### WP32 — demo scene set and demo script
 ```
-Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package" sections of docs/PLAN.md. Work in your own worktree.
-Task 1: write tools/make_demo_scenes.py, which builds the folder `../demo_scenes/` (outside the repo) from the real outputs already on this
-machine: one compact `.npz` per method on `bouncingballs` (or the scene that method already has), plus the four `slice-banana` files of
-Deformable-3DGS, SC-GS, native 4DGS and 4DGaussians. Each file comes with its camera file if there is one. Print a table: name, method,
-number of Gaussians, number of keyframes, size.
+Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package"
+sections of docs/PLAN.md. Work in your own worktree.
+Task 1: write tools/make_demo_scenes.py, which builds the folder `../demo_scenes/`
+(outside the repo) from the real outputs already on this machine: one compact `.npz` per
+method on `bouncingballs` (or the scene that method already has), plus the four
+`slice-banana` files of Deformable-3DGS, SC-GS, native 4DGS and 4DGaussians. Each file
+comes with its camera file if there is one. Print a table: name, method, number of
+Gaussians, number of keyframes, size.
 Train nothing new; when an output is missing, skip it and print why.
-Task 2: write docs/DEMO.md, one page, for a 10-minute demo with the professor: 5–6 commands in order, each with one line "what it shows"
-(open an output with one command; drag the time slider and orbit the camera; points mode; compare two methods on the same scene with
---compare; original image next to the render with PSNR; mp4 export), and one line on the known limits. Run every command for real before
-writing it down.
-Task 3: note in docs/DEMO.md which scenes have their own terms of use (data showing people, research-only licenses: see the "License and data
-sources" section of docs/METHOD.md) so the presenter knows which scenes must not be shown publicly. Upload nothing.
-Only add: tools/make_demo_scenes.py, docs/DEMO.md, one line in the README pointing to docs/DEMO.md.
-Done when: the demo folder has every file, every command in docs/DEMO.md runs on this machine, and the total size of the folder is written down.
+Task 2: write docs/DEMO.md, one page, for a 10-minute demo with the professor: 5–6
+commands in order, each with one line "what it shows" (open an output with one command;
+drag the time slider and orbit the camera; points mode; compare two methods on the same
+scene with --compare; original image next to the render with PSNR; mp4 export), and one
+line on the known limits. Run every command for real before writing it down.
+Task 3: note in docs/DEMO.md which scenes have their own terms of use (data showing
+people, research-only licenses: see the "License and data sources" section of
+docs/METHOD.md) so the presenter knows which scenes must not be shown publicly. Upload
+nothing.
+Only add: tools/make_demo_scenes.py, docs/DEMO.md, one line in the README pointing to
+docs/DEMO.md.
+Done when: the demo folder has every file, every command in docs/DEMO.md runs on this
+machine, and the total size of the folder is written down.
 Report in 5 lines, then stop.
 ```
 
 #### WP33 — install on a clean machine with one command
 ```
-Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package" sections of docs/PLAN.md. Work in your own worktree.
-Task: write tools/setup.sh, which creates `.venv` with the checked versions (Python 3.10, torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser,
-and the packages in requirements.txt), picks the non-CUDA branch by itself when the machine has no NVIDIA GPU (then only the client
-renderer is available), and runs a smoke test: build toy.npz, `python tests/run_all.py`, and print clearly which renderers work. Add
-`python -m gs4d.doctor`, which prints the package versions, CUDA, Chrome, and what to do when something is missing. Rewrite the
-installation section of the README as: clone, `bash tools/setup.sh`, `python -m gs4d.open <output>`.
-Step 0: `df -h .`; about 8 GB of free space is needed for a second `.venv` (the disk has about 15 GB left); if not, report and stop.
-Check with a fresh clone in a temporary folder, without reusing the existing `.venv`; write down the install time and download size.
-Only add or edit: tools/setup.sh, gs4d/doctor.py, requirements.txt, the installation section of the README.
-Done when: on the fresh clone the three commands above run from start to end and open toy.npz with the gsplat renderer. Report in 5 lines,
-then stop.
+Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package"
+sections of docs/PLAN.md. Work in your own worktree.
+Task: write tools/setup.sh, which creates `.venv` with the checked versions (Python 3.10,
+torch 2.4.1+cu124, gsplat 1.5.3, numpy<2, viser, and the packages in requirements.txt),
+picks the non-CUDA branch by itself when the machine has no NVIDIA GPU (then only the
+client renderer is available), and runs a smoke test: build toy.npz, `python
+tests/run_all.py`, and print clearly which renderers work. Add `python -m gs4d.doctor`,
+which prints the package versions, CUDA, Chrome, and what to do when something is missing.
+Rewrite the installation section of the README as: clone, `bash tools/setup.sh`, `python
+-m gs4d.open <output>`.
+Step 0: `df -h .`; about 8 GB of free space is needed for a second `.venv` (the disk has
+about 15 GB left); if not, report and stop.
+Check with a fresh clone in a temporary folder, without reusing the existing `.venv`;
+write down the install time and download size.
+Only add or edit: tools/setup.sh, gs4d/doctor.py, requirements.txt, the installation
+section of the README.
+Done when: on the fresh clone the three commands above run from start to end and open
+toy.npz with the gsplat renderer. Report in 5 lines, then stop.
 ```
 
 #### WP36 — pick the scene in the GUI; compare more than two sequences
 ```
-Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package" sections of docs/PLAN.md. Work in your own worktree.
-Task 1: `python viewer.py <folder>` (a folder with several `.npz` files in the common format, e.g. ../demo_scenes) shows a "Scene"
-dropdown that switches scenes without restarting; lazy loading, the old scene is released; the camera stays if both scenes share a
-coordinate system (same name prefix), otherwise it is reset.
-Task 2: `--compare` takes several files (up to 4): the gsplat renderer splits the view into a 2x2 grid with the same camera, the file name
-in the corner of each cell; the client renderer puts them side by side. The original image (`--cameras`) is one cell of the grid when
-switched on. mp4 export and the camera path (WP34) work with the grid.
-Only edit viewer.py, tests/check_compare.py, one paragraph in docs/USAGE.md; making `gs4d/open.py` accept a folder of several raw outputs
-is CC-B's job.
-Done when: tests/check_compare.py passes with 3 and 4 sequences; a screenshot of a grid of four methods on `slice-banana` in
-shots/compare/; docs/PERFORMANCE.md gives the time per frame of the 2x2 grid at 1280x720 and the RAM / GPU memory used. Report in 5 lines,
-then stop.
+Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package"
+sections of docs/PLAN.md. Work in your own worktree.
+Task 1: `python viewer.py <folder>` (a folder with several `.npz` files in the common
+format, e.g. ../demo_scenes) shows a "Scene" dropdown that switches scenes without
+restarting; lazy loading, the old scene is released; the camera stays if both scenes share
+a coordinate system (same name prefix), otherwise it is reset.
+Task 2: `--compare` takes several files (up to 4): the gsplat renderer splits the view
+into a 2x2 grid with the same camera, the file name in the corner of each cell; the client
+renderer puts them side by side. The original image (`--cameras`) is one cell of the grid
+when switched on. mp4 export and the camera path (WP34) work with the grid.
+Only edit viewer.py, tests/check_compare.py, one paragraph in docs/USAGE.md; making
+`gs4d/open.py` accept a folder of several raw outputs is CC-B's job.
+Done when: tests/check_compare.py passes with 3 and 4 sequences; a screenshot of a grid of
+four methods on `slice-banana` in shots/compare/; docs/PERFORMANCE.md gives the time per
+frame of the 2x2 grid at 1280x720 and the RAM / GPU memory used. Report in 5 lines, then
+stop.
 ```
 
 #### WP37 — depth and opacity view modes
 ```
-Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package" sections of docs/PLAN.md. Work in your own worktree.
-Task: a "Render" dropdown for the gsplat renderer: `colour`, `depth` (expected depth, colour scale, near/far taken from the 2–98%
-percentiles of the frame and shown in the control panel), `alpha` (accumulated opacity). Read the documentation of the installed gsplat
-1.5.3 to use `render_mode` correctly; do not recompute depth yourself.
-Works while playing, with `--compare`, the camera path and mp4 export. Client renderer: hide this control.
+Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package"
+sections of docs/PLAN.md. Work in your own worktree.
+Task: a "Render" dropdown for the gsplat renderer: `colour`, `depth` (expected depth,
+colour scale, near/far taken from the 2–98% percentiles of the frame and shown in the
+control panel), `alpha` (accumulated opacity). Read the documentation of the installed
+gsplat 1.5.3 to use `render_mode` correctly; do not recompute depth yourself.
+Works while playing, with `--compare`, the camera path and mp4 export. Client renderer:
+hide this control.
 Only edit viewer.py, add tests/check_depth.py, one paragraph in docs/USAGE.md.
-Done when: the test compares the depth at the image centre of toy with an independently computed distance; screenshots in shots/depth/
-for `paper-windmill` and one `slice-banana` scene. Report in 5 lines, then stop.
+Done when: the test compares the depth at the image centre of toy with an independently
+computed distance; screenshots in shots/depth/ for `paper-windmill` and one `slice-banana`
+scene. Report in 5 lines, then stop.
 ```
 
 #### WP38 — viewing from another machine over SSH (human)
@@ -142,11 +165,15 @@ package for CC-A: lower the JPEG quality or the resolution while the camera is m
 
 #### WP40, task 3 — methods the professor asks for
 ```
-Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package" sections of docs/PLAN.md. Work in your own worktree.
-Task: for the methods the professor names in the table "Professor's feedback after the demo" (if the table is empty, stop and say so):
-for each method one short paragraph: official repository, output format, which type A/B/C/D it is, estimated effort to write the
-converter, whether it can be trained on a machine with a 12 GB GPU / 15 GB RAM. Look at the real repository, do not write from memory;
-do not write a converter in this package.
+Read .claude/CLAUDE.md and the "Conventions" and "Done criteria for every package"
+sections of docs/PLAN.md. Work in your own worktree.
+Task: for the methods the professor names in the table "Professor's feedback after the
+demo" (if the table is empty, stop and say so): for each method one short paragraph:
+official repository, output format, which type A/B/C/D it is, estimated effort to write
+the converter, whether it can be trained on a machine with a 12 GB GPU / 15 GB RAM. Look
+at the real repository, do not write from memory; do not write a converter in this
+package.
 Only edit files in docs/.
-Done when: every method named in the table has its paragraph. Report in 5 lines, then stop.
+Done when: every method named in the table has its paragraph. Report in 5 lines, then
+stop.
 ```
